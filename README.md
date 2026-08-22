@@ -22,33 +22,45 @@
 
 ## Как открыть проект
 
-Unity создаёт свои служебные папки (`ProjectSettings`, `Packages`, `Library`),
-которых нет в репозитории. Поэтому проект собирается в два шага.
+В репозитории лежит только код (`Assets/Scripts`, `Assets/Editor`,
+`Assets/Plugins`) — без `ProjectSettings`/`Packages`, которые генерирует сама
+Unity и которые зависят от версии редактора. Поэтому сначала создаётся пустой
+проект силами Unity, а наш код добавляется в него следующим шагом.
+
+Нужна Unity **2022 LTS или новее**, с установленным модулем
+**WebGL Build Support** (Unity Hub → Installs → шестерёнка на нужной версии →
+Add Modules). Если Unity вообще не установлена — сначала Unity Hub
+(unity.com/download), он сам предложит поставить редактор.
 
 **Шаг 1. Создать пустой проект Unity**
 
 Unity Hub → New Project → шаблон **3D (Built-in Render Pipeline)** → имя
-`EpicBattle3D_temp`, расположение — рабочий стол. Дождаться открытия, закрыть Unity.
+`EpicBattle3D` → расположение — куда угодно, например рабочий стол (**не** в
+папку с этим репозиторием — она уже содержит `Assets/`, Unity откажется
+создавать проект в непустой папке) → Create. Дождаться, пока Unity откроется,
+закрыть её.
 
-Нужна версия Unity **2022 LTS или новее**, с установленным модулем
-**WebGL Build Support** (Unity Hub → Installs → шестерёнка → Add Modules).
-
-**Шаг 2. Перенести служебные папки в репозиторий**
+**Шаг 2. Добавить код в проект**
 
 ```bash
-powershell -ExecutionPolicy Bypass -File setup.ps1 -TempProject "$env:USERPROFILE\Desktop\EpicBattle3D_temp"
+powershell -ExecutionPolicy Bypass -File setup.ps1 -UnityProject "$env:USERPROFILE\Desktop\EpicBattle3D"
 ```
 
-Скрипт скопирует `ProjectSettings` и `Packages` из временного проекта в
-`EpicBattle3D/`. После этого временный проект можно удалить.
+Скрипт скопирует `Scripts`, `Editor` и `Plugins` из этого репозитория в
+`Assets/` только что созданного Unity-проекта.
 
 **Шаг 3. Открыть и собрать**
 
-Unity Hub → Add → выбрать папку `EpicBattle3D` → открыть.
+Unity Hub → открыть тот же проект (`EpicBattle3D` на рабочем столе).
 Дальше в меню Unity: **Tools → Epic Battle 3D → BUILD EVERYTHING**.
 
 Эта команда генерирует текстуры и материалы, строит обе сцены и прописывает их
 в Build Settings. После неё открыть `Assets/Scenes/MainMenu.unity` и нажать Play.
+
+Дальнейшая разработка идёт в этом Unity-проекте на рабочем столе; изменения в
+`Assets/Scripts`, `Assets/Editor`, `Assets/Plugins` стоит время от времени
+копировать обратно в `EpicBattle3D/Assets/` этого репозитория и коммитить —
+именно эти три папки здесь версионируются.
 
 ## Проверка перед публикацией
 
