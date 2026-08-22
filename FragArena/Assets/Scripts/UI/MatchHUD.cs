@@ -1,8 +1,14 @@
+using System;
 using UnityEngine;
 using UnityEngine.UI;
 
 /// <summary>
 /// Live score readout plus the end-of-match results screen.
+///
+/// The interstitial ad sits on the buttons of the results screen — the gap
+/// between two matches. That is the moment Yandex recommends for fullscreen
+/// ads, and it never interrupts a fight in progress. If no ad is available the
+/// button behaves exactly as if there were no advertising at all.
 /// </summary>
 public class MatchHUD : MonoBehaviour
 {
@@ -11,6 +17,7 @@ public class MatchHUD : MonoBehaviour
     Text scoreText;
     GameObject resultsPanel;
     Text resultsText;
+    bool leavingMatch;
 
     void Start()
     {
@@ -63,15 +70,34 @@ public class MatchHUD : MonoBehaviour
                                            TextAnchor.MiddleCenter, Color.white,
                                            centre, centre, new Vector2(0f, 120f), new Vector2(900f, 200f));
 
-        UIFactory.CreateButton(resultsPanel.transform, "RestartButton", "Играть снова", 30,
+        UIFactory.CreateButton(resultsPanel.transform, "RestartButton", Localization.Get("play_again"), 30,
                                centre, centre, new Vector2(0f, -40f), new Vector2(340f, 70f),
-                               () => { if (MatchManager.Instance != null) MatchManager.Instance.RestartMatch(); });
+                               () => ShowAdThen(() =>
+                               {
+                                   if (MatchManager.Instance != null) MatchManager.Instance.RestartMatch();
+                               }));
 
-        UIFactory.CreateButton(resultsPanel.transform, "MenuButton", "В меню", 30,
+        UIFactory.CreateButton(resultsPanel.transform, "MenuButton", Localization.Get("to_menu"), 30,
                                centre, centre, new Vector2(0f, -130f), new Vector2(340f, 70f),
-                               () => { if (MatchManager.Instance != null) MatchManager.Instance.ReturnToMenu(); });
+                               () => ShowAdThen(() =>
+                               {
+                                   if (MatchManager.Instance != null) MatchManager.Instance.ReturnToMenu();
+                               }));
 
         resultsPanel.SetActive(false);
+    }
+
+    /// <summary>
+    /// Runs an interstitial, then does the thing the player asked for. The action
+    /// runs whether or not an ad appeared, so a missing or blocked ad can never
+    /// strand the player on the results screen.
+    /// </summary>
+    void ShowAdThen(Action continueAction)
+    {
+        if (leavingMatch) return;
+        leavingMatch = true;
+
+        YandexAds.ShowFullscreen(_ => continueAction());
     }
 
     void HandleScoreChanged(GameObject combatant, int score)
@@ -87,22 +113,39 @@ public class MatchHUD : MonoBehaviour
 
         GameObject leader = MatchManager.Instance.GetLeader();
         string leaderLine = leader != null
-            ? leader.name + " — " + MatchManager.Instance.GetScore(leader)
-            : "нет";
+            ? DisplayName(leader) + " — " + MatchManager.Instance.GetScore(leader)
+            : Localization.Get("nobody");
 
-        scoreText.text = "Ваши фраги: " + playerScore + "  /  до победы: " + MatchManager.Instance.fragLimit
-                         + "\nЛидер: " + leaderLine;
+        scoreText.text = Localization.Get("your_frags") + ": " + playerScore
+                         + "  /  " + Localization.Get("to_win") + ": " + MatchManager.Instance.fragLimit
+                         + "\n" + Localization.Get("leader") + ": " + leaderLine;
     }
 
-    void ShowResults(string winnerName, int winnerScore)
+    void ShowResults(GameObject winner, int winnerScore)
     {
         if (resultsPanel == null) return;
 
-        bool playerWon = player != null && winnerName == player.name;
-        resultsText.text = (playerWon ? "ПОБЕДА" : "ПОРАЖЕНИЕ")
-                           + "\n\nПобедитель: " + winnerName + " (" + winnerScore + ")";
+        bool playerWon = winner == player;
+        resultsText.text = Localization.Get(playerWon ? "victory" : "defeat")
+                           + "\n\n" + Localization.Get("winner") + ": " + DisplayName(winner)
+                           + " (" + winnerScore + ")";
 
         resultsPanel.SetActive(true);
         FirstPersonController.LockCursor(false);
+    }
+
+    /// <summary>
+    /// GameObject names are kept in English so scenes stay readable; the player
+    /// sees them translated.
+    /// </summary>
+    string DisplayName(GameObject combatant)
+    {
+        if (combatant == null) return Localization.Get("nobody");
+        if (combatant == player) return Localization.Get("player");
+
+        if (combatant.name.StartsWith("Bot"))
+            return Localization.Get("bot") + combatant.name.Substring(3);
+
+        return combatant.name;
     }
 }

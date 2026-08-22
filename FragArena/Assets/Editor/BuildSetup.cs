@@ -8,7 +8,7 @@ using UnityEngine;
 /// </summary>
 public static class BuildSetup
 {
-    [MenuItem("Tools/Pool FPS/BUILD EVERYTHING", priority = -100)]
+    [MenuItem("Tools/Frag Arena/BUILD EVERYTHING", priority = -100)]
     public static void BuildEverything()
     {
         GeneratedMaterials.Generate();
@@ -16,10 +16,10 @@ public static class BuildSetup
         MainMenuBuilder.BuildScene();
         ApplyBuildSettings();
 
-        Debug.Log("Pool FPS: project ready. Open Assets/Scenes/MainMenu.unity and press Play.");
+        Debug.Log("Frag Arena: project ready. Open Assets/Scenes/MainMenu.unity and press Play.");
     }
 
-    [MenuItem("Tools/Pool FPS/4 - Apply Build Settings")]
+    [MenuItem("Tools/Frag Arena/4 - Apply Build Settings")]
     public static void ApplyBuildSettings()
     {
         var scenes = new List<EditorBuildSettingsScene>
@@ -37,6 +37,6 @@ public static class BuildSetup
         PlayerSettings.WebGL.compressionFormat = WebGLCompressionFormat.Disabled;
         PlayerSettings.runInBackground = true;
 
-        Debug.Log("Pool FPS: build settings applied (MainMenu -> Pool, WebGL compression off).");
+        Debug.Log("Frag Arena: build settings applied (MainMenu -> Pool, WebGL compression off).");
     }
 }

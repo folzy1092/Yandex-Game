@@ -12,7 +12,7 @@ public static class GeneratedMaterials
     public const string TextureFolder = "Assets/Resources/Textures";
     public const string MaterialFolder = "Assets/Resources/Materials";
 
-    [MenuItem("Tools/Pool FPS/1 - Generate Materials")]
+    [MenuItem("Tools/Frag Arena/1 - Generate Materials")]
     public static void Generate()
     {
         Directory.CreateDirectory(TextureFolder);
@@ -53,7 +53,7 @@ public static class GeneratedMaterials
 
         AssetDatabase.SaveAssets();
         AssetDatabase.Refresh();
-        Debug.Log("Pool FPS: textures and materials generated in Assets/Resources.");
+        Debug.Log("Frag Arena: textures and materials generated in Assets/Resources.");
     }
 
     static void SaveSurface(string name, Texture2D texture, Vector2 tiling, float glossiness)
@@ -89,7 +89,7 @@ public static class GeneratedMaterials
     {
         var material = AssetDatabase.LoadAssetAtPath<Material>(MaterialFolder + "/" + materialName + ".mat");
         if (material == null)
-            Debug.LogWarning("Pool FPS: material " + materialName + " not found. Run Tools > Pool FPS > 1 - Generate Materials first.");
+            Debug.LogWarning("Frag Arena: material " + materialName + " not found. Run Tools > Frag Arena > 1 - Generate Materials first.");
         return material;
     }
 }

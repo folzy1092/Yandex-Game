@@ -18,6 +18,12 @@ public class Health : MonoBehaviour
     public int CurrentHealth { get; private set; }
     public bool IsAlive { get { return CurrentHealth > 0; } }
 
+    /// <summary>True while dead and counting down to respawn.</summary>
+    public bool IsWaitingToRespawn { get; private set; }
+
+    /// <summary>Seconds left before respawn, for the death screen countdown.</summary>
+    public float RespawnTimeRemaining { get; private set; }
+
     /// <summary>Fired with (current, max) whenever health changes, including on respawn.</summary>
     public event Action<int, int> OnHealthChanged;
 
@@ -53,12 +59,29 @@ public class Health : MonoBehaviour
             StartCoroutine(DieThenRespawn(attacker));
     }
 
+    /// <summary>
+    /// Ends the respawn wait immediately. Used by the "respawn now" reward the
+    /// player can earn by watching an ad.
+    /// </summary>
+    public void SkipRespawnWait()
+    {
+        if (IsWaitingToRespawn) RespawnTimeRemaining = 0f;
+    }
+
     IEnumerator DieThenRespawn(GameObject killer)
     {
         if (OnDied != null) OnDied(killer);
 
         SetAliveState(false);
-        yield return new WaitForSeconds(respawnDelay);
+
+        IsWaitingToRespawn = true;
+        RespawnTimeRemaining = respawnDelay;
+        while (RespawnTimeRemaining > 0f)
+        {
+            RespawnTimeRemaining -= Time.deltaTime;
+            yield return null;
+        }
+        IsWaitingToRespawn = false;
 
         MoveToSpawn();
         CurrentHealth = maxHealth;

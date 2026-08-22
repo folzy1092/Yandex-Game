@@ -22,8 +22,8 @@ public class MatchManager : MonoBehaviour
     /// <summary>Fired with (combatant, newScore) after every frag.</summary>
     public event Action<GameObject, int> OnScoreChanged;
 
-    /// <summary>Fired with (winnerName, winnerScore) when the frag limit is reached.</summary>
-    public event Action<string, int> OnMatchEnded;
+    /// <summary>Fired with (winner, winnerScore) when the frag limit is reached.</summary>
+    public event Action<GameObject, int> OnMatchEnded;
 
     readonly List<Health> combatants = new List<Health>();
     readonly Dictionary<GameObject, int> scores = new Dictionary<GameObject, int>();
@@ -90,13 +90,13 @@ public class MatchManager : MonoBehaviour
         if (OnScoreChanged != null) OnScoreChanged(killer, score);
 
         if (score >= fragLimit)
-            EndMatch(killer.name, score);
+            EndMatch(killer, score);
     }
 
-    void EndMatch(string winnerName, int winnerScore)
+    void EndMatch(GameObject winner, int winnerScore)
     {
         IsMatchRunning = false;
-        if (OnMatchEnded != null) OnMatchEnded(winnerName, winnerScore);
+        if (OnMatchEnded != null) OnMatchEnded(winner, winnerScore);
     }
 
     public void RestartMatch()
