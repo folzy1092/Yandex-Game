@@ -36,7 +36,7 @@ public static class PoolMapBuilder
 
     const float SlabThickness = 3f;
 
-    [MenuItem("Tools/Frag Arena/2 - Build Pool Scene")]
+    [MenuItem("Tools/Epic Battle 3D/2 - Build Pool Scene")]
     public static void BuildScene()
     {
         var scene = EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
@@ -53,7 +53,7 @@ public static class PoolMapBuilder
 
         Directory.CreateDirectory("Assets/Scenes");
         EditorSceneManager.SaveScene(scene, "Assets/Scenes/Pool.unity");
-        Debug.Log("Frag Arena: arena saved to Assets/Scenes/Pool.unity");
+        Debug.Log("Epic Battle 3D: arena saved to Assets/Scenes/Pool.unity");
     }
 
     // ---------- environment ----------

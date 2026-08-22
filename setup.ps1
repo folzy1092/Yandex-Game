@@ -3,7 +3,7 @@
 # Assets folder into a project Unity Hub can open.
 #
 # Usage:
-#   powershell -ExecutionPolicy Bypass -File setup.ps1 -TempProject "$env:USERPROFILE\Desktop\FragArena_temp"
+#   powershell -ExecutionPolicy Bypass -File setup.ps1 -TempProject "$env:USERPROFILE\Desktop\EpicBattle3D_temp"
 
 param(
     [Parameter(Mandatory = $true)]
@@ -13,7 +13,7 @@ param(
 $ErrorActionPreference = "Stop"
 
 $repoRoot = Split-Path -Parent $MyInvocation.MyCommand.Path
-$target = Join-Path $repoRoot "FragArena"
+$target = Join-Path $repoRoot "EpicBattle3D"
 
 if (-not (Test-Path $TempProject)) {
     throw "Temp project not found: $TempProject"
@@ -27,7 +27,7 @@ foreach ($folder in @("ProjectSettings", "Packages")) {
 
     $destination = Join-Path $target $folder
     if (Test-Path $destination) {
-        Write-Host "$folder already exists in FragArena - skipping."
+        Write-Host "$folder already exists in EpicBattle3D - skipping."
         continue
     }
 
@@ -38,4 +38,4 @@ foreach ($folder in @("ProjectSettings", "Packages")) {
 Write-Host ""
 Write-Host "Done. Now open Unity Hub -> Add -> select:"
 Write-Host "  $target"
-Write-Host "Then run the menu command: Tools > Frag Arena > BUILD EVERYTHING"
+Write-Host "Then run the menu command: Tools > Epic Battle 3D > BUILD EVERYTHING"

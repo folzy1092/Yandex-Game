@@ -9,7 +9,7 @@ using UnityEngine;
 /// </summary>
 public static class MainMenuBuilder
 {
-    [MenuItem("Tools/Frag Arena/3 - Build Main Menu Scene")]
+    [MenuItem("Tools/Epic Battle 3D/3 - Build Main Menu Scene")]
     public static void BuildScene()
     {
         var scene = EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
@@ -26,6 +26,6 @@ public static class MainMenuBuilder
 
         Directory.CreateDirectory("Assets/Scenes");
         EditorSceneManager.SaveScene(scene, "Assets/Scenes/MainMenu.unity");
-        Debug.Log("Frag Arena: main menu saved to Assets/Scenes/MainMenu.unity");
+        Debug.Log("Epic Battle 3D: main menu saved to Assets/Scenes/MainMenu.unity");
     }
 }

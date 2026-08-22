@@ -58,10 +58,8 @@ public class MainMenuUI : MonoBehaviour
                                                centre, centre, Vector2.zero, Vector2.zero);
         UIFactory.Stretch(background.gameObject);
 
-        UIFactory.CreateText(canvas.transform, "Title", "FRAG ARENA", 72, TextAnchor.MiddleCenter,
-                             new Color(0.35f, 0.70f, 1f),
-                             centre, centre, new Vector2(0f, 300f), new Vector2(900f, 100f));
-
+        // The title is language-dependent (ru/en spelling differs), so it is
+        // drawn once the language is resolved rather than here.
         loadingText = UIFactory.CreateText(canvas.transform, "Loading", Localization.Get("loading"), 30,
                                            TextAnchor.MiddleCenter, new Color(0.6f, 0.65f, 0.7f),
                                            centre, centre, Vector2.zero, new Vector2(600f, 60f));
@@ -71,6 +69,10 @@ public class MainMenuUI : MonoBehaviour
     {
         Transform root = canvas.transform;
         Vector2 centre = new Vector2(0.5f, 0.5f);
+
+        UIFactory.CreateText(root, "Title", Localization.Get("game_title"), 72, TextAnchor.MiddleCenter,
+                             new Color(0.35f, 0.70f, 1f),
+                             centre, centre, new Vector2(0f, 300f), new Vector2(900f, 100f));
 
         UIFactory.CreateText(root, "Subtitle", Localization.Get("subtitle"), 26, TextAnchor.MiddleCenter,
                              new Color(0.7f, 0.75f, 0.8f),

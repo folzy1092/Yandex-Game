@@ -1,4 +1,4 @@
-# Frag Arena
+# Epic Battle 3D
 
 Браузерный 3D-шутер от первого лица для Яндекс Игр. Бой всех против всех с
 ботами. Первая карта — Pool: бассейн, окружённый площадкой с укрытиями; карты
@@ -28,7 +28,7 @@ Unity создаёт свои служебные папки (`ProjectSettings`, 
 **Шаг 1. Создать пустой проект Unity**
 
 Unity Hub → New Project → шаблон **3D (Built-in Render Pipeline)** → имя
-`FragArena_temp`, расположение — рабочий стол. Дождаться открытия, закрыть Unity.
+`EpicBattle3D_temp`, расположение — рабочий стол. Дождаться открытия, закрыть Unity.
 
 Нужна версия Unity **2022 LTS или новее**, с установленным модулем
 **WebGL Build Support** (Unity Hub → Installs → шестерёнка → Add Modules).
@@ -36,16 +36,16 @@ Unity Hub → New Project → шаблон **3D (Built-in Render Pipeline)** →
 **Шаг 2. Перенести служебные папки в репозиторий**
 
 ```bash
-powershell -ExecutionPolicy Bypass -File setup.ps1 -TempProject "$env:USERPROFILE\Desktop\FragArena_temp"
+powershell -ExecutionPolicy Bypass -File setup.ps1 -TempProject "$env:USERPROFILE\Desktop\EpicBattle3D_temp"
 ```
 
 Скрипт скопирует `ProjectSettings` и `Packages` из временного проекта в
-`FragArena/`. После этого временный проект можно удалить.
+`EpicBattle3D/`. После этого временный проект можно удалить.
 
 **Шаг 3. Открыть и собрать**
 
-Unity Hub → Add → выбрать папку `FragArena` → открыть.
-Дальше в меню Unity: **Tools → Frag Arena → BUILD EVERYTHING**.
+Unity Hub → Add → выбрать папку `EpicBattle3D` → открыть.
+Дальше в меню Unity: **Tools → Epic Battle 3D → BUILD EVERYTHING**.
 
 Эта команда генерирует текстуры и материалы, строит обе сцены и прописывает их
 в Build Settings. После неё открыть `Assets/Scenes/MainMenu.unity` и нажать Play.
@@ -73,7 +73,7 @@ Unity Hub → Add → выбрать папку `FragArena` → открыть.
 
 ## Сборка под Яндекс Игры
 
-1. `File → Build Settings` → платформа **WebGL** → `Build`, папка вывода `FragArena/Build/WebGL`
+1. `File → Build Settings` → платформа **WebGL** → `Build`, папка вывода `EpicBattle3D/Build/WebGL`
 2. Проверить локально — WebGL нельзя открыть как файл, нужен HTTP:
 
 ```bash
@@ -107,7 +107,7 @@ SDK подключается динамически из `Assets/Plugins/WebGL/Y
 ## Структура кода
 
 ```
-FragArena/Assets/
+EpicBattle3D/Assets/
   Scripts/
     Core/    Health, Hitscan, MatchManager, SpawnManager, MatchSettings, Localization
     Player/  FirstPersonController, WeaponController, CursorRelease

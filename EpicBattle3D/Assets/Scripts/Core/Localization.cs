@@ -26,6 +26,7 @@ public static class Localization
 
     static readonly Dictionary<string, string> Russian = new Dictionary<string, string>
     {
+        { "game_title",    "ЭПИЧНАЯ БИТВА 3D" },
         { "subtitle",      "Бой всех против всех с ботами" },
         { "bots",          "Количество ботов" },
         { "frags",         "Фрагов до победы" },
@@ -50,6 +51,7 @@ public static class Localization
 
     static readonly Dictionary<string, string> English = new Dictionary<string, string>
     {
+        { "game_title",    "EPIC BATTLE 3D" },
         { "subtitle",      "Free-for-all deathmatch against bots" },
         { "bots",          "Number of bots" },
         { "frags",         "Frags to win" },
