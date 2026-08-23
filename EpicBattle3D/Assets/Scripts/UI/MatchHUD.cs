@@ -82,9 +82,11 @@ public class MatchHUD : MonoBehaviour
         UIFactory.CreateImage(root, "TimerBackground", new Color(0f, 0f, 0f, 0.5f),
                               topCentre, topCentre, new Vector2(0f, -40f), new Vector2(180f, 62f));
 
+        // Same anchor/pivot/position/size as TimerBackground: the text has to sit
+        // in exactly the same rect as its background, not just visually near it.
         timerText = UIFactory.CreateText(root, "TimerText", "5:00", 40, TextAnchor.MiddleCenter,
                                          Color.white, topCentre, topCentre,
-                                         new Vector2(0f, -71f), new Vector2(180f, 62f));
+                                         new Vector2(0f, -40f), new Vector2(180f, 62f));
 
         BuildResultsPanel(root);
     }

@@ -93,8 +93,7 @@ public class WeaponController : MonoBehaviour
 
         if (GameEffects.Instance != null)
         {
-            Transform attachTo = view != null && view.muzzle != null ? view.muzzle : null;
-            GameEffects.Instance.MuzzleFlash(muzzlePosition, playerCamera.transform.forward, attachTo);
+            GameEffects.Instance.MuzzleFlash(muzzlePosition, playerCamera.transform.forward);
             GameEffects.Instance.Tracer(muzzlePosition, shot.point, new Color(1f, 0.92f, 0.6f));
         }
 

@@ -112,13 +112,19 @@ public class GameEffects : MonoBehaviour
 
     // ---------- public API ----------
 
-    /// <summary>Bright flare at the muzzle. Parented so it follows a moving gun.</summary>
-    public void MuzzleFlash(Vector3 position, Vector3 forward, Transform attachTo)
+    /// <summary>
+    /// Bright flare at the muzzle. Placed at a world position rather than parented
+    /// to the gun: GameEffects survives scene reloads (DontDestroyOnLoad), and
+    /// parenting a pooled flash onto a gun transform would move it into that
+    /// gameplay scene — the next reload then destroys it along with the scene,
+    /// and the pool starts handing out MissingReferenceExceptions. A flash only
+    /// lives 55 ms, so it does not need to track a moving gun anyway.
+    /// </summary>
+    public void MuzzleFlash(Vector3 position, Vector3 forward)
     {
         Flash flash = flashes[nextFlash];
         nextFlash = (nextFlash + 1) % FlashCount;
 
-        flash.root.SetParent(attachTo, false);
         flash.root.position = position;
         flash.root.rotation = Quaternion.LookRotation(forward);
         flash.root.localScale = Vector3.one * 0.4f;

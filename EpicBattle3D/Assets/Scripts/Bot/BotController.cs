@@ -427,7 +427,7 @@ public class BotController : MonoBehaviour
 
         if (GameEffects.Instance != null)
         {
-            GameEffects.Instance.MuzzleFlash(muzzlePosition, transform.forward, muzzle);
+            GameEffects.Instance.MuzzleFlash(muzzlePosition, transform.forward);
             GameEffects.Instance.Tracer(muzzlePosition, shot.point, new Color(1f, 0.6f, 0.35f));
         }
 
