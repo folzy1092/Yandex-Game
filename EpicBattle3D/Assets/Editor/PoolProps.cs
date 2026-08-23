@@ -85,9 +85,11 @@ public static class PoolProps
         MapBlocks.Box(parent, "Crate", position,
                       new Vector3(1.3f, MapBlocks.MediumCover, 1.1f), palette.metal, yaw);
 
-        MapBlocks.NoShadows(MapBlocks.BoxAt(parent, "CrateLid",
+        // Decorative only: this used to keep its collider, which quietly raised
+        // the crate's effective blocking height above MediumCover.
+        MapBlocks.NoCollision(MapBlocks.NoShadows(MapBlocks.BoxAt(parent, "CrateLid",
             position + Vector3.up * (MapBlocks.MediumCover + 0.04f),
-            new Vector3(1.38f, 0.08f, 1.18f), palette.accent, new Vector3(0f, yaw, 0f)));
+            new Vector3(1.38f, 0.08f, 1.18f), palette.accent, new Vector3(0f, yaw, 0f))));
     }
 
     /// <summary>Pump housing with pipework running out of it.</summary>

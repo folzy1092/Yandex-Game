@@ -8,13 +8,18 @@ using UnityEngine;
 /// piece of cover is *is* its gameplay role:
 ///
 ///   Low    0.9 m — shoot over it standing, hide behind it crouched
-///   Medium 1.4 m — breaks aim at range, still shootable over up close
+///   Medium 1.15 m — breaks aim at range, reliably shootable over up close
 ///   High   2.6 m — cuts the sightline completely
+///
+/// Medium cover sits well below the player's 1.6 m eye height on purpose:
+/// close enough to still read as proper cover, but with enough headroom that
+/// aiming a little downward at a target's torso up close does not clip the
+/// top of the cover you are shooting over.
 /// </summary>
 public static class MapBlocks
 {
     public const float LowCover = 0.9f;
-    public const float MediumCover = 1.4f;
+    public const float MediumCover = 1.15f;
     public const float HighCover = 2.6f;
 
     public static GameObject Group(string name, Transform parent = null)
