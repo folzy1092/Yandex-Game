@@ -47,7 +47,6 @@ public static class BotFactory
         var health = bot.AddComponent<Health>();
         health.maxHealth = 100;
         health.respawnDelay = 3f;
-        health.disableOnDeath = new MonoBehaviour[] { botController };
 
         CharacterModel.Parts parts = CharacterModel.Build(bot, health, bodyMaterial, headMaterial, false);
 
@@ -61,6 +60,17 @@ public static class BotFactory
         animator.rightLegPivot = parts.rightLegPivot;
         animator.leftArmPivot = parts.leftArmPivot;
         animator.rightArmPivot = parts.rightArmPivot;
+
+        var deathFall = bot.AddComponent<DeathFall>();
+        deathFall.model = parts.root;
+        deathFall.leftLegPivot = parts.leftLegPivot;
+        deathFall.rightLegPivot = parts.rightLegPivot;
+        deathFall.leftArmPivot = parts.leftArmPivot;
+        deathFall.rightArmPivot = parts.rightArmPivot;
+
+        // The walk cycle has to stop on death, or it would fight DeathFall for
+        // control of the same limb pivots.
+        health.disableOnDeath = new MonoBehaviour[] { botController, animator };
 
         return bot;
     }

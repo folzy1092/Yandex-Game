@@ -124,6 +124,7 @@ public static class GeneratedMaterials
         SaveFlatMaterial("Mat_Wood", new Color(0.52f, 0.38f, 0.24f), 0.18f);          // benches, tower
         SaveFlatMaterial("Mat_Plant", new Color(0.24f, 0.46f, 0.22f), 0.14f);         // foliage
         SaveFlatMaterial("Mat_Accent", new Color(0.16f, 0.62f, 0.62f), 0.35f);        // turquoise fittings
+        SaveFlatMaterial("Mat_LaneMarking", new Color(0.09f, 0.20f, 0.34f), 0.5f);    // pool lane stripes
     }
 
     /// <summary>

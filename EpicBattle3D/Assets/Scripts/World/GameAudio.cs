@@ -22,6 +22,7 @@ public class GameAudio : MonoBehaviour
     AudioClip footstep;
     AudioClip hitmarker;
     AudioClip respawn;
+    AudioClip bodyFall;
 
     AudioSource[] voices;
     int nextVoice;
@@ -65,6 +66,8 @@ public class GameAudio : MonoBehaviour
         footstep = ProceduralAudio.CreateFootstep("Footstep", 0.13f, 1008);
         hitmarker = ProceduralAudio.CreateClick("Hitmarker", 0.05f, 2100f, 150f, 1009);
         respawn = ProceduralAudio.CreateRespawnChime("Respawn");
+        // Heavier and duller than a footstep: a whole body hitting tile.
+        bodyFall = ProceduralAudio.CreateFootstep("BodyFall", 0.28f, 1010);
     }
 
     void CreateVoices()
@@ -98,6 +101,7 @@ public class GameAudio : MonoBehaviour
     public void PlayFleshImpact(Vector3 position) { Play(impactFlesh, position, 0.55f, 1f, 0.15f); }
     public void PlayFootstep(Vector3 position) { Play(footstep, position, 0.25f, 1f, 0.15f); }
     public void PlayRespawn(Vector3 position) { Play(respawn, position, 0.45f, 1f, 0f); }
+    public void PlayBodyFall(Vector3 position) { Play(bodyFall, position, 0.5f, 0.65f, 0.1f); }
 
     /// <summary>
     /// The hit confirmation tick. Played flat (not positioned in the world)

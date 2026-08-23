@@ -47,6 +47,8 @@ public class Health : MonoBehaviour
 
     CharacterController controller;
     Renderer[] renderers;
+    Collider[] hitboxColliders;
+    bool renderersStartHidden;
     float lastDamageTime;
     float regenerationCarry;
 
@@ -54,11 +56,24 @@ public class Health : MonoBehaviour
     {
         CurrentHealth = maxHealth;
         controller = GetComponent<CharacterController>();
-        renderers = GetComponentsInChildren<Renderer>();
     }
 
     void Start()
     {
+        // Collected here rather than in Awake: bots are assembled in code, and
+        // their body and hitboxes are attached after AddComponent<Health> has
+        // already run Awake. By Start the model is always complete.
+        renderers = GetComponentsInChildren<Renderer>();
+
+        // Remember whether this character was built invisible (the first-person
+        // player), so respawning never turns their own body back on.
+        renderersStartHidden = renderers.Length > 0 && !renderers[0].enabled;
+
+        Hitbox[] hitboxes = GetComponentsInChildren<Hitbox>();
+        hitboxColliders = new Collider[hitboxes.Length];
+        for (int i = 0; i < hitboxes.Length; i++)
+            hitboxColliders[i] = hitboxes[i].GetComponent<Collider>();
+
         if (MatchManager.Instance != null)
             MatchManager.Instance.Register(this);
     }
@@ -127,6 +142,11 @@ public class Health : MonoBehaviour
         }
         IsWaitingToRespawn = false;
 
+        // The body stays visible while it lies there, and is only hidden for the
+        // instant it takes to teleport — otherwise the corpse would appear to
+        // snap across the map to the spawn point.
+        SetRenderersVisible(false);
+
         MoveToSpawn();
         CurrentHealth = maxHealth;
         // A fresh life should not inherit the previous one's regeneration timer.
@@ -158,11 +178,27 @@ public class Health : MonoBehaviour
     {
         controller.enabled = alive;
 
-        for (int i = 0; i < renderers.Length; i++)
-            if (renderers[i] != null) renderers[i].enabled = alive;
+        if (alive) SetRenderersVisible(true);
+
+        // Hitboxes must stop registering the moment someone dies. TakeDamage
+        // already refuses damage to the dead, but a live collider on a corpse
+        // would still stop bullets in mid-air on their way to someone behind it.
+        for (int i = 0; i < hitboxColliders.Length; i++)
+            if (hitboxColliders[i] != null) hitboxColliders[i].enabled = alive;
 
         if (disableOnDeath == null) return;
         for (int i = 0; i < disableOnDeath.Length; i++)
             if (disableOnDeath[i] != null) disableOnDeath[i].enabled = alive;
+    }
+
+    void SetRenderersVisible(bool visible)
+    {
+        // A first-person player's own body is hidden permanently by whoever built
+        // it; re-enabling it on respawn would put their own head in front of the
+        // camera, so their renderers are left out of this entirely.
+        if (renderersStartHidden) return;
+
+        for (int i = 0; i < renderers.Length; i++)
+            if (renderers[i] != null) renderers[i].enabled = visible;
     }
 }
