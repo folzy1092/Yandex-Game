@@ -1,4 +1,5 @@
 using System;
+using System.Collections;
 using UnityEngine;
 
 /// <summary>
@@ -6,9 +7,13 @@ using UnityEngine;
 ///
 /// This is the map boundary, and it is deliberately not a wall. Strength falls
 /// off with distance: the picture degrades first, warning the pilot they are
-/// pushing it, and only past the hard limit is the drone lost. A player who
-/// wanders off gets a reason they can see and feel, instead of bouncing off
-/// something invisible.
+/// pushing it, and past the hard limit the link drops. A player who wanders off
+/// gets a reason they can see and feel, instead of bouncing off something
+/// invisible.
+///
+/// Losing the link cuts the motors immediately, so the drone starts falling,
+/// and the payload self-destructs a couple of seconds later — which is what a
+/// real one does rather than leaving live ordnance lying in a field.
 /// </summary>
 public class SignalLink : MonoBehaviour
 {
@@ -18,6 +23,9 @@ public class SignalLink : MonoBehaviour
     /// <summary>Distance at which the link drops entirely.</summary>
     public float maximumRange = 400f;
 
+    /// <summary>Seconds between losing the link and the payload going off.</summary>
+    public float selfDestructDelay = 2f;
+
     /// <summary>Link quality, 1 = clean, 0 = lost.</summary>
     public float Strength { get; private set; }
 
@@ -26,15 +34,21 @@ public class SignalLink : MonoBehaviour
 
     public bool IsLost { get; private set; }
 
-    /// <summary>Fired once when the link drops.</summary>
+    /// <summary>
+    /// Fired the moment the link drops, for the warning on screen. The drone is
+    /// not counted as lost here — that happens when the payload detonates, so
+    /// the mission only ever counts it once.
+    /// </summary>
     public event Action OnLost;
 
     Vector3 launchPoint;
     DroneController drone;
+    Warhead warhead;
 
     void Awake()
     {
         drone = GetComponent<DroneController>();
+        warhead = GetComponent<Warhead>();
         launchPoint = transform.position;
         Strength = 1f;
     }
@@ -62,5 +76,16 @@ public class SignalLink : MonoBehaviour
         IsLost = true;
         if (drone != null) drone.CutPower();
         if (OnLost != null) OnLost();
+
+        StartCoroutine(SelfDestruct());
+    }
+
+    IEnumerator SelfDestruct()
+    {
+        yield return new WaitForSeconds(selfDestructDelay);
+
+        // Detonating rather than just vanishing also routes the loss through the
+        // warhead, which is the single place the mission counts a drone as gone.
+        if (warhead != null && !warhead.HasDetonated) warhead.Detonate();
     }
 }

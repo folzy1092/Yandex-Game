@@ -13,7 +13,7 @@ using UnityEngine;
 public class Warhead : MonoBehaviour
 {
     [Header("Blast")]
-    public WarheadType type = WarheadType.Standard;
+    public WarheadType type = WarheadType.Compact;
 
     /// <summary>Impact speed, in m/s, needed to set the warhead off.</summary>
     public float armingSpeed = 4f;

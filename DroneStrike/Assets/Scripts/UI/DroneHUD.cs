@@ -25,6 +25,9 @@ public class DroneHUD : MonoBehaviour
     Text resultTitle;
     Text resultDetail;
 
+    Text signalLostBanner;
+    float signalLostUntil;
+
     void Start()
     {
         UIFactory.EnsureEventSystem();
@@ -34,6 +37,7 @@ public class DroneHUD : MonoBehaviour
         {
             MissionManager.Instance.OnStateChanged += RefreshMission;
             MissionManager.Instance.OnMissionEnded += ShowResult;
+            MissionManager.Instance.OnSignalLost += ShowSignalLost;
             RefreshMission();
         }
 
@@ -45,10 +49,13 @@ public class DroneHUD : MonoBehaviour
         if (MissionManager.Instance == null) return;
         MissionManager.Instance.OnStateChanged -= RefreshMission;
         MissionManager.Instance.OnMissionEnded -= ShowResult;
+        MissionManager.Instance.OnSignalLost -= ShowSignalLost;
     }
 
     void Update()
     {
+        UpdateSignalLostBanner();
+
         MissionManager mission = MissionManager.Instance;
         DroneRig drone = mission != null ? mission.ActiveDrone : null;
 
@@ -144,6 +151,13 @@ public class DroneHUD : MonoBehaviour
         missionText = UIFactory.CreateText(root, "Mission", "", 28, TextAnchor.UpperLeft,
                                            Color.white, topLeft, topLeft,
                                            new Vector2(50f, -50f), new Vector2(600f, 100f));
+
+        signalLostBanner = UIFactory.CreateText(root, "SignalLost", "СИГНАЛ ПОТЕРЯН", 54,
+                                                TextAnchor.MiddleCenter,
+                                                new Color(0.95f, 0.35f, 0.3f),
+                                                centre, centre, new Vector2(0f, 90f),
+                                                new Vector2(900f, 80f));
+        signalLostBanner.gameObject.SetActive(false);
 
         BuildResultPanel(root);
     }
@@ -301,6 +315,37 @@ public class DroneHUD : MonoBehaviour
     }
 
     // ---------- state ----------
+
+    /// <summary>
+    /// Flashes the lost-link warning. It stays up for the couple of seconds
+    /// between the link dropping and the payload self-destructing, so the player
+    /// understands why the drone just died rather than seeing it fall for no
+    /// visible reason.
+    /// </summary>
+    void ShowSignalLost()
+    {
+        if (signalLostBanner == null) return;
+
+        signalLostUntil = Time.time + 2f;
+        signalLostBanner.gameObject.SetActive(true);
+    }
+
+    void UpdateSignalLostBanner()
+    {
+        if (signalLostBanner == null || !signalLostBanner.gameObject.activeSelf) return;
+
+        if (Time.time >= signalLostUntil)
+        {
+            signalLostBanner.gameObject.SetActive(false);
+            return;
+        }
+
+        // Blink, so it reads as an alarm rather than a label.
+        float blink = Mathf.PingPong(Time.time * 6f, 1f);
+        Color colour = signalLostBanner.color;
+        colour.a = Mathf.Lerp(0.35f, 1f, blink);
+        signalLostBanner.color = colour;
+    }
 
     void RefreshMission()
     {

@@ -22,8 +22,12 @@ public class MissionManager : MonoBehaviour
     public GameObject dronePrefabRoot;
     public int droneCount = 3;
 
-    /// <summary>Which charge the drones carry. Chosen in the briefing on a later stage.</summary>
-    public WarheadType warhead = WarheadType.Standard;
+    /// <summary>
+    /// Which charge the drones carry. Chosen in the briefing on a later stage.
+    /// Compact by default: the lighter drone is far more pleasant to fly, and
+    /// most of the targets on this map do not need the bigger charge.
+    /// </summary>
+    public WarheadType warhead = WarheadType.Compact;
 
     /// <summary>Seconds between losing a drone and the next one launching.</summary>
     public float relaunchDelay = 2.5f;
@@ -42,7 +46,18 @@ public class MissionManager : MonoBehaviour
     /// <summary>Fired with (won) when the mission ends.</summary>
     public event Action<bool> OnMissionEnded;
 
+    /// <summary>Fired when the active drone loses its link, for the on-screen warning.</summary>
+    public event Action OnSignalLost;
+
     readonly List<Target> targets = new List<Target>();
+
+    /// <summary>
+    /// Guards against counting the same drone twice. A drone can meet several
+    /// ends at once — the link drops, it falls, and the impact and the
+    /// self-destruct both fire — and without this the rack would empty several
+    /// times over from a single loss.
+    /// </summary>
+    bool activeDroneLost;
 
     void Awake()
     {
@@ -120,19 +135,30 @@ public class MissionManager : MonoBehaviour
         ActiveDrone = DroneFactory.Create(position, rotation, warhead);
         ActiveDrone.SignalLink.SetLaunchPoint(position);
 
-        // Every way of losing a drone funnels through the same handler, so the
-        // rules stay in one place no matter how it happened.
+        activeDroneLost = false;
+
+        // Every way of losing a drone funnels through the same handler.
         ActiveDrone.Warhead.OnDetonated += HandleDroneLost;
         ActiveDrone.Battery.OnDepleted += HandleDroneLost;
-        ActiveDrone.SignalLink.OnLost += HandleDroneLost;
         ActiveDrone.Impact.OnCrashed += HandleDroneLost;
+
+        // Losing the link is not a loss by itself: the drone falls and its
+        // payload self-destructs, and that detonation is what counts. This only
+        // raises the warning on screen.
+        ActiveDrone.SignalLink.OnLost += HandleSignalLost;
 
         Notify();
     }
 
+    void HandleSignalLost()
+    {
+        if (OnSignalLost != null) OnSignalLost();
+    }
+
     void HandleDroneLost()
     {
-        if (!IsRunning) return;
+        if (!IsRunning || activeDroneLost) return;
+        activeDroneLost = true;
 
         DronesRemaining--;
         Notify();
