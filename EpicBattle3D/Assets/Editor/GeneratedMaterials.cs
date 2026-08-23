@@ -55,6 +55,8 @@ public static class GeneratedMaterials
         SaveFlatMaterial("Mat_Gun", new Color(0.16f, 0.17f, 0.19f), 0.55f, 0.7f);
         SaveFlatMaterial("Mat_GunAccent", new Color(0.42f, 0.44f, 0.48f), 0.75f, 0.9f);
 
+        BuildPoolComplexMaterials();
+
         SaveEffectMaterials();
 
         AssetDatabase.SaveAssets();
@@ -62,7 +64,8 @@ public static class GeneratedMaterials
         Debug.Log("Epic Battle 3D: textures and materials generated in Assets/Resources.");
     }
 
-    static void SaveSurface(string name, Texture2D texture, Vector2 tiling, float glossiness)
+    static void SaveSurface(string name, Texture2D texture, Vector2 tiling, float glossiness,
+                            float metallic = 0f)
     {
         string texturePath = TextureFolder + "/Tex_" + name + ".asset";
         AssetDatabase.DeleteAsset(texturePath);
@@ -72,7 +75,7 @@ public static class GeneratedMaterials
         material.mainTexture = texture;
         material.mainTextureScale = tiling;
         material.SetFloat("_Glossiness", glossiness);
-        material.SetFloat("_Metallic", 0f);
+        material.SetFloat("_Metallic", metallic);
 
         string materialPath = MaterialFolder + "/Mat_" + name + ".mat";
         AssetDatabase.DeleteAsset(materialPath);
@@ -89,6 +92,38 @@ public static class GeneratedMaterials
         string path = MaterialFolder + "/" + name + ".mat";
         AssetDatabase.DeleteAsset(path);
         AssetDatabase.CreateAsset(material, path);
+    }
+
+    /// <summary>
+    /// Surfaces for the pool complex itself: its furniture, plant room and decor.
+    ///
+    /// The palette is the faded seaside one the design calls for — turquoise,
+    /// white, grey, yellow and washed-out orange — chosen so the players' saturated
+    /// team colours read clearly against it rather than competing with it.
+    /// </summary>
+    static void BuildPoolComplexMaterials()
+    {
+        // Weathered poured concrete for kerbs, benches and the stands.
+        SaveSurface("Concrete",
+            ProceduralTextures.CreateConcrete(512, new Color(0.66f, 0.65f, 0.62f), 0.28f, 606),
+            new Vector2(3f, 3f), 0.08f);
+
+        // Brushed metal for lockers, pumps, pipework and railings.
+        SaveSurface("Metal",
+            ProceduralTextures.CreateConcrete(256, new Color(0.55f, 0.58f, 0.62f), 0.16f, 707),
+            new Vector2(2f, 2f), 0.62f, 0.55f);
+
+        // Wall tiling for the showers, finer than the basin's.
+        SaveSurface("WallTile",
+            ProceduralTextures.CreateTiles(512, 12, new Color(0.80f, 0.83f, 0.82f),
+                                           new Color(0.55f, 0.57f, 0.56f), 0.05f, 808),
+            new Vector2(4f, 2f), 0.35f);
+
+        SaveFlatMaterial("Mat_Plastic", new Color(0.88f, 0.89f, 0.87f), 0.45f);       // loungers
+        SaveFlatMaterial("Mat_Fabric", new Color(0.90f, 0.52f, 0.22f), 0.12f);        // parasols, canopy
+        SaveFlatMaterial("Mat_Wood", new Color(0.52f, 0.38f, 0.24f), 0.18f);          // benches, tower
+        SaveFlatMaterial("Mat_Plant", new Color(0.24f, 0.46f, 0.22f), 0.14f);         // foliage
+        SaveFlatMaterial("Mat_Accent", new Color(0.16f, 0.62f, 0.62f), 0.35f);        // turquoise fittings
     }
 
     /// <summary>
