@@ -48,6 +48,10 @@ public static class Localization
         { "results",       "ИТОГИ МАТЧА" },
         { "draw",          "НИЧЬЯ" },
         { "time_up",       "ВРЕМЯ ВЫШЛО" },
+        { "difficulty",    "Сложность" },
+        { "easy",          "Лёгкая" },
+        { "normal",        "Средняя" },
+        { "hard",          "Сложная" },
         { "player",        "Игрок" },
         { "bot",           "Бот" }
     };
@@ -76,6 +80,10 @@ public static class Localization
         { "results",       "MATCH RESULTS" },
         { "draw",          "DRAW" },
         { "time_up",       "TIME UP" },
+        { "difficulty",    "Difficulty" },
+        { "easy",          "Easy" },
+        { "normal",        "Normal" },
+        { "hard",          "Hard" },
         { "player",        "Player" },
         { "bot",           "Bot" }
     };

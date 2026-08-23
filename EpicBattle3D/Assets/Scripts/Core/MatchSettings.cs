@@ -14,4 +14,7 @@ public static class MatchSettings
 
     public static int BotCount = DefaultBots;
     public static int FragLimit = DefaultFrags;
+
+    /// <summary>How sharp the bots are. Chosen on the main menu.</summary>
+    public static BotDifficulty Difficulty = BotDifficulty.Normal;
 }

@@ -30,10 +30,25 @@ public class Health : MonoBehaviour
     /// <summary>Fired when health reaches zero. The argument is the killer, or null if unknown.</summary>
     public event Action<GameObject> OnDied;
 
+    /// <summary>
+    /// Fired with (attacker, amount) on every hit that lands. Bots listen to this
+    /// so being shot from behind makes them turn round instead of walking on.
+    /// </summary>
+    public event Action<GameObject, int> OnDamaged;
+
     public event Action OnRespawned;
+
+    [Header("Regeneration")]
+    /// <summary>Seconds of not being shot before health starts coming back.</summary>
+    public float regenerationDelay = 6f;
+
+    /// <summary>Health per second once regeneration starts. Zero disables it.</summary>
+    public float regenerationRate = 11f;
 
     CharacterController controller;
     Renderer[] renderers;
+    float lastDamageTime;
+    float regenerationCarry;
 
     void Awake()
     {
@@ -48,12 +63,41 @@ public class Health : MonoBehaviour
             MatchManager.Instance.Register(this);
     }
 
+    void Update()
+    {
+        Regenerate();
+    }
+
+    /// <summary>
+    /// Slow health recovery out of combat, applied to everyone equally. Without
+    /// it a bot that survives a fight on 8 health is simply doomed, which makes
+    /// its decision to back off pointless.
+    /// </summary>
+    void Regenerate()
+    {
+        if (!IsAlive || regenerationRate <= 0f) return;
+        if (CurrentHealth >= maxHealth) return;
+        if (Time.time - lastDamageTime < regenerationDelay) return;
+
+        regenerationCarry += regenerationRate * Time.deltaTime;
+        int whole = Mathf.FloorToInt(regenerationCarry);
+        if (whole <= 0) return;
+
+        regenerationCarry -= whole;
+        CurrentHealth = Mathf.Min(maxHealth, CurrentHealth + whole);
+        if (OnHealthChanged != null) OnHealthChanged(CurrentHealth, maxHealth);
+    }
+
     public void TakeDamage(int amount, GameObject attacker)
     {
         if (!IsAlive || amount <= 0) return;
 
         CurrentHealth = Mathf.Max(0, CurrentHealth - amount);
+        lastDamageTime = Time.time;
+        regenerationCarry = 0f;
+
         if (OnHealthChanged != null) OnHealthChanged(CurrentHealth, maxHealth);
+        if (OnDamaged != null) OnDamaged(attacker, amount);
 
         if (CurrentHealth == 0)
             StartCoroutine(DieThenRespawn(attacker));
@@ -85,6 +129,9 @@ public class Health : MonoBehaviour
 
         MoveToSpawn();
         CurrentHealth = maxHealth;
+        // A fresh life should not inherit the previous one's regeneration timer.
+        lastDamageTime = Time.time;
+        regenerationCarry = 0f;
         if (OnHealthChanged != null) OnHealthChanged(CurrentHealth, maxHealth);
 
         SetAliveState(true);

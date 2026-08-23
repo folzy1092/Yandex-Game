@@ -23,6 +23,7 @@ public class MainMenuUI : MonoBehaviour
     Text fragLabel;
     Text loadingText;
     Canvas canvas;
+    Button[] difficultyButtons;
 
     void Start()
     {
@@ -96,14 +97,70 @@ public class MainMenuUI : MonoBehaviour
                                             centre, centre, new Vector2(0f, -70f), new Vector2(600f, 30f));
         fragSlider.onValueChanged.AddListener(_ => RefreshLabels());
 
+        BuildDifficultyRow(root, centre);
+
         UIFactory.CreateButton(root, "StartButton", Localization.Get("play"), 36,
-                               centre, centre, new Vector2(0f, -190f), new Vector2(360f, 80f), StartMatch);
+                               centre, centre, new Vector2(0f, -260f), new Vector2(360f, 80f), StartMatch);
 
         UIFactory.CreateText(root, "Controls", Localization.Get("controls"),
                              22, TextAnchor.MiddleCenter, new Color(0.6f, 0.65f, 0.7f),
-                             centre, centre, new Vector2(0f, -320f), new Vector2(1100f, 80f));
+                             centre, centre, new Vector2(0f, -370f), new Vector2(1100f, 80f));
 
         RefreshLabels();
+        RefreshDifficultyButtons();
+    }
+
+    /// <summary>
+    /// Three buttons rather than a slider: difficulty is a named choice, and a
+    /// slider would make the player guess what position means what.
+    /// </summary>
+    void BuildDifficultyRow(Transform root, Vector2 centre)
+    {
+        UIFactory.CreateText(root, "DifficultyLabel", Localization.Get("difficulty"), 30,
+                             TextAnchor.MiddleLeft, Color.white,
+                             centre, centre, new Vector2(-300f, -140f), new Vector2(600f, 45f));
+
+        var difficulties = new[] { BotDifficulty.Easy, BotDifficulty.Normal, BotDifficulty.Hard };
+        var keys = new[] { "easy", "normal", "hard" };
+
+        difficultyButtons = new Button[difficulties.Length];
+
+        const float buttonWidth = 190f;
+        const float gap = 10f;
+        float totalWidth = difficulties.Length * buttonWidth + (difficulties.Length - 1) * gap;
+        float startX = -totalWidth * 0.5f + buttonWidth * 0.5f;
+
+        for (int i = 0; i < difficulties.Length; i++)
+        {
+            BotDifficulty difficulty = difficulties[i];
+
+            difficultyButtons[i] = UIFactory.CreateButton(root, "Difficulty" + difficulty,
+                Localization.Get(keys[i]), 26, centre, centre,
+                new Vector2(startX + i * (buttonWidth + gap), -190f),
+                new Vector2(buttonWidth, 56f),
+                () =>
+                {
+                    MatchSettings.Difficulty = difficulty;
+                    RefreshDifficultyButtons();
+                });
+        }
+    }
+
+    void RefreshDifficultyButtons()
+    {
+        if (difficultyButtons == null) return;
+
+        var difficulties = new[] { BotDifficulty.Easy, BotDifficulty.Normal, BotDifficulty.Hard };
+
+        for (int i = 0; i < difficultyButtons.Length; i++)
+        {
+            bool selected = MatchSettings.Difficulty == difficulties[i];
+
+            var image = difficultyButtons[i].GetComponent<Image>();
+            image.color = selected
+                ? new Color(0.20f, 0.60f, 0.95f)
+                : new Color(0.18f, 0.20f, 0.24f);
+        }
     }
 
     void RefreshLabels()
