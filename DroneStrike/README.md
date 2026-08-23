@@ -20,11 +20,14 @@
 | W / S | наклон вперёд / назад — полёт в ту же сторону |
 | A / D | крен влево / вправо — снос вбок |
 | Space / Ctrl | газ вверх / вниз |
-| Мышь | разворот |
-| ЛКМ | подрыв вручную |
+| Мышь влево-вправо | разворот дрона |
+| Мышь вверх-вниз | наклон камеры |
+| Esc | освободить курсор |
 
-Камера жёстко закреплена на раме, как настоящая FPV-камера, и наклоняется
-вместе с дроном.
+Камера на стабилизированном подвесе: она держит позицию и курс дрона, но
+игнорирует его крен и тангаж. Жёстко закреплённая камера дезориентирует —
+при разгоне вперёд весь обзор утыкается в землю, а в вираже заваливается
+горизонт. Боевая часть срабатывает только от удара, вручную не подрывается.
 
 ## Как запустить
 
@@ -63,8 +66,9 @@ powershell -ExecutionPolicy Bypass -File setup.ps1 -Game DroneStrike -UnityProje
 ```
 DroneStrike/Assets/
   Scripts/
-    Drone/    DroneController (физика), Warhead, DroneBattery, SignalLink,
-              DroneImpact, DroneRig, DroneFactory, RotorSpin
+    Drone/    DroneController (физика), DroneCameraGimbal, Warhead,
+              DroneBattery, SignalLink, DroneImpact, DroneRig, DroneFactory,
+              RotorSpin
     World/    Target, TerrainMesh, ProceduralTextures, ProceduralAudio,
               GameAudio, GameEffects
     Mission/  MissionManager
@@ -75,6 +79,7 @@ DroneStrike/Assets/
     DroneMaterials         текстуры и материалы как ассеты
     TargetProps            техника, постройки, деревья
     IndustrialZoneBuilder  сцена миссии
+    InputSettingsSetup     переключение на legacy Input
     DroneBuildSetup        команда «собрать всё»
 ```
 
@@ -83,6 +88,7 @@ DroneStrike/Assets/
 | Что | Где |
 |-----|-----|
 | Скорость, наклон, тяга | `DroneController` |
+| Чувствительность и пределы камеры | `DroneCameraGimbal` |
 | Урон и радиус взрыва | `Warhead` |
 | Прочность и очки целей | `Target.MaxHealth`, `Target.Points` |
 | Время полёта | `DroneBattery.hoverEndurance` |

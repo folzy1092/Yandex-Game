@@ -33,12 +33,9 @@ public class Warhead : MonoBehaviour
         drone = GetComponent<DroneController>();
     }
 
-    void Update()
-    {
-        // Manual detonation, for finishing a target the drone is sitting next to.
-        if (!HasDetonated && Input.GetMouseButtonDown(0))
-            Detonate();
-    }
+    // No manual trigger: the mouse aims the camera, and losing the drone every
+    // time the pilot clicked was worse than useless. The warhead goes off on
+    // impact and nothing else.
 
     void OnCollisionEnter(Collision collision)
     {

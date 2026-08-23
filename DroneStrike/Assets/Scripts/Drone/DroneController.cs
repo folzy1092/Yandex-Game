@@ -116,10 +116,13 @@ public class DroneController : MonoBehaviour
         float pitchInput = Input.GetAxisRaw("Vertical");     // W / S
         float rollInput = Input.GetAxisRaw("Horizontal");    // A / D
 
-        // Nose down for forward: tilting the thrust vector forward is what
-        // actually moves a quadcopter, so W has to pitch the nose down.
-        float targetPitch = -pitchInput * maxTilt;
-        float targetRoll = rollInput * maxTilt;
+        // Nose down for forward: tilting the thrust vector forward is what moves
+        // a quadcopter. In Unity a positive X rotation pitches the nose down and
+        // a positive Z rotation rolls left, so W is positive pitch and D is
+        // negative roll. Both signs were inverted before, which had W flying the
+        // drone backwards and D sliding it left.
+        float targetPitch = pitchInput * maxTilt;
+        float targetRoll = -rollInput * maxTilt;
 
         if (mode == FlightMode.Casual)
         {
@@ -131,8 +134,8 @@ public class DroneController : MonoBehaviour
         }
 
         // Sport: the sticks change the angle and it stays where it is left.
-        pitchAngle += -pitchInput * maxTilt * Time.deltaTime * 2f;
-        rollAngle += rollInput * maxTilt * Time.deltaTime * 2f;
+        pitchAngle += pitchInput * maxTilt * Time.deltaTime * 2f;
+        rollAngle += -rollInput * maxTilt * Time.deltaTime * 2f;
 
         pitchAngle = Mathf.Clamp(pitchAngle, -maxTilt * 2f, maxTilt * 2f);
         rollAngle = Mathf.Clamp(rollAngle, -maxTilt * 2f, maxTilt * 2f);

@@ -57,8 +57,32 @@ public class MissionManager : MonoBehaviour
         DronesRemaining = droneCount;
         IsRunning = true;
 
+        // The mouse aims the camera, so it has to be captured — otherwise it
+        // leaves the window mid-flight and aiming simply stops working.
+        LockCursor(true);
+
         LaunchDrone();
         Notify();
+    }
+
+    void Update()
+    {
+        // Esc releases the mouse; clicking back in recaptures it. Browsers drop
+        // pointer lock on their own, so the click path matters in a WebGL build.
+        if (Input.GetKeyDown(KeyCode.Escape))
+        {
+            LockCursor(false);
+            return;
+        }
+
+        if (IsRunning && Input.GetMouseButtonDown(0) && Cursor.lockState != CursorLockMode.Locked)
+            LockCursor(true);
+    }
+
+    static void LockCursor(bool locked)
+    {
+        Cursor.lockState = locked ? CursorLockMode.Locked : CursorLockMode.None;
+        Cursor.visible = !locked;
     }
 
     void CollectTargets()
@@ -148,6 +172,10 @@ public class MissionManager : MonoBehaviour
         if (!IsRunning) return;
 
         IsRunning = false;
+
+        // The results screen has buttons, so the mouse has to come back.
+        LockCursor(false);
+
         if (OnMissionEnded != null) OnMissionEnded(won);
     }
 

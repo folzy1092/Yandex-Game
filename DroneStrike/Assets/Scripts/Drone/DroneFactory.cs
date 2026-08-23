@@ -47,6 +47,9 @@ public static class DroneFactory
         drone.AddComponent<DroneImpact>();
         drone.AddComponent<RotorSpin>();
 
+        var gimbal = drone.AddComponent<DroneCameraGimbal>();
+        gimbal.cameraTransform = view;
+
         var rig = drone.AddComponent<DroneRig>();
 
         // The camera has to exist before DroneRig.Awake reads it, which it does
@@ -106,10 +109,11 @@ public static class DroneFactory
                              new Vector3(0.05f, 0.05f, 0.05f), accent);
         housing.transform.localRotation = Quaternion.Euler(-15f, 0f, 0f);
 
+        // Parented for position only — DroneCameraGimbal overwrites the rotation
+        // every frame so the body's pitch and roll never reach the view.
         var cameraGO = new GameObject("FPVCamera");
         cameraGO.transform.SetParent(parent, false);
         cameraGO.transform.localPosition = new Vector3(0f, 0.04f, 0.18f);
-        cameraGO.transform.localRotation = Quaternion.Euler(-12f, 0f, 0f);
 
         var camera = cameraGO.AddComponent<Camera>();
         camera.fieldOfView = 92f;      // wide, like the lens on a real FPV rig
