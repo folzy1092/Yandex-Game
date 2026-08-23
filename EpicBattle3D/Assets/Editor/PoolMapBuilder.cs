@@ -5,31 +5,33 @@ using UnityEditor.SceneManagement;
 using UnityEngine;
 
 /// <summary>
-/// Builds the Pool arena from primitives. Generating the level from code means
-/// the whole map can be changed, reviewed and re-created without manual editor work.
+/// Builds the Pool arena from primitives, following the deathmatch brief.
 ///
-/// The arena is 56 x 40 m and organised around three parallel routes, so players
-/// always have somewhere else to be and no single spot owns the match:
+/// 56 x 40 m, three parallel routes, no team sides and no bases:
 ///
 ///     Z+20 ┌──────────────┬───────────────┬──────────────┐
 ///          │ CHANGING     │  north deck   │  STANDS      │
 ///          │ ROOMS        │               │  (raised)    │
-///     Z+6  ├─ ─ ─ ─ ─ ─ ─ ┼───────────────┼─ ─ ─ ─ ─ ─ ─ ┤
+///     Z+7  ├─ ─ ─ ─ ─ ─ ─ ┼───────────────┼─ ─ ─ ─ ─ ─ ─ ┤
 ///          │ SHOWERS      │   THE POOL    │  CANOPY      │
 ///          │ (tight)      │   (sunken)    │  (open)      │
-///     Z-6  ├─ ─ ─ ─ ─ ─ ─ ┼───────────────┼─ ─ ─ ─ ─ ─ ─ ┤
+///     Z-7  ├─ ─ ─ ─ ─ ─ ─ ┼───────────────┼─ ─ ─ ─ ─ ─ ─ ┤
 ///          │ PLANT ROOM   │  south deck   │  LOUNGE      │
 ///     Z-20 └──────────────┴───────────────┴──────────────┘
 ///          X-28         X-10            X+10          X+28
 ///
-/// Left is close-quarters: lockers, shower dividers and pump housings make a
-/// maze of short corners. Centre is the landmark, with the pool itself as a
-/// risky low route that costs you height and exit speed. Right is open, with a
-/// raised stand that deliberately cannot see into the left wing or across the
-/// whole map — the canopy and the dividing walls cut it off.
+/// Left wing is close quarters: locker banks and shower dividers set as
+/// staggered corners rather than parallel lanes. Centre is the landmark — the
+/// pool is a short low route that costs you your sightlines while you are in
+/// it. Right wing is open, for longer shots, with a low stand that cannot see
+/// into the left wing or across the map.
 ///
-/// The walls between routes are pierced by three gaps each, so every route has
-/// at least two ways in and out and nobody can be sealed into a fight.
+/// Both dividing walls are pierced by three gaps, so every route has at least
+/// two ways in and out and nobody can be sealed into a fight.
+///
+/// The pool is shallow with ramps on all four sides rather than a deep pit with
+/// stairs. Bots cannot jump, and a deep basin with narrow stepped exits is
+/// exactly where they pile up and get stuck.
 /// </summary>
 public static class PoolMapBuilder
 {
@@ -40,18 +42,19 @@ public static class PoolMapBuilder
     const float SlabThickness = 3f;
 
     // The pool basin
-    const float PoolMinX = -9f;
-    const float PoolMaxX = 9f;
-    const float PoolMinZ = -7f;
-    const float PoolMaxZ = 7f;
+    const float PoolMinX = -8f;
+    const float PoolMaxX = 8f;
+    const float PoolMinZ = -6f;
+    const float PoolMaxZ = 6f;
 
     /// <summary>
-    /// Deep enough to feel like a real pool and to cost you your sightlines while
-    /// you are in it, but still under the player's 1.2 m jump so getting out is
-    /// never a trap — bots use the stepped ends, which they need since they
-    /// cannot jump at all.
+    /// Shallow on purpose. Deep enough to break sightlines from the deck, but
+    /// with a gentle ramp on every side so nothing can ever be trapped in it.
     /// </summary>
-    const float PoolDepth = 1.15f;
+    const float PoolDepth = 0.9f;
+
+    /// <summary>How far each ramp reaches into the basin from its edge.</summary>
+    const float RampRun = 3.2f;
 
     // Route boundaries
     const float LeftWingX = -10f;
@@ -69,7 +72,7 @@ public static class PoolMapBuilder
         BuildLighting();
         BuildFloor();
         BuildPerimeter();
-        BuildRoof();
+        BuildWingRoofs();
         BuildPool();
         BuildRouteDividers();
         BuildLeftWing();
@@ -110,28 +113,27 @@ public static class PoolMapBuilder
         var lightGO = new GameObject("Sun");
         var light = lightGO.AddComponent<Light>();
         light.type = LightType.Directional;
-        light.intensity = 1.15f;
-        light.color = new Color(1f, 0.96f, 0.87f);
+        light.intensity = 1.35f;
+        light.color = new Color(1f, 0.97f, 0.90f);
         light.shadows = LightShadows.Soft;
-        light.shadowStrength = 0.62f;   // soft shadows, no pitch-black corners
-        lightGO.transform.rotation = Quaternion.Euler(52f, -35f, 0f);
+        light.shadowStrength = 0.55f;   // soft shadows, no pitch-black corners
+        lightGO.transform.rotation = Quaternion.Euler(55f, -30f, 0f);
 
-        // Bright bounce from every direction so players stay readable in the
-        // enclosed left wing without needing extra lights there.
+        // Strong ambient from every direction. The brief asks for good visibility
+        // and no dark corners, and the roofed wings get no sun at all.
         RenderSettings.ambientMode = UnityEngine.Rendering.AmbientMode.Trilight;
-        RenderSettings.ambientSkyColor = new Color(0.62f, 0.72f, 0.84f);
-        RenderSettings.ambientEquatorColor = new Color(0.52f, 0.53f, 0.55f);
-        RenderSettings.ambientGroundColor = new Color(0.32f, 0.30f, 0.28f);
+        RenderSettings.ambientSkyColor = new Color(0.70f, 0.78f, 0.88f);
+        RenderSettings.ambientEquatorColor = new Color(0.62f, 0.63f, 0.64f);
+        RenderSettings.ambientGroundColor = new Color(0.42f, 0.40f, 0.38f);
         RenderSettings.fog = false;
 
         BuildInteriorLights();
     }
 
     /// <summary>
-    /// Ceiling lights for the roofed wings. The sun cannot reach under the roof,
-    /// and requirement is explicitly "no excessively dark corners" — players have
-    /// to stay readable in the close-quarters left wing, where most of the
-    /// point-blank fighting happens.
+    /// Ceiling lights for the roofed wings, where the sun cannot reach. Shadows
+    /// are off: ten shadow-casting point lights would cost far more in a WebGL
+    /// build than they are worth.
     /// </summary>
     static void BuildInteriorLights()
     {
@@ -139,14 +141,16 @@ public static class PoolMapBuilder
 
         Vector3[] positions =
         {
-            new Vector3(-22f, 4.6f, 13f),
-            new Vector3(-22f, 4.6f, 0f),
-            new Vector3(-22f, 4.6f, -13f),
-            new Vector3(-14f, 4.6f, 7f),
-            new Vector3(-14f, 4.6f, -8f),
-            new Vector3(20f, 4.6f, 12f),
-            new Vector3(20f, 4.6f, -2f),
-            new Vector3(20f, 4.6f, -14f)
+            new Vector3(-24f, 4.4f, 14f),
+            new Vector3(-16f, 4.4f, 14f),
+            new Vector3(-24f, 4.4f, 2f),
+            new Vector3(-16f, 4.4f, 0f),
+            new Vector3(-24f, 4.4f, -11f),
+            new Vector3(-15f, 4.4f, -14f),
+            new Vector3(24f, 4.4f, 13f),
+            new Vector3(16f, 4.4f, 2f),
+            new Vector3(24f, 4.4f, -6f),
+            new Vector3(16f, 4.4f, -16f)
         };
 
         foreach (Vector3 position in positions)
@@ -157,11 +161,9 @@ public static class PoolMapBuilder
 
             var light = lightGO.AddComponent<Light>();
             light.type = LightType.Point;
-            light.color = new Color(1f, 0.97f, 0.90f);
-            light.range = 17f;
-            light.intensity = 1.25f;
-            // Shadows off: eight shadow-casting point lights would cost far more
-            // than they are worth in a WebGL build.
+            light.color = new Color(1f, 0.98f, 0.93f);
+            light.range = 20f;
+            light.intensity = 1.5f;
             light.shadows = LightShadows.None;
         }
     }
@@ -199,12 +201,8 @@ public static class PoolMapBuilder
 
     /// <summary>
     /// The hall's outer walls, tiled the way a real swimming baths is: a darker
-    /// splash band around the bottom with white tiling above it, and a run of
-    /// clerestory windows near the roof.
-    ///
-    /// Only the lower band carries the collider. The upper band and the windows
-    /// are decoration sitting on top of it, which keeps the collision geometry
-    /// to four simple boxes.
+    /// splash band around the bottom, white tiling above, and clerestory windows
+    /// near the top. Only the structural wall carries a collider.
     /// </summary>
     static void BuildPerimeter()
     {
@@ -214,30 +212,27 @@ public static class PoolMapBuilder
         float depth = HalfDepth * 2f;
 
         BuildTiledWall(group.transform, "Wall_North", new Vector3(0f, 0f, HalfDepth + 0.5f),
-                       new Vector2(length, 1f), 0f);
+                       new Vector2(length, 1f), true);
         BuildTiledWall(group.transform, "Wall_South", new Vector3(0f, 0f, -HalfDepth - 0.5f),
-                       new Vector2(length, 1f), 0f);
+                       new Vector2(length, 1f), true);
         BuildTiledWall(group.transform, "Wall_East", new Vector3(HalfWidth + 0.5f, 0f, 0f),
-                       new Vector2(1f, depth), 90f);
+                       new Vector2(1f, depth), false);
         BuildTiledWall(group.transform, "Wall_West", new Vector3(-HalfWidth - 0.5f, 0f, 0f),
-                       new Vector2(1f, depth), 90f);
+                       new Vector2(1f, depth), false);
     }
 
     /// <param name="footprint">Wall footprint as (x size, z size).</param>
-    /// <param name="yaw">0 for a wall running along X, 90 for one running along Z.</param>
+    /// <param name="runsAlongX">True for a wall running along X, false along Z.</param>
     static void BuildTiledWall(Transform parent, string name, Vector3 basePosition,
-                               Vector2 footprint, float yaw)
+                               Vector2 footprint, bool runsAlongX)
     {
         const float splashBandHeight = 2.2f;
 
-        // The full-height structural wall, tiled dark up to the splash line.
         MapBlocks.BoxAt(parent, name, basePosition + Vector3.up * (WallHeight * 0.5f),
                         new Vector3(footprint.x, WallHeight, footprint.y), palette.wallTile);
 
-        bool runsAlongX = Mathf.Approximately(yaw, 0f);
         float runLength = runsAlongX ? footprint.x : footprint.y;
 
-        // Splash band: a thin skin over the lower part of the wall.
         Vector3 bandSize = runsAlongX
             ? new Vector3(runLength, splashBandHeight, footprint.y + 0.12f)
             : new Vector3(footprint.x + 0.12f, splashBandHeight, runLength);
@@ -247,77 +242,69 @@ public static class PoolMapBuilder
                                    bandSize, palette.tile);
         MapBlocks.NoCollision(band);
 
-        // Clerestory windows just under the roof, the daylight source a real
-        // pool hall has. Emissive-looking pale panels, not actual openings.
         int windows = Mathf.Max(2, Mathf.RoundToInt(runLength / 7f));
         for (int i = 0; i < windows; i++)
         {
             float offset = -runLength * 0.5f + runLength * (i + 0.5f) / windows;
 
             Vector3 position = runsAlongX
-                ? new Vector3(basePosition.x + offset, 4.9f, basePosition.z)
-                : new Vector3(basePosition.x, 4.9f, basePosition.z + offset);
+                ? new Vector3(basePosition.x + offset, 4.7f, basePosition.z)
+                : new Vector3(basePosition.x, 4.7f, basePosition.z + offset);
 
             Vector3 size = runsAlongX
-                ? new Vector3(runLength / windows * 0.62f, 1.4f, footprint.y + 0.16f)
-                : new Vector3(footprint.x + 0.16f, 1.4f, runLength / windows * 0.62f);
+                ? new Vector3(runLength / windows * 0.62f, 1.5f, footprint.y + 0.16f)
+                : new Vector3(footprint.x + 0.16f, 1.5f, runLength / windows * 0.62f);
 
             var window = MapBlocks.BoxAt(parent, name + "_Window" + i, position, size, palette.window);
             MapBlocks.NoCollision(MapBlocks.NoShadows(window));
         }
     }
 
-    const float RoofHeight = 6.2f;
-
     /// <summary>
-    /// Roofs the whole arena, turning it into an indoor pool hall like the
-    /// reference map.
+    /// Roofs the two side wings and leaves the pool hall open to the sky.
     ///
-    /// The roof is built as strips with gaps between them rather than one solid
-    /// slab: the gaps are skylights, and they are the only way sunlight reaches
-    /// the floor once the hall is closed in. A single unbroken roof would kill
-    /// the directional light and leave the entire map in flat ambient gloom.
-    /// Ceiling lights fill in the rest.
+    /// A fully closed hall reads better as a real complex, but it blocks the
+    /// directional light and leaves the map dim and flat no matter how many
+    /// point lights are added. Roofing only the wings keeps the pool sunlit,
+    /// makes the enclosed routes feel enclosed, and reinforces how each side
+    /// plays: dark and tight on the left, open and bright in the middle.
     /// </summary>
-    static void BuildRoof()
+    static void BuildWingRoofs()
     {
         var group = MapBlocks.Group("Roof");
+        const float roofHeight = 5.8f;
 
-        const int strips = 7;
-        const float skylightWidth = 2.6f;
+        float leftWidth = LeftWingX + HalfWidth;
+        MapBlocks.BoxAt(group.transform, "Roof_LeftWing",
+                        new Vector3(-HalfWidth + leftWidth * 0.5f, roofHeight, 0f),
+                        new Vector3(leftWidth, 0.4f, HalfDepth * 2f), palette.concrete);
 
-        float span = HalfDepth * 2f;
-        float stripDepth = (span - skylightWidth * (strips - 1)) / strips;
+        float rightWidth = HalfWidth - RightWingX;
+        MapBlocks.BoxAt(group.transform, "Roof_RightWing",
+                        new Vector3(HalfWidth - rightWidth * 0.5f, roofHeight, 0f),
+                        new Vector3(rightWidth, 0.4f, HalfDepth * 2f), palette.concrete);
 
-        for (int i = 0; i < strips; i++)
+        // Open beams over the pool hall: the frame of a glazed atrium roof, left
+        // unglazed so the sun still reaches the water.
+        for (int i = 0; i < 7; i++)
         {
-            float z = -HalfDepth + stripDepth * 0.5f + i * (stripDepth + skylightWidth);
-
-            MapBlocks.BoxAt(group.transform, "RoofStrip" + i,
-                            new Vector3(0f, RoofHeight, z),
-                            new Vector3(HalfWidth * 2f + 2f, 0.4f, stripDepth), palette.concrete);
-        }
-
-        // Cross beams spanning the skylights, so the gaps read as a glazed roof
-        // frame rather than as holes in the ceiling.
-        for (int i = 0; i < strips - 1; i++)
-        {
-            float z = -HalfDepth + stripDepth + skylightWidth * 0.5f + i * (stripDepth + skylightWidth);
-
-            for (int j = 0; j < 5; j++)
-            {
-                float x = -HalfWidth + 6f + j * (HalfWidth * 2f - 12f) / 4f;
-                var beam = MapBlocks.BoxAt(group.transform, "Beam",
-                                           new Vector3(x, RoofHeight, z),
-                                           new Vector3(0.3f, 0.25f, skylightWidth), palette.metal);
-                MapBlocks.NoCollision(MapBlocks.NoShadows(beam));
-            }
+            float z = -HalfDepth + 2.5f + i * ((HalfDepth * 2f - 5f) / 6f);
+            var beam = MapBlocks.BoxAt(group.transform, "Beam" + i,
+                                       new Vector3(0f, roofHeight, z),
+                                       new Vector3(RightWingX - LeftWingX + 1f, 0.3f, 0.4f),
+                                       palette.metal);
+            MapBlocks.NoCollision(MapBlocks.NoShadows(beam));
         }
     }
 
+    // ---------- the pool ----------
+
     /// <summary>
-    /// The sunken pool: tiled basin, steps at both ends, a rim you can vault, and
-    /// a water surface that is decoration only.
+    /// The sunken pool: a shallow tiled basin with a ramp on every side.
+    ///
+    /// Ramps rather than steps, on all four sides rather than two, because bots
+    /// cannot jump: any basin they can walk into must be one they can walk out
+    /// of from wherever they happen to be standing.
     /// </summary>
     static void BuildPool()
     {
@@ -329,36 +316,49 @@ public static class PoolMapBuilder
         MapBlocks.BoxAt(group.transform, "Basin", new Vector3(0f, -PoolDepth - 0.5f, 0f),
                         new Vector3(width, 1f, depth), palette.tile);
 
-        // Steps at each end. Bots cannot jump, so both ways out are stepped
-        // rather than a wall they would mill about beneath.
-        MapBlocks.Steps(group.transform, "StepsWest",
-                        new Vector3(PoolMinX + 0.4f, -PoolDepth, 0f), Vector3.right,
-                        3, PoolDepth / 3f, 0.55f, 4.5f, palette.tile);
-
-        MapBlocks.Steps(group.transform, "StepsEast",
-                        new Vector3(PoolMaxX - 0.4f, -PoolDepth, 0f), Vector3.left,
-                        3, PoolDepth / 3f, 0.55f, 4.5f, palette.tile);
-
-        BuildPoolRim(group.transform);
+        BuildPoolRamps(group.transform, width, depth);
         BuildLaneMarkings(group.transform, width, depth);
         BuildDivingTower(group.transform);
 
         var water = MapBlocks.BoxAt(group.transform, "Water",
-                                    new Vector3(0f, -PoolDepth + 0.55f, 0f),
+                                    new Vector3(0f, -PoolDepth + 0.42f, 0f),
                                     new Vector3(width - 0.2f, 0.06f, depth - 0.2f),
                                     GeneratedMaterials.Load("Mat_Water"));
         MapBlocks.NoCollision(water);
         MapBlocks.NoShadows(water);
     }
 
+    static void BuildPoolRamps(Transform parent, float width, float depth)
+    {
+        // Wide ramps: a narrow one is a funnel, and a funnel is where bots jam.
+        float sideRampWidth = depth * 0.72f;
+        float endRampWidth = width * 0.72f;
+
+        MapBlocks.Ramp(parent, "Ramp_West",
+                       new Vector3(PoolMinX + RampRun, -PoolDepth, 0f),
+                       new Vector3(PoolMinX, 0f, 0f), sideRampWidth, palette.tile);
+
+        MapBlocks.Ramp(parent, "Ramp_East",
+                       new Vector3(PoolMaxX - RampRun, -PoolDepth, 0f),
+                       new Vector3(PoolMaxX, 0f, 0f), sideRampWidth, palette.tile);
+
+        MapBlocks.Ramp(parent, "Ramp_North",
+                       new Vector3(0f, -PoolDepth, PoolMaxZ - RampRun),
+                       new Vector3(0f, 0f, PoolMaxZ), endRampWidth, palette.tile);
+
+        MapBlocks.Ramp(parent, "Ramp_South",
+                       new Vector3(0f, -PoolDepth, PoolMinZ + RampRun),
+                       new Vector3(0f, 0f, PoolMinZ), endRampWidth, palette.tile);
+    }
+
     /// <summary>
-    /// Dark lane stripes on the basin floor. Pure decoration, but they are what
-    /// makes the basin read as a swimming pool rather than a tiled pit.
+    /// Dark lane stripes on the basin floor. Decoration, but they are what makes
+    /// the basin read as a swimming pool rather than a tiled pit.
     /// </summary>
     static void BuildLaneMarkings(Transform parent, float width, float depth)
     {
         Material line = GeneratedMaterials.Load("Mat_LaneMarking");
-        const int lanes = 5;
+        const int lanes = 4;
 
         for (int i = 1; i < lanes; i++)
         {
@@ -366,90 +366,56 @@ public static class PoolMapBuilder
 
             var stripe = MapBlocks.BoxAt(parent, "Lane" + i,
                                          new Vector3(0f, -PoolDepth + 0.02f, z),
-                                         new Vector3(width - 0.6f, 0.02f, 0.28f), line);
+                                         new Vector3(width - 1f, 0.02f, 0.25f), line);
             MapBlocks.NoCollision(MapBlocks.NoShadows(stripe));
         }
     }
 
     /// <summary>
-    /// The diving platform at the deep end: the map's tallest landmark, visible
-    /// from every route, and solid cover at the pool's edge. Deliberately not
-    /// climbable — a perch over the open centre would dominate the whole arena.
+    /// The diving platform: the tallest landmark on the map, visible from every
+    /// route, and solid cover at the pool's edge. Not climbable — a perch over
+    /// the open centre would dominate the whole arena.
     /// </summary>
     static void BuildDivingTower(Transform parent)
     {
         var group = MapBlocks.Group("DivingTower", parent);
-        float x = PoolMinX - 1.4f;
+
+        // On the north deck, clear of the divider walls at X = +-10, with the
+        // board reaching south out over the water.
+        const float z = PoolMaxZ + 1.6f;
 
         for (int i = 0; i < 2; i++)
         {
-            float z = -1.2f + i * 2.4f;
+            float x = -1.3f + i * 2.6f;
             MapBlocks.Box(group.transform, "Leg" + i, new Vector3(x, 0f, z),
-                          new Vector3(0.32f, 3.2f, 0.32f), palette.metal);
+                          new Vector3(0.3f, 3.4f, 0.3f), palette.metal);
         }
 
-        MapBlocks.BoxAt(group.transform, "Platform", new Vector3(x + 0.7f, 3.3f, 0f),
+        MapBlocks.BoxAt(group.transform, "Platform", new Vector3(0f, 3.5f, z),
                         new Vector3(2.6f, 0.2f, 2.2f), palette.plastic);
 
-        MapBlocks.NoShadows(MapBlocks.BoxAt(group.transform, "RailBack",
-            new Vector3(x - 0.5f, 3.9f, 0f), new Vector3(0.12f, 1.2f, 2.2f), palette.metal));
-
-        // The board itself, jutting out over the water.
         MapBlocks.NoShadows(MapBlocks.BoxAt(group.transform, "Board",
-            new Vector3(x + 2.6f, 3.35f, 0f), new Vector3(2.4f, 0.12f, 0.85f), palette.plastic));
+            new Vector3(0f, 3.55f, z - 2.4f), new Vector3(0.9f, 0.12f, 2.6f), palette.plastic));
 
-        MapBlocks.Steps(group.transform, "TowerSteps",
-                        new Vector3(x - 1.6f, 0f, 0f), Vector3.right,
-                        4, 0.42f, 0.42f, 1.6f, palette.metal);
+        MapBlocks.NoShadows(MapBlocks.BoxAt(group.transform, "Rail",
+            new Vector3(0f, 4.2f, z + 1.0f), new Vector3(2.6f, 1.2f, 0.12f), palette.metal));
     }
 
     /// <summary>
-    /// A raised lip around the basin, broken where the steps are. Low enough to
-    /// step over, high enough to crouch behind at the pool's edge.
-    /// </summary>
-    static void BuildPoolRim(Transform parent)
-    {
-        const float rimHeight = 0.34f;
-        const float rimThickness = 0.4f;
-        const float gap = 5f;   // opening in front of each set of steps
-
-        float width = PoolMaxX - PoolMinX;
-
-        MapBlocks.Box(parent, "Rim_North", new Vector3(0f, 0f, PoolMaxZ + rimThickness * 0.5f),
-                      new Vector3(width + rimThickness * 2f, rimHeight, rimThickness), palette.concrete);
-        MapBlocks.Box(parent, "Rim_South", new Vector3(0f, 0f, PoolMinZ - rimThickness * 0.5f),
-                      new Vector3(width + rimThickness * 2f, rimHeight, rimThickness), palette.concrete);
-
-        float sideLength = (PoolMaxZ - PoolMinZ - gap) * 0.5f;
-        float sideOffset = gap * 0.5f + sideLength * 0.5f;
-
-        foreach (float x in new[] { PoolMinX - rimThickness * 0.5f, PoolMaxX + rimThickness * 0.5f })
-        {
-            MapBlocks.Box(parent, "Rim_Side", new Vector3(x, 0f, sideOffset),
-                          new Vector3(rimThickness, rimHeight, sideLength), palette.concrete);
-            MapBlocks.Box(parent, "Rim_Side", new Vector3(x, 0f, -sideOffset),
-                          new Vector3(rimThickness, rimHeight, sideLength), palette.concrete);
-        }
-    }
-
-    /// <summary>
-    /// The walls separating the three routes. Each is built as segments with three
-    /// gaps, so every route keeps at least two entrances and players can always
-    /// rotate rather than being funnelled into one doorway.
+    /// The walls separating the three routes, each pierced by three gaps so every
+    /// route keeps at least two entrances and players can always rotate.
     /// </summary>
     static void BuildRouteDividers()
     {
         var group = MapBlocks.Group("RouteDividers");
 
-        // Gap centres along Z, shared by both dividers.
         float[] gaps = { 13f, 0f, -13f };
-        const float gapWidth = 4.5f;
+        const float gapWidth = 5f;
 
         BuildPiercedWall(group.transform, "DividerWest", LeftWingX, gaps, gapWidth);
         BuildPiercedWall(group.transform, "DividerEast", RightWingX, gaps, gapWidth);
     }
 
-    /// <summary>Builds a wall along X = <paramref name="x"/> with openings at the given Z centres.</summary>
     static void BuildPiercedWall(Transform parent, string name, float x, float[] gapCentres, float gapWidth)
     {
         var edges = new List<float> { -HalfDepth };
@@ -472,7 +438,7 @@ public static class PoolMapBuilder
             if (length <= 0.1f) continue;
 
             MapBlocks.BoxAt(parent, name, new Vector3(x, WallHeight * 0.5f, (from + to) * 0.5f),
-                            new Vector3(0.5f, WallHeight, length), palette.wall);
+                            new Vector3(0.5f, WallHeight, length), palette.wallTile);
         }
     }
 
@@ -491,28 +457,27 @@ public static class PoolMapBuilder
     {
         var group = MapBlocks.Group("ChangingRooms", parent);
 
-        // Locker banks form the corridors. Staggered rather than parallel, so the
-        // wing is a set of corners instead of shooting lanes.
-        PoolProps.LockerBank(group.transform, new Vector3(-22f, 0f, 14f), 8f, 0f, palette);
-        PoolProps.LockerBank(group.transform, new Vector3(-15.5f, 0f, 10f), 6f, 90f, palette);
-        PoolProps.LockerBank(group.transform, new Vector3(-24f, 0f, 7.5f), 5f, 90f, palette);
+        // Staggered rather than parallel, so the wing is a set of corners
+        // instead of shooting lanes.
+        PoolProps.LockerBank(group.transform, new Vector3(-22f, 0f, 15f), 8f, 0f, palette);
+        PoolProps.LockerBank(group.transform, new Vector3(-15.5f, 0f, 11f), 6f, 90f, palette);
+        PoolProps.LockerBank(group.transform, new Vector3(-25f, 0f, 8.5f), 5f, 90f, palette);
 
-        PoolProps.Bench(group.transform, new Vector3(-19f, 0f, 11.5f), 0f, palette);
-        PoolProps.Bench(group.transform, new Vector3(-21f, 0f, 5f), 90f, palette);
+        PoolProps.Bench(group.transform, new Vector3(-19f, 0f, 12f), 0f, palette);
+        PoolProps.Bench(group.transform, new Vector3(-21.5f, 0f, 6f), 90f, palette);
 
-        PoolProps.ChangingCabin(group.transform, new Vector3(-26f, 0f, 17.5f), 0f, palette);
-        PoolProps.ChangingCabin(group.transform, new Vector3(-23.5f, 0f, 17.5f), 0f, palette);
-        PoolProps.ChangingCabin(group.transform, new Vector3(-21f, 0f, 17.5f), 0f, palette);
+        PoolProps.ChangingCabin(group.transform, new Vector3(-26.5f, 0f, 18f), 0f, palette);
+        PoolProps.ChangingCabin(group.transform, new Vector3(-24f, 0f, 18f), 0f, palette);
+        PoolProps.ChangingCabin(group.transform, new Vector3(-21.5f, 0f, 18f), 0f, palette);
 
-        PoolProps.VendingMachine(group.transform, new Vector3(-11.5f, 0f, 17f), -90f, palette);
-        PoolProps.Planter(group.transform, new Vector3(-12.5f, 0f, 8f), palette);
+        PoolProps.VendingMachine(group.transform, new Vector3(-11.5f, 0f, 17.5f), -90f, palette);
+        PoolProps.Planter(group.transform, new Vector3(-12.5f, 0f, 9f), palette);
 
-        // A short interior wall splitting the changing area from the shower block,
-        // with a doorway rather than a full seal.
-        MapBlocks.BoxAt(group.transform, "InnerWall", new Vector3(-19f, 1.6f, 3.5f),
-                        new Vector3(14f, 3.2f, 0.4f), palette.wallTile);
-        MapBlocks.BoxAt(group.transform, "InnerWallStub", new Vector3(-27f, 1.6f, 3.5f),
-                        new Vector3(2f, 3.2f, 0.4f), palette.wallTile);
+        // Interior wall between changing area and showers, with a doorway.
+        MapBlocks.BoxAt(group.transform, "InnerWall", new Vector3(-20f, 1.6f, 4f),
+                        new Vector3(12f, 3.2f, 0.4f), palette.wallTile);
+        MapBlocks.BoxAt(group.transform, "InnerWallStub", new Vector3(-27.2f, 1.6f, 4f),
+                        new Vector3(1.6f, 3.2f, 0.4f), palette.wallTile);
     }
 
     static void BuildShowers(Transform parent)
@@ -530,7 +495,7 @@ public static class PoolMapBuilder
                         new Vector3(0.4f, 3f, 12f), palette.wallTile);
 
         PoolProps.LowWall(group.transform, new Vector3(-19f, 0f, -1f), 7f, 90f, palette);
-        PoolProps.LowWall(group.transform, new Vector3(-14f, 0f, 4f), 5f, 0f, palette);
+        PoolProps.LowWall(group.transform, new Vector3(-14f, 0f, 4.5f), 5f, 0f, palette);
 
         PoolProps.Puddle(group.transform, new Vector3(-23f, 0f, 1f), 2.4f, palette);
         PoolProps.Puddle(group.transform, new Vector3(-20.5f, 0f, -3.5f), 1.8f, palette);
@@ -549,8 +514,8 @@ public static class PoolMapBuilder
         PoolProps.Crate(group.transform, new Vector3(-15.5f, 0f, -13.5f), -20f, palette);
         PoolProps.Crate(group.transform, new Vector3(-26f, 0f, -6.5f), 0f, palette);
 
-        // Overhead pipework: the visual shorthand for a service area, and it is
-        // high enough not to interfere with anyone's movement.
+        // Overhead pipework: shorthand for a service area, high enough to clear
+        // everyone's head.
         PoolProps.PipeRun(group.transform, new Vector3(-27.5f, 3.6f, -18f), new Vector3(-27.5f, 3.6f, -5f), 0.16f, palette);
         PoolProps.PipeRun(group.transform, new Vector3(-27.5f, 4f, -18f), new Vector3(-27.5f, 4f, -5f), 0.11f, palette);
         PoolProps.PipeRun(group.transform, new Vector3(-27.5f, 3.6f, -12f), new Vector3(-11f, 3.6f, -12f), 0.16f, palette);
@@ -568,30 +533,29 @@ public static class PoolMapBuilder
     {
         var group = MapBlocks.Group("Centre");
 
-        // The lifeguard chair, off the pool's axis so it breaks the long
+        // Lifeguard chair, off the pool's axis so it breaks the long
         // north-south sightline instead of sitting in the middle of it.
-        // Kept clear of the widened basin (now +-9 x +-7).
-        PoolProps.LifeguardTower(group.transform, new Vector3(-5.5f, 0f, 9.5f), 160f, palette);
+        PoolProps.LifeguardTower(group.transform, new Vector3(6f, 0f, 8.5f), 200f, palette);
 
-        // North deck cover.
-        PoolProps.LowWall(group.transform, new Vector3(2.5f, 0f, 10f), 6f, 0f, palette);
-        PoolProps.Crate(group.transform, new Vector3(6.5f, 0f, 14f), 25f, palette);
-        PoolProps.Planter(group.transform, new Vector3(-2f, 0f, 15f), palette);
-        PoolProps.Planter(group.transform, new Vector3(2f, 0f, 17.5f), palette);
-        PoolProps.Bench(group.transform, new Vector3(-6.5f, 0f, 16f), 0f, palette);
+        // North deck. Kept clear of the diving tower, which stands at Z = 7.6
+        // spanning X -1.5 to 1.5.
+        PoolProps.LowWall(group.transform, new Vector3(-5f, 0f, 10.5f), 6f, 0f, palette);
+        PoolProps.Crate(group.transform, new Vector3(-8f, 0f, 14f), 25f, palette);
+        PoolProps.Planter(group.transform, new Vector3(3.5f, 0f, 11f), palette);
+        PoolProps.Planter(group.transform, new Vector3(-3f, 0f, 17.5f), palette);
+        PoolProps.Bench(group.transform, new Vector3(5f, 0f, 15f), 0f, palette);
 
-        // South deck cover, deliberately arranged differently so the two halves
-        // of the centre do not play the same way.
-        PoolProps.LowWall(group.transform, new Vector3(-3f, 0f, -10f), 7f, 0f, palette);
-        PoolProps.VendingMachine(group.transform, new Vector3(5f, 0f, -11f), 180f, palette);
-        PoolProps.Crate(group.transform, new Vector3(-6.5f, 0f, -15f), -15f, palette);
-        PoolProps.Bench(group.transform, new Vector3(2f, 0f, -16.5f), 90f, palette);
-        PoolProps.Planter(group.transform, new Vector3(7f, 0f, -17f), palette);
+        // South deck, arranged differently so the two halves of the centre do
+        // not play the same way.
+        PoolProps.LowWall(group.transform, new Vector3(3f, 0f, -9.5f), 7f, 0f, palette);
+        PoolProps.VendingMachine(group.transform, new Vector3(-5f, 0f, -10.5f), 0f, palette);
+        PoolProps.Crate(group.transform, new Vector3(6.5f, 0f, -14f), -15f, palette);
+        PoolProps.Bench(group.transform, new Vector3(-2f, 0f, -16.5f), 90f, palette);
+        PoolProps.Planter(group.transform, new Vector3(-7f, 0f, -17f), palette);
 
-        // Wet patches on the deck, kept outside the basin footprint.
-        PoolProps.Puddle(group.transform, new Vector3(0f, 0f, 8.6f), 3f, palette);
-        PoolProps.Puddle(group.transform, new Vector3(-4f, 0f, -8.7f), 2.6f, palette);
-        PoolProps.Puddle(group.transform, new Vector3(6f, 0f, 9.2f), 2.2f, palette);
+        PoolProps.Puddle(group.transform, new Vector3(-5f, 0f, 7.6f), 3f, palette);
+        PoolProps.Puddle(group.transform, new Vector3(-4f, 0f, -7.7f), 2.6f, palette);
+        PoolProps.Puddle(group.transform, new Vector3(6f, 0f, 8.5f), 2.2f, palette);
     }
 
     // ---------- right wing: stands, canopy, lounge ----------
@@ -606,16 +570,16 @@ public static class PoolMapBuilder
     }
 
     /// <summary>
-    /// Tiered seating rising to about 2.2 m. Kept low on purpose: high enough to
-    /// be worth taking for the angle over the right wing, too low and too boxed in
-    /// by the divider wall to see into the left wing or across the whole map.
+    /// Tiered seating rising to about 2 m. Kept low on purpose: high enough to
+    /// be worth taking for the angle over the right wing, too low and too boxed
+    /// in by the divider wall to see into the left wing or across the map.
     /// </summary>
     static void BuildStands(Transform parent)
     {
         var group = MapBlocks.Group("Stands", parent);
 
         const int tiers = 5;
-        const float tierRise = 0.44f;
+        const float tierRise = 0.4f;
         const float tierRun = 1.5f;
 
         for (int i = 0; i < tiers; i++)
@@ -630,12 +594,12 @@ public static class PoolMapBuilder
 
         // Ramp up the side so bots can reach the stands too.
         MapBlocks.Ramp(group.transform, "StandsRamp",
-                       new Vector3(26f, 0.05f, 8f), new Vector3(26f, tierRise * tiers, 13.5f),
+                       new Vector3(26.5f, 0.05f, 8f), new Vector3(26.5f, tierRise * tiers, 13.5f),
                        3.5f, palette.concrete);
 
-        // A rail along the front edge: cover for anyone up there, and it stops
-        // the top tier being a clean firing platform.
-        MapBlocks.BoxAt(group.transform, "StandsRail", new Vector3(19f, 2.55f, 19.4f),
+        // Rail along the front edge: cover for anyone up there, and it stops the
+        // top tier being a clean firing platform.
+        MapBlocks.BoxAt(group.transform, "StandsRail", new Vector3(19f, 2.45f, 19.4f),
                         new Vector3(15f, 0.9f, 0.3f), palette.metal);
 
         PoolProps.Crate(group.transform, new Vector3(12.5f, 0f, 10.5f), 0f, palette);
@@ -696,10 +660,11 @@ public static class PoolMapBuilder
     /// <summary>
     /// Ten spawn points spread over all three routes.
     ///
-    /// None of them looks straight down a lane at another: each sits behind a
-    /// divider wall, a locker bank or a prop, and every one has cover within a
-    /// couple of metres and at least two ways out. SpawnManager then picks
-    /// whichever is farthest from anyone alive, so respawn kills stay rare.
+    /// None looks straight down a lane at another: each sits behind a divider
+    /// wall, a locker bank or a prop, every one has cover within a couple of
+    /// metres and at least two ways out, and none is under the stands. All of
+    /// them are well clear of the pool basin, so nobody starts in the water.
+    /// SpawnManager then picks whichever is farthest from anyone alive.
     /// </summary>
     static List<Transform> BuildSpawnPoints()
     {
@@ -707,12 +672,12 @@ public static class PoolMapBuilder
 
         Vector3[] positions =
         {
-            new Vector3(-25f, 0.2f, 11f),     // changing rooms, behind lockers
-            new Vector3(-13f, 0.2f, 15.5f),   // changing rooms, near the doorway
+            new Vector3(-25f, 0.2f, 12f),     // changing rooms, behind lockers
+            new Vector3(-13f, 0.2f, 16.5f),   // changing rooms, near the doorway
             new Vector3(-22f, 0.2f, -2f),     // showers, behind the dividers
             new Vector3(-25f, 0.2f, -17f),    // plant room corner
             new Vector3(-13f, 0.2f, -17.5f),  // plant room exit to the south deck
-            new Vector3(-3f, 0.2f, 17.5f),    // north deck, off the pool axis
+            new Vector3(-4f, 0.2f, 17.5f),    // north deck, off the pool axis
             new Vector3(4.5f, 0.2f, -17.5f),  // south deck, offset from the north spawn
             new Vector3(13f, 0.2f, 17f),      // beside the stands
             new Vector3(26.5f, 0.2f, -2f),    // under the canopy, east edge
@@ -752,7 +717,11 @@ public static class PoolMapBuilder
 
     static void BuildManagers(List<Transform> spawns)
     {
+        // Deliberately not at the world origin: that is the middle of the pool,
+        // and anything that ever falls back to this object's position would end
+        // up in the water.
         var managers = new GameObject("Managers");
+        managers.transform.position = new Vector3(0f, 0f, HalfDepth + 4f);
 
         var spawnManager = managers.AddComponent<SpawnManager>();
         spawnManager.spawnPoints = spawns;
