@@ -121,6 +121,7 @@ public class DroneController : MonoBehaviour
         ApplyThrust(command);
         ApplyDrag(command);
         ClampSpeed();
+        EnforceCeiling();
         ApplyOrientation(command);
     }
 
@@ -188,6 +189,31 @@ public class DroneController : MonoBehaviour
     {
         if (body.linearVelocity.magnitude <= maxSpeed) return;
         body.linearVelocity = body.linearVelocity.normalized * maxSpeed;
+    }
+
+    /// <summary>
+    /// A real ceiling rather than just refusing new upward thrust: that alone
+    /// only stops the drone from climbing further, it does not stop the climb
+    /// already in progress, so the drone would sail well past maxAltitude
+    /// before drag finally caught up with it. This clamps position directly and
+    /// zeroes any remaining upward velocity, the way hitting a low glass roof
+    /// would.
+    /// </summary>
+    void EnforceCeiling()
+    {
+        float excess = AltitudeMetres - maxAltitude;
+        if (excess <= 0f) return;
+
+        Vector3 position = body.position;
+        position.y -= excess;
+        body.position = position;
+
+        if (body.linearVelocity.y > 0f)
+        {
+            Vector3 velocity = body.linearVelocity;
+            velocity.y = 0f;
+            body.linearVelocity = velocity;
+        }
     }
 
     /// <summary>

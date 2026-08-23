@@ -51,8 +51,12 @@ public static class TargetProps
                                      Target.Kind.ArmouredVehicle,
                                      new Vector3(3.4f, 2.7f, 7.2f), new Vector3(0f, 1.35f, 0f));
 
-        if (ModelLibrary.Instantiate("Tank", root.transform, ModelScale, ModelYawOffset) != null)
+        GameObject tankModel = ModelLibrary.Instantiate("Tank", root.transform, ModelScale, ModelYawOffset);
+        if (tankModel != null)
+        {
+            FitColliderToModel(root, tankModel);
             return root.GetComponent<Target>();
+        }
 
         BuildArmouredVehiclePrimitives(root, palette);
         return root.GetComponent<Target>();
@@ -187,8 +191,13 @@ public static class TargetProps
                                      new Vector3(4.6f, postHeight + 0.2f, 4.6f),
                                      new Vector3(0f, (postHeight + 0.2f) * 0.5f, 0f));
 
-        if (ModelLibrary.Instantiate("SupplyTent", root.transform, TentModelScale, TentModelYawOffset) != null)
+        GameObject tentModel = ModelLibrary.Instantiate("SupplyTent", root.transform,
+                                                        TentModelScale, TentModelYawOffset);
+        if (tentModel != null)
+        {
+            FitColliderToModel(root, tentModel);
             return root.GetComponent<Target>();
+        }
 
         BuildSupplyDepotPrimitives(root, palette, postHeight);
         return root.GetComponent<Target>();
@@ -346,6 +355,42 @@ public static class TargetProps
         target.kind = kind;
 
         return root;
+    }
+
+    /// <summary>
+    /// Resizes a root's BoxCollider to actually match the model just placed
+    /// under it, instead of the hand-guessed numbers <see cref="CreateRoot"/>
+    /// was given for the primitive fallback.
+    ///
+    /// A downloaded model's real-world scale is unknown until someone looks at
+    /// it, so a collider sized from a guess can end up floating beside the
+    /// visible mesh instead of around it — the drone flies straight through the
+    /// tank you can see because the hitbox is somewhere else entirely. Measuring
+    /// the model's own renderer bounds after it is placed is what makes the
+    /// hitbox correct regardless of what scale the source file turns out to be.
+    ///
+    /// Renderer.bounds is an axis-aligned box in world space, which only equals
+    /// the collider's local-space box if the root has no rotation at the moment
+    /// it is measured — so the root is squared up to identity for the
+    /// measurement and restored immediately after.
+    /// </summary>
+    static void FitColliderToModel(GameObject root, GameObject modelInstance)
+    {
+        var collider = root.GetComponent<BoxCollider>();
+        Renderer[] renderers = modelInstance.GetComponentsInChildren<Renderer>();
+        if (collider == null || renderers.Length == 0) return;
+
+        Vector3 originalPosition = root.transform.position;
+        Quaternion originalRotation = root.transform.rotation;
+        root.transform.SetPositionAndRotation(Vector3.zero, Quaternion.identity);
+
+        Bounds bounds = renderers[0].bounds;
+        for (int i = 1; i < renderers.Length; i++) bounds.Encapsulate(renderers[i].bounds);
+
+        root.transform.SetPositionAndRotation(originalPosition, originalRotation);
+
+        collider.center = bounds.center;
+        collider.size = bounds.size;
     }
 
     static GameObject AddPart(GameObject parent, string name, Vector3 localPosition, Vector3 size,

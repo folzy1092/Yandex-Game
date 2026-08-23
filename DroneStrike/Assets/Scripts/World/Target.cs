@@ -91,7 +91,16 @@ public class Target : MonoBehaviour
         if (burnt != null)
         {
             foreach (Renderer renderer in GetComponentsInChildren<Renderer>())
-                renderer.sharedMaterial = burnt;
+            {
+                // A downloaded model typically has several material slots (hull,
+                // tracks, glass...). Setting sharedMaterial alone only replaces
+                // slot 0, leaving the rest showing their original texture — every
+                // slot has to be overwritten for the whole thing to read as burnt.
+                int slotCount = renderer.sharedMaterials.Length;
+                var burntSlots = new Material[slotCount];
+                for (int i = 0; i < slotCount; i++) burntSlots[i] = burnt;
+                renderer.sharedMaterials = burntSlots;
+            }
         }
 
         // Settle and lean the wreck so it reads as destroyed at a glance.

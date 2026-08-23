@@ -137,7 +137,64 @@ public static class IndustrialZoneBuilder
         BuildApron(group.transform);
         BuildFence(group.transform);
         BuildBuildings(group.transform);
+        BuildPatrolRoad(group.transform);
         targetCount = BuildTargets(group.transform);
+    }
+
+    /// <summary>
+    /// The rectangular loop two of the trucks drive, marked with a concrete curb
+    /// so it reads as a road rather than just open apron. Kept well inside the
+    /// fence line so a patrolling truck never clips through it mid-turn.
+    /// </summary>
+    static readonly Vector3[] PatrolWaypoints =
+    {
+        new Vector3(-50f, 0f, -38f),
+        new Vector3(50f, 0f, -38f),
+        new Vector3(50f, 0f, 38f),
+        new Vector3(-50f, 0f, 38f)
+    };
+
+    static void BuildPatrolRoad(Transform parent)
+    {
+        var group = new GameObject("PatrolRoad");
+        group.transform.SetParent(parent, false);
+
+        Material concrete = DroneMaterials.Load("Mat_Concrete");
+
+        for (int i = 0; i < PatrolWaypoints.Length; i++)
+        {
+            Vector3 from = PatrolWaypoints[i];
+            Vector3 to = PatrolWaypoints[(i + 1) % PatrolWaypoints.Length];
+
+            Vector3 direction = (to - from).normalized;
+            float length = Vector3.Distance(from, to);
+            float yaw = Mathf.Atan2(direction.x, direction.z) * Mathf.Rad2Deg;
+
+            foreach (float side in new[] { -3.2f, 3.2f })
+            {
+                Vector3 offset = Quaternion.Euler(0f, 90f, 0f) * direction * side;
+                Vector3 midpoint = OnGround((from.x + to.x) * 0.5f + offset.x,
+                                            (from.z + to.z) * 0.5f + offset.z, 0.08f);
+
+                var curb = GameObject.CreatePrimitive(PrimitiveType.Cube);
+                curb.name = "Curb";
+                curb.transform.SetParent(group.transform, false);
+                curb.transform.position = midpoint;
+                curb.transform.rotation = Quaternion.Euler(0f, yaw, 0f);
+                curb.transform.localScale = new Vector3(0.3f, 0.12f, length + 6f);
+                curb.GetComponent<Renderer>().sharedMaterial = concrete;
+                Object.DestroyImmediate(curb.GetComponent<Collider>());
+            }
+        }
+    }
+
+    /// <summary>Patrol waypoints projected onto the ground, for handing to PatrolMover.</summary>
+    static Vector3[] GroundedPatrolWaypoints()
+    {
+        var grounded = new Vector3[PatrolWaypoints.Length];
+        for (int i = 0; i < PatrolWaypoints.Length; i++)
+            grounded[i] = OnGround(PatrolWaypoints[i].x, PatrolWaypoints[i].z, 0.05f);
+        return grounded;
     }
 
     /// <summary>Set by BuildCompound, read by BuildManagers when sizing the drone rack.</summary>
@@ -214,41 +271,76 @@ public static class IndustrialZoneBuilder
         TargetProps.Warehouse(group.transform, OnGround(34f, 30f), new Vector3(22f, 8f, 26f), 90f, palette);
         TargetProps.Warehouse(group.transform, OnGround(44f, -24f), new Vector3(18f, 6f, 16f), 0f, palette);
 
-        // Storage tanks: tall round landmarks among all the boxes.
+        // Storage tanks: tall round landmarks among all the boxes. Kept south
+        // of the patrol road (which runs along z = -38) rather than under it —
+        // they used to sit right on the road line, which put them directly in
+        // a patrolling truck's path.
         Material metal = DroneMaterials.Load("Mat_RustMetal");
         for (int i = 0; i < 3; i++)
         {
             var tank = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
             tank.name = "Tank" + i;
             tank.transform.SetParent(group.transform, false);
-            tank.transform.position = OnGround(6f + i * 13f, -40f, 5f);
+            tank.transform.position = OnGround(6f + i * 13f, -48f, 5f);
             tank.transform.localScale = new Vector3(10f, 5f, 10f);
             tank.GetComponent<Renderer>().sharedMaterial = metal;
         }
     }
 
     /// <summary>
-    /// The targets themselves: eight of them, spread across the compound so no
-    /// single pass can take out more than a couple.
+    /// The targets: eight of them, no two visible from the same spot at once.
+    ///
+    /// Most sit tucked against something — a warehouse wall, the treeline, the
+    /// fence — rather than out in the open apron, the way real cover would
+    /// actually be used rather than staged for a shooting gallery. Two of the
+    /// trucks patrol the road loop instead of sitting parked, so the compound
+    /// still has movement in it even before the first shot is fired.
     /// </summary>
     static int BuildTargets(Transform parent)
     {
         var group = new GameObject("Targets");
         group.transform.SetParent(parent, false);
 
-        TargetProps.ArmouredVehicle(group.transform, OnGround(-8f, 8f), 25f, palette);
-        TargetProps.ArmouredVehicle(group.transform, OnGround(4f, 14f), -40f, palette);
+        // Armour, tucked into the gaps between warehouses rather than sitting
+        // in the open middle of the apron. Positions checked against every
+        // building footprint by hand — there is no live editor to eyeball this
+        // in, so getting it wrong here means a target embedded in a wall.
+        TargetProps.ArmouredVehicle(group.transform, OnGround(-38f, 2f), 70f, palette);
+        TargetProps.ArmouredVehicle(group.transform, OnGround(42f, -6f), -110f, palette);
 
-        TargetProps.Truck(group.transform, OnGround(-20f, -6f), 90f, palette);
-        TargetProps.Truck(group.transform, OnGround(-20f, -14f), 90f, palette);
-        TargetProps.Truck(group.transform, OnGround(22f, 4f), 0f, palette);
+        // One truck parked south of the buildings — an ambush, not a display.
+        TargetProps.Truck(group.transform, OnGround(-10f, -45f), 20f, palette);
 
-        TargetProps.SupplyDepot(group.transform, OnGround(16f, -20f), 15f, palette);
-        TargetProps.SupplyDepot(group.transform, OnGround(-46f, 4f), 0f, palette);
+        // Two more running the patrol loop, starting from opposite corners so
+        // they are never side by side.
+        BuildPatrolTruck(group.transform, 0);
+        BuildPatrolTruck(group.transform, 2);
 
-        TargetProps.Antenna(group.transform, OnGround(48f, 42f), 0f, palette);
+        // Depots tucked against the fence, clear of the buildings and the road.
+        TargetProps.SupplyDepot(group.transform, OnGround(-58f, -30f), 40f, palette);
+        TargetProps.SupplyDepot(group.transform, OnGround(58f, 10f), -15f, palette);
+
+        // The antenna stays the exposed landmark it always was.
+        TargetProps.Antenna(group.transform, OnGround(54f, 44f), 0f, palette);
 
         return group.transform.childCount;
+    }
+
+    /// <summary>
+    /// A truck placed at one corner of the patrol loop and set to drive it,
+    /// starting from a different corner so the two patrol trucks are never
+    /// side by side.
+    /// </summary>
+    static void BuildPatrolTruck(Transform parent, int startCorner)
+    {
+        Vector3[] waypoints = GroundedPatrolWaypoints();
+        Vector3 start = waypoints[startCorner % waypoints.Length];
+
+        Target target = TargetProps.Truck(parent, start, 0f, palette);
+
+        var mover = target.gameObject.AddComponent<PatrolMover>();
+        mover.waypoints = waypoints;
+        mover.speed = 4f;
     }
 
     // ---------- woodland ----------
