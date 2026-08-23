@@ -1,16 +1,22 @@
 using UnityEngine;
 
 /// <summary>
-/// The vehicles and structures the drone is sent after, assembled from
-/// primitives.
+/// The vehicles and structures the drone is sent after, assembled from primitives.
 ///
-/// Each is built with one collider covering the whole object rather than one
-/// per part: the blast damages a target once regardless, and a single box makes
-/// hit detection predictable when a drone comes in fast.
+/// Two rules the whole file follows.
 ///
-/// Silhouettes are kept distinct — a tank is long and low with a turret, a truck
-/// is tall and boxy, a depot is a stack of crates — because from a hundred
-/// metres up the shape is all the pilot has to go on.
+/// Unity's cylinder is 2 units tall and 1 across at scale 1, so a wheel of
+/// diameter D and width W is scale (D, W/2, D) rotated 90° about Z. Getting
+/// that wrong is what turns wheels into thin spikes, so every wheel goes
+/// through <see cref="AddWheel"/> rather than being scaled by hand.
+///
+/// Parts have to touch. A roof floated above the crates it covers, or a turret
+/// hovering over a hull, reads as broken immediately — so heights are derived
+/// from the parts below them instead of typed in independently.
+///
+/// Silhouettes are kept distinct — a tank is long and low with a gun, a truck is
+/// tall and boxy, a depot is a stack under a tarp — because from a hundred
+/// metres up the outline is all the pilot has to go on.
 /// </summary>
 public static class TargetProps
 {
@@ -24,83 +30,210 @@ public static class TargetProps
         public Material roof;
     }
 
+    // ---------- armoured vehicle ----------
+
+    /// <summary>
+    /// Tracked armour: tracks, road wheels, a stepped hull with a sloped glacis,
+    /// turret and a long gun. Roughly 7 m long and 2.6 m tall.
+    /// </summary>
     public static Target ArmouredVehicle(Transform parent, Vector3 position, float yaw, Palette palette)
     {
-        var root = CreateRoot(parent, "ArmouredVehicle", position, yaw,
-                              Target.Kind.ArmouredVehicle,
-                              new Vector3(3.4f, 2.3f, 6.6f), new Vector3(0f, 1.15f, 0f));
+        GameObject root = CreateRoot(parent, "ArmouredVehicle", position, yaw,
+                                     Target.Kind.ArmouredVehicle,
+                                     new Vector3(3.4f, 2.7f, 7.2f), new Vector3(0f, 1.35f, 0f));
 
-        AddPart(root, "Hull", new Vector3(0f, 0.9f, 0f), new Vector3(3.2f, 1.0f, 6.4f), palette.vehicle);
-        AddPart(root, "Turret", new Vector3(0f, 1.7f, -0.4f), new Vector3(2.1f, 0.7f, 2.6f), palette.vehicle);
-        AddPart(root, "Barrel", new Vector3(0f, 1.8f, 2.2f), new Vector3(0.22f, 0.22f, 3.4f), palette.vehicleDark);
+        const float trackHeight = 0.8f;
+        const float trackTop = trackHeight;          // 0.8
+        const float hullHeight = 0.75f;
+        const float hullTop = trackTop + hullHeight; // 1.55
+        const float turretHeight = 0.7f;
 
-        // Tracks down each side.
-        AddPart(root, "TrackLeft", new Vector3(-1.5f, 0.45f, 0f), new Vector3(0.55f, 0.9f, 6.2f), palette.vehicleDark);
-        AddPart(root, "TrackRight", new Vector3(1.5f, 0.45f, 0f), new Vector3(0.55f, 0.9f, 6.2f), palette.vehicleDark);
+        // Tracks down each side, and the road wheels inside them.
+        foreach (float side in new[] { -1.35f, 1.35f })
+        {
+            AddPart(root, "Track", new Vector3(side, trackHeight * 0.5f, 0f),
+                    new Vector3(0.62f, trackHeight, 6.6f), palette.vehicleDark);
+
+            for (int i = 0; i < 5; i++)
+            {
+                float z = -2.4f + i * 1.2f;
+                AddWheel(root, "RoadWheel", new Vector3(side, 0.42f, z), 0.72f, 0.34f, palette.metal);
+            }
+        }
+
+        // Hull sits directly on the tracks.
+        AddPart(root, "Hull", new Vector3(0f, trackTop + hullHeight * 0.5f, -0.2f),
+                new Vector3(2.9f, hullHeight, 6.0f), palette.vehicle);
+
+        // Sloped glacis plate at the front — the detail that reads as "tank"
+        // more than anything except the gun.
+        GameObject glacis = AddPart(root, "Glacis", new Vector3(0f, trackTop + 0.3f, 3.0f),
+                                    new Vector3(2.9f, 0.22f, 1.9f), palette.vehicle);
+        glacis.transform.localRotation = Quaternion.Euler(38f, 0f, 0f);
+
+        // Turret, slightly back of centre, sitting on the hull roof.
+        AddPart(root, "Turret", new Vector3(0f, hullTop + turretHeight * 0.5f, -0.7f),
+                new Vector3(2.1f, turretHeight, 2.9f), palette.vehicle);
+
+        AddPart(root, "TurretRear", new Vector3(0f, hullTop + turretHeight * 0.5f, -2.1f),
+                new Vector3(1.5f, turretHeight * 0.8f, 0.7f), palette.vehicleDark);
+
+        // Mantlet and gun, level with the turret's centre height.
+        float gunHeight = hullTop + turretHeight * 0.55f;
+        AddPart(root, "Mantlet", new Vector3(0f, gunHeight, 0.75f),
+                new Vector3(0.9f, 0.5f, 0.7f), palette.vehicleDark);
+
+        GameObject barrel = AddPart(root, "Barrel", new Vector3(0f, gunHeight, 2.7f),
+                                    new Vector3(0.2f, 1.9f, 0.2f), palette.vehicleDark,
+                                    PrimitiveType.Cylinder);
+        barrel.transform.localRotation = Quaternion.Euler(90f, 0f, 0f);
+
+        AddPart(root, "Hatch", new Vector3(-0.5f, hullTop + turretHeight + 0.06f, -0.9f),
+                new Vector3(0.7f, 0.12f, 0.7f), palette.vehicleDark);
 
         return root.GetComponent<Target>();
     }
 
+    // ---------- truck ----------
+
+    /// <summary>
+    /// Six-wheeled cargo truck: chassis, cab, bonnet and a tarped bed.
+    /// Tall and square, so it never gets confused with the armour from above.
+    /// </summary>
     public static Target Truck(Transform parent, Vector3 position, float yaw, Palette palette)
     {
-        var root = CreateRoot(parent, "Truck", position, yaw,
-                              Target.Kind.LightVehicle,
-                              new Vector3(2.6f, 3.2f, 7f), new Vector3(0f, 1.6f, 0f));
+        GameObject root = CreateRoot(parent, "Truck", position, yaw,
+                                     Target.Kind.LightVehicle,
+                                     new Vector3(2.7f, 3.4f, 7.2f), new Vector3(0f, 1.7f, 0f));
 
-        AddPart(root, "Chassis", new Vector3(0f, 0.7f, 0f), new Vector3(2.4f, 0.5f, 6.8f), palette.vehicleDark);
-        AddPart(root, "Cab", new Vector3(0f, 1.6f, 2.2f), new Vector3(2.3f, 1.4f, 2.0f), palette.vehicle);
-        AddPart(root, "Cargo", new Vector3(0f, 1.9f, -1.2f), new Vector3(2.5f, 2.0f, 4.2f), palette.vehicle);
+        const float wheelDiameter = 1.15f;
+        const float axleHeight = wheelDiameter * 0.5f;      // 0.575
+        const float chassisHeight = 0.32f;
+        const float chassisTop = axleHeight + chassisHeight * 0.5f;
 
-        for (int i = 0; i < 6; i++)
+        AddPart(root, "Chassis", new Vector3(0f, axleHeight + 0.1f, 0f),
+                new Vector3(2.1f, chassisHeight, 6.8f), palette.vehicleDark);
+
+        // Bonnet, then the cab behind it, both resting on the chassis.
+        AddPart(root, "Bonnet", new Vector3(0f, chassisTop + 0.45f, 2.75f),
+                new Vector3(2.2f, 0.9f, 1.5f), palette.vehicle);
+
+        AddPart(root, "Cab", new Vector3(0f, chassisTop + 0.85f, 1.35f),
+                new Vector3(2.3f, 1.7f, 1.5f), palette.vehicle);
+
+        AddPart(root, "Windscreen", new Vector3(0f, chassisTop + 1.35f, 2.12f),
+                new Vector3(2.0f, 0.75f, 0.08f), palette.vehicleDark);
+
+        // Cargo bed with a tarp over it, sitting on the chassis behind the cab.
+        AddPart(root, "BedFloor", new Vector3(0f, chassisTop + 0.12f, -1.5f),
+                new Vector3(2.4f, 0.2f, 4.0f), palette.vehicleDark);
+
+        AddPart(root, "Tarp", new Vector3(0f, chassisTop + 1.05f, -1.5f),
+                new Vector3(2.5f, 1.7f, 4.0f), palette.vehicle);
+
+        AddPart(root, "TarpRear", new Vector3(0f, chassisTop + 1.05f, -3.52f),
+                new Vector3(2.4f, 1.6f, 0.1f), palette.vehicleDark);
+
+        // Three axles a side. Front axle under the bonnet, two under the bed.
+        float[] axleZ = { 2.5f, -1.1f, -2.6f };
+        foreach (float z in axleZ)
         {
-            float x = (i % 2 == 0) ? -1.2f : 1.2f;
-            float z = -2.2f + (i / 2) * 2.2f;
-
-            var wheel = AddPart(root, "Wheel" + i, new Vector3(x, 0.5f, z),
-                                new Vector3(0.4f, 1f, 1f), palette.vehicleDark, PrimitiveType.Cylinder);
-            wheel.transform.localRotation = Quaternion.Euler(0f, 0f, 90f);
+            AddWheel(root, "Wheel", new Vector3(-1.12f, axleHeight, z),
+                     wheelDiameter, 0.42f, palette.vehicleDark);
+            AddWheel(root, "Wheel", new Vector3(1.12f, axleHeight, z),
+                     wheelDiameter, 0.42f, palette.vehicleDark);
         }
 
         return root.GetComponent<Target>();
     }
 
+    // ---------- supply depot ----------
+
+    /// <summary>
+    /// A stack of crates under a tarp on four posts. The tarp is derived from the
+    /// stack height so it rests on the posts instead of floating over them.
+    /// </summary>
     public static Target SupplyDepot(Transform parent, Vector3 position, float yaw, Palette palette)
     {
-        var root = CreateRoot(parent, "SupplyDepot", position, yaw,
-                              Target.Kind.SupplyDepot,
-                              new Vector3(4.4f, 2.6f, 4.4f), new Vector3(0f, 1.3f, 0f));
+        const float crateHeight = 0.9f;
+        const float postHeight = 2.6f;
 
-        // A stack of crates under a tarp frame.
-        for (int i = 0; i < 6; i++)
+        GameObject root = CreateRoot(parent, "SupplyDepot", position, yaw,
+                                     Target.Kind.SupplyDepot,
+                                     new Vector3(4.6f, postHeight + 0.2f, 4.6f),
+                                     new Vector3(0f, (postHeight + 0.2f) * 0.5f, 0f));
+
+        // Two rows of crates, the back row stacked two high.
+        for (int column = 0; column < 3; column++)
         {
-            float x = (i % 2 == 0) ? -0.95f : 0.95f;
-            float z = -1.1f + (i / 2) * 1.1f;
-            float height = (i % 3 == 0) ? 1.7f : 0.9f;
+            float x = -1.3f + column * 1.3f;
 
-            AddPart(root, "Crate" + i, new Vector3(x, height * 0.5f, z),
-                    new Vector3(1.7f, height, 1.0f), palette.crate);
+            AddPart(root, "Crate", new Vector3(x, crateHeight * 0.5f, 0.85f),
+                    new Vector3(1.15f, crateHeight, 1.5f), palette.crate);
+
+            AddPart(root, "Crate", new Vector3(x, crateHeight * 0.5f, -0.85f),
+                    new Vector3(1.15f, crateHeight, 1.5f), palette.crate);
+
+            // Second layer on the back row only, so the stack has a profile.
+            if (column == 1) continue;
+            AddPart(root, "Crate", new Vector3(x, crateHeight * 1.5f, -0.85f),
+                    new Vector3(1.1f, crateHeight, 1.4f), palette.crate);
         }
 
-        AddPart(root, "Cover", new Vector3(0f, 2.3f, 0f), new Vector3(4.2f, 0.12f, 4.2f), palette.vehicleDark);
+        // Four posts holding the tarp up, with the tarp resting on top of them.
+        foreach (float x in new[] { -2.0f, 2.0f })
+        {
+            foreach (float z in new[] { -2.0f, 2.0f })
+            {
+                AddPart(root, "Post", new Vector3(x, postHeight * 0.5f, z),
+                        new Vector3(0.16f, postHeight, 0.16f), palette.metal);
+            }
+        }
+
+        AddPart(root, "Tarp", new Vector3(0f, postHeight + 0.06f, 0f),
+                new Vector3(4.6f, 0.12f, 4.6f), palette.vehicleDark);
 
         return root.GetComponent<Target>();
     }
 
+    // ---------- antenna ----------
+
+    /// <summary>
+    /// A guyed mast with a dish. Tall and thin, so it stands out from every
+    /// other target on the map at any range.
+    /// </summary>
     public static Target Antenna(Transform parent, Vector3 position, float yaw, Palette palette)
     {
-        var root = CreateRoot(parent, "Antenna", position, yaw,
-                              Target.Kind.Antenna,
-                              new Vector3(2.4f, 9f, 2.4f), new Vector3(0f, 4.5f, 0f));
+        const float mastHeight = 9f;
 
-        AddPart(root, "Base", new Vector3(0f, 0.3f, 0f), new Vector3(2.2f, 0.6f, 2.2f), palette.concrete);
-        AddPart(root, "Mast", new Vector3(0f, 4.5f, 0f), new Vector3(0.35f, 8.4f, 0.35f), palette.metal);
+        GameObject root = CreateRoot(parent, "Antenna", position, yaw,
+                                     Target.Kind.Antenna,
+                                     new Vector3(2.6f, mastHeight, 2.6f),
+                                     new Vector3(0f, mastHeight * 0.5f, 0f));
 
-        // Dish near the top, the part that makes it read as an antenna from above.
-        var dish = AddPart(root, "Dish", new Vector3(0.7f, 7.4f, 0f),
-                           new Vector3(1.8f, 0.16f, 1.8f), palette.metal, PrimitiveType.Cylinder);
-        dish.transform.localRotation = Quaternion.Euler(0f, 0f, 65f);
+        AddPart(root, "Base", new Vector3(0f, 0.3f, 0f),
+                new Vector3(2.2f, 0.6f, 2.2f), palette.concrete);
 
-        AddPart(root, "Guy", new Vector3(0f, 8.7f, 0f), new Vector3(1.4f, 0.1f, 0.1f), palette.metal);
+        AddPart(root, "Mast", new Vector3(0f, 0.6f + mastHeight * 0.5f, 0f),
+                new Vector3(0.34f, mastHeight, 0.34f), palette.metal);
+
+        // Lattice cross-bracing: a few angled bars break up the bare column.
+        for (int i = 0; i < 4; i++)
+        {
+            float height = 1.6f + i * 2f;
+            GameObject brace = AddPart(root, "Brace", new Vector3(0f, height, 0f),
+                                       new Vector3(0.9f, 0.08f, 0.08f), palette.metal);
+            brace.transform.localRotation = Quaternion.Euler(0f, i * 45f, 32f);
+        }
+
+        // Dish near the top, angled out — the part that identifies it from above.
+        GameObject dish = AddPart(root, "Dish", new Vector3(0.85f, mastHeight - 1.4f, 0f),
+                                  new Vector3(1.9f, 0.14f, 1.9f), palette.metal,
+                                  PrimitiveType.Cylinder);
+        dish.transform.localRotation = Quaternion.Euler(0f, 0f, 68f);
+
+        AddPart(root, "Crown", new Vector3(0f, mastHeight + 0.5f, 0f),
+                new Vector3(1.2f, 0.1f, 0.1f), palette.metal);
 
         return root.GetComponent<Target>();
     }
@@ -115,9 +248,21 @@ public static class TargetProps
         building.transform.position = position;
         building.transform.rotation = Quaternion.Euler(0f, yaw, 0f);
 
-        AddPart(building, "Walls", new Vector3(0f, size.y * 0.5f, 0f), size, palette.concrete);
-        AddPart(building, "Roof", new Vector3(0f, size.y + 0.15f, 0f),
-                new Vector3(size.x + 0.6f, 0.3f, size.z + 0.6f), palette.roof);
+        var walls = GameObject.CreatePrimitive(PrimitiveType.Cube);
+        walls.name = "Walls";
+        walls.transform.SetParent(building.transform, false);
+        walls.transform.localPosition = new Vector3(0f, size.y * 0.5f, 0f);
+        walls.transform.localScale = size;
+        walls.GetComponent<Renderer>().sharedMaterial = palette.concrete;
+
+        // Roof sits flush on the walls.
+        var roof = GameObject.CreatePrimitive(PrimitiveType.Cube);
+        roof.name = "Roof";
+        roof.transform.SetParent(building.transform, false);
+        roof.transform.localPosition = new Vector3(0f, size.y + 0.15f, 0f);
+        roof.transform.localScale = new Vector3(size.x + 0.6f, 0.3f, size.z + 0.6f);
+        roof.GetComponent<Renderer>().sharedMaterial = palette.roof;
+        Object.DestroyImmediate(roof.GetComponent<Collider>());
 
         return building;
     }
@@ -134,8 +279,6 @@ public static class TargetProps
         GameObject trunkPart = AddPart(tree, "Trunk", new Vector3(0f, 1.6f, 0f),
                                        new Vector3(0.32f, 3.2f, 0.32f), trunk, PrimitiveType.Cylinder);
 
-        // Two stacked cones of foliage. Cheap, and from the air a conifer is
-        // mostly its outline anyway.
         AddPart(tree, "CanopyLower", new Vector3(0f, 3.4f, 0f),
                 new Vector3(2.6f, 2.2f, 2.6f), foliage);
         AddPart(tree, "CanopyUpper", new Vector3(0f, 4.9f, 0f),
@@ -186,6 +329,25 @@ public static class TargetProps
 
         if (material != null) part.GetComponent<Renderer>().sharedMaterial = material;
         return part;
+    }
+
+    /// <summary>
+    /// A wheel lying on its side.
+    ///
+    /// Unity's cylinder is 2 units tall along Y and 1 unit across, so a wheel of
+    /// diameter D and width W is scale (D, W/2, D) — then rolled 90° about Z to
+    /// lay it flat. Scaling it any other way is what produces spikes instead of
+    /// wheels.
+    /// </summary>
+    static GameObject AddWheel(GameObject parent, string name, Vector3 localPosition,
+                               float diameter, float width, Material material)
+    {
+        GameObject wheel = AddPart(parent, name, localPosition,
+                                   new Vector3(diameter, width * 0.5f, diameter),
+                                   material, PrimitiveType.Cylinder);
+
+        wheel.transform.localRotation = Quaternion.Euler(0f, 0f, 90f);
+        return wheel;
     }
 
     static void StripCollider(GameObject go)
