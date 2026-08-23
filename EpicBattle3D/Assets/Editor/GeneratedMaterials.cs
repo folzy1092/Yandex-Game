@@ -160,12 +160,14 @@ public static class GeneratedMaterials
         Texture2D flashTexture = RadialGlow(128, new Color(1f, 0.95f, 0.7f), 6);
         SaveAdditiveMaterial("Mat_Muzzle", flashTexture, new Color(1f, 0.88f, 0.55f));
 
-        Texture2D softTexture = RadialGlow(64, Color.white, 0);
-        SaveAdditiveMaterial("Mat_Tracer", softTexture, new Color(1f, 0.92f, 0.6f));
-        SaveAdditiveMaterial("Mat_Spark", softTexture, new Color(1f, 0.82f, 0.35f));
+        // A fresh texture per material, not one shared instance: CreateAsset takes
+        // ownership of the object it is given, so saving the same Texture2D under
+        // a second path fails outright.
+        SaveAdditiveMaterial("Mat_Tracer", RadialGlow(64, Color.white, 0), new Color(1f, 0.92f, 0.6f));
+        SaveAdditiveMaterial("Mat_Spark", RadialGlow(64, Color.white, 0), new Color(1f, 0.82f, 0.35f));
 
         // Blood is not additive — additive red on a dark wall would glow pink.
-        SaveTransparentMaterial("Mat_Blood", softTexture, new Color(0.65f, 0.05f, 0.05f));
+        SaveTransparentMaterial("Mat_Blood", RadialGlow(64, Color.white, 0), new Color(0.65f, 0.05f, 0.05f));
 
         Texture2D holeTexture = BulletHole(64);
         SaveTransparentMaterial("Mat_BulletHole", holeTexture, new Color(0.05f, 0.05f, 0.06f));

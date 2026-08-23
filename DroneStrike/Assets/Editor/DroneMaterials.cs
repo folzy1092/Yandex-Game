@@ -94,11 +94,14 @@ public static class DroneMaterials
         Texture2D flash = RadialGlow(128, new Color(1f, 0.92f, 0.65f), 6);
         SaveAdditive("Mat_Muzzle", flash, new Color(1f, 0.85f, 0.5f));
 
-        Texture2D soft = RadialGlow(64, Color.white, 0);
-        SaveAdditive("Mat_Tracer", soft, new Color(1f, 0.9f, 0.6f));
-        SaveAdditive("Mat_Spark", soft, new Color(1f, 0.78f, 0.3f));
+        // A fresh texture per material, not one shared instance: CreateAsset takes
+        // ownership of the object it is given, so saving the same Texture2D under
+        // a second path fails outright.
+        SaveAdditive("Mat_Tracer", RadialGlow(64, Color.white, 0), new Color(1f, 0.9f, 0.6f));
+        SaveAdditive("Mat_Spark", RadialGlow(64, Color.white, 0), new Color(1f, 0.78f, 0.3f));
 
-        SaveTransparent("Mat_Blood", soft, new Color(0.25f, 0.22f, 0.20f));   // dust, not blood
+        // Dust, not blood — the targets here are vehicles.
+        SaveTransparent("Mat_Blood", RadialGlow(64, Color.white, 0), new Color(0.25f, 0.22f, 0.20f));
         SaveTransparent("Mat_BulletHole", ScorchMark(64), new Color(0.06f, 0.05f, 0.05f));
     }
 
