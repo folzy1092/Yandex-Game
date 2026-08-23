@@ -25,7 +25,7 @@ public class GameEffects : MonoBehaviour
         DontDestroyOnLoad(go);
     }
 
-    class Tracer
+    class TracerLine
     {
         public LineRenderer line;
         public float remaining;
@@ -42,7 +42,7 @@ public class GameEffects : MonoBehaviour
         public float baseIntensity;
     }
 
-    readonly Tracer[] tracers = new Tracer[TracerCount];
+    readonly TracerLine[] tracers = new TracerLine[TracerCount];
     readonly Flash[] flashes = new Flash[FlashCount];
     readonly Transform[] decals = new Transform[DecalCount];
 
@@ -73,7 +73,7 @@ public class GameEffects : MonoBehaviour
     {
         for (int i = 0; i < tracers.Length; i++)
         {
-            Tracer tracer = tracers[i];
+            TracerLine tracer = tracers[i];
             if (tracer.remaining <= 0f) continue;
 
             tracer.remaining -= Time.deltaTime;
@@ -135,7 +135,7 @@ public class GameEffects : MonoBehaviour
     /// <summary>Streak marking the bullet's path.</summary>
     public void Tracer(Vector3 from, Vector3 to, Color color)
     {
-        Tracer tracer = tracers[nextTracer];
+        TracerLine tracer = tracers[nextTracer];
         nextTracer = (nextTracer + 1) % TracerCount;
 
         tracer.line.SetPosition(0, from);
@@ -183,7 +183,7 @@ public class GameEffects : MonoBehaviour
             if (material != null) line.sharedMaterial = material;
             line.enabled = false;
 
-            tracers[i] = new Tracer { line = line };
+            tracers[i] = new TracerLine { line = line };
         }
     }
 
