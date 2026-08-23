@@ -57,6 +57,25 @@ foreach ($folder in @("Scripts", "Editor", "Plugins")) {
     Write-Host "Copied $folder"
 }
 
+# Downloaded model files (Resources/Models only, not the whole Resources tree):
+# generated textures and materials also live under Assets/Resources in the
+# Unity project, and those are created locally by the "Generate Materials"
+# menu command rather than tracked in the repo. Replacing all of Resources on
+# every sync would delete that generated content and force a full rebuild.
+$modelsSource = Join-Path $source "Resources\Models"
+if (Test-Path $modelsSource) {
+    $modelsDestination = Join-Path $destinationAssets "Resources\Models"
+
+    if (Test-Path $modelsDestination) {
+        Write-Host "Resources/Models already exists in the Unity project - replacing it."
+        Remove-Item -Path $modelsDestination -Recurse -Force
+    }
+
+    New-Item -ItemType Directory -Path (Join-Path $destinationAssets "Resources") -Force | Out-Null
+    Copy-Item -Path $modelsSource -Destination $modelsDestination -Recurse
+    Write-Host "Copied Resources/Models"
+}
+
 Write-Host ""
 Write-Host "Done. Now open Unity Hub -> open the project at:"
 Write-Host "  $UnityProject"

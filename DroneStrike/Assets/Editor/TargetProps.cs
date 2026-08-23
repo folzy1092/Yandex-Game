@@ -33,15 +33,33 @@ public static class TargetProps
     // ---------- armoured vehicle ----------
 
     /// <summary>
-    /// Tracked armour: tracks, road wheels, a stepped hull with a sloped glacis,
-    /// turret and a long gun. Roughly 7 m long and 2.6 m tall.
+    /// Tracked armour. Uses the downloaded tank model if it has been imported
+    /// (Assets/Resources/Models/Tank.glb, via the com.unity.cloud.gltfast
+    /// package), otherwise builds the same silhouette from primitives.
+    ///
+    /// The model's own scale and facing came from a public model site and have
+    /// not been checked in the editor — <see cref="ModelScale"/> and
+    /// <see cref="ModelYawOffset"/> are the two knobs to turn if it comes in
+    /// too big, too small, or facing sideways.
     /// </summary>
+    const float ModelScale = 1f;
+    const float ModelYawOffset = 0f;
+
     public static Target ArmouredVehicle(Transform parent, Vector3 position, float yaw, Palette palette)
     {
         GameObject root = CreateRoot(parent, "ArmouredVehicle", position, yaw,
                                      Target.Kind.ArmouredVehicle,
                                      new Vector3(3.4f, 2.7f, 7.2f), new Vector3(0f, 1.35f, 0f));
 
+        if (ModelLibrary.Instantiate("Tank", root.transform, ModelScale, ModelYawOffset) != null)
+            return root.GetComponent<Target>();
+
+        BuildArmouredVehiclePrimitives(root, palette);
+        return root.GetComponent<Target>();
+    }
+
+    static void BuildArmouredVehiclePrimitives(GameObject root, Palette palette)
+    {
         const float trackHeight = 0.8f;
         const float trackTop = trackHeight;          // 0.8
         const float hullHeight = 0.75f;
@@ -90,8 +108,6 @@ public static class TargetProps
 
         AddPart(root, "Hatch", new Vector3(-0.5f, hullTop + turretHeight + 0.06f, -0.9f),
                 new Vector3(0.7f, 0.12f, 0.7f), palette.vehicleDark);
-
-        return root.GetComponent<Target>();
     }
 
     // ---------- truck ----------
@@ -153,15 +169,34 @@ public static class TargetProps
     /// A stack of crates under a tarp on four posts. The tarp is derived from the
     /// stack height so it rests on the posts instead of floating over them.
     /// </summary>
+    /// <summary>
+    /// Uses the downloaded supply tent model if imported
+    /// (Assets/Resources/Models/SupplyTent.glb), otherwise a crate stack under a
+    /// tarp built from primitives. Same collider footprint either way, so the
+    /// hitbox does not depend on which one loaded.
+    /// </summary>
+    const float TentModelScale = 1f;
+    const float TentModelYawOffset = 0f;
+
     public static Target SupplyDepot(Transform parent, Vector3 position, float yaw, Palette palette)
     {
-        const float crateHeight = 0.9f;
         const float postHeight = 2.6f;
 
         GameObject root = CreateRoot(parent, "SupplyDepot", position, yaw,
                                      Target.Kind.SupplyDepot,
                                      new Vector3(4.6f, postHeight + 0.2f, 4.6f),
                                      new Vector3(0f, (postHeight + 0.2f) * 0.5f, 0f));
+
+        if (ModelLibrary.Instantiate("SupplyTent", root.transform, TentModelScale, TentModelYawOffset) != null)
+            return root.GetComponent<Target>();
+
+        BuildSupplyDepotPrimitives(root, palette, postHeight);
+        return root.GetComponent<Target>();
+    }
+
+    static void BuildSupplyDepotPrimitives(GameObject root, Palette palette, float postHeight)
+    {
+        const float crateHeight = 0.9f;
 
         // Two rows of crates, the back row stacked two high.
         for (int column = 0; column < 3; column++)
@@ -192,8 +227,6 @@ public static class TargetProps
 
         AddPart(root, "Tarp", new Vector3(0f, postHeight + 0.06f, 0f),
                 new Vector3(4.6f, 0.12f, 4.6f), palette.vehicleDark);
-
-        return root.GetComponent<Target>();
     }
 
     // ---------- antenna ----------
