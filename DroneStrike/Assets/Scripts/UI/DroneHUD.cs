@@ -307,8 +307,11 @@ public class DroneHUD : MonoBehaviour
         MissionManager mission = MissionManager.Instance;
         if (mission == null || missionText == null) return;
 
+        string warhead = WarheadProfile.For(mission.warhead).DisplayName;
+
         missionText.text = "ЦЕЛЕЙ: " + mission.TargetsDestroyed + " / " + mission.TargetsTotal
-                           + "\nДРОНОВ: " + mission.DronesRemaining;
+                           + "\nДРОНОВ: " + mission.DronesRemaining
+                           + "\nЗАРЯД: " + warhead;
     }
 
     void ShowResult(bool won)

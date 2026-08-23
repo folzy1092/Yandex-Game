@@ -18,7 +18,7 @@ public static class DroneFactory
     const float ArmLength = 0.34f;
     const float PropRadius = 0.16f;
 
-    public static DroneRig Create(Vector3 position, Quaternion rotation)
+    public static DroneRig Create(Vector3 position, Quaternion rotation, WarheadType warhead)
     {
         var drone = new GameObject("Drone");
         drone.transform.position = position;
@@ -40,8 +40,13 @@ public static class DroneFactory
         BuildArmsAndRotors(drone.transform, frameMaterial, propMaterial);
         Transform view = BuildCamera(drone.transform, accentMaterial);
 
-        drone.AddComponent<DroneController>();
-        drone.AddComponent<Warhead>();
+        var controller = drone.AddComponent<DroneController>();
+        // Forward is measured from the camera, so the controller needs it before
+        // its first FixedUpdate.
+        controller.aimReference = view;
+
+        var warheadComponent = drone.AddComponent<Warhead>();
+        warheadComponent.type = warhead;
         drone.AddComponent<DroneBattery>();
         drone.AddComponent<SignalLink>();
         drone.AddComponent<DroneImpact>();

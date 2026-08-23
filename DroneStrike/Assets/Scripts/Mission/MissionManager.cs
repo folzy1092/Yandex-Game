@@ -22,6 +22,9 @@ public class MissionManager : MonoBehaviour
     public GameObject dronePrefabRoot;
     public int droneCount = 3;
 
+    /// <summary>Which charge the drones carry. Chosen in the briefing on a later stage.</summary>
+    public WarheadType warhead = WarheadType.Standard;
+
     /// <summary>Seconds between losing a drone and the next one launching.</summary>
     public float relaunchDelay = 2.5f;
 
@@ -114,7 +117,7 @@ public class MissionManager : MonoBehaviour
         Vector3 position = launchPoint != null ? launchPoint.position : Vector3.up * 2f;
         Quaternion rotation = launchPoint != null ? launchPoint.rotation : Quaternion.identity;
 
-        ActiveDrone = DroneFactory.Create(position, rotation);
+        ActiveDrone = DroneFactory.Create(position, rotation, warhead);
         ActiveDrone.SignalLink.SetLaunchPoint(position);
 
         // Every way of losing a drone funnels through the same handler, so the

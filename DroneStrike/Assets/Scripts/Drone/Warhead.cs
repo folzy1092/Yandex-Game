@@ -13,8 +13,7 @@ using UnityEngine;
 public class Warhead : MonoBehaviour
 {
     [Header("Blast")]
-    public float damage = 160f;
-    public float blastRadius = 7f;
+    public WarheadType type = WarheadType.Standard;
 
     /// <summary>Impact speed, in m/s, needed to set the warhead off.</summary>
     public float armingSpeed = 4f;
@@ -24,6 +23,8 @@ public class Warhead : MonoBehaviour
 
     public bool HasDetonated { get; private set; }
 
+    public WarheadProfile Profile { get; private set; }
+
     Rigidbody body;
     DroneController drone;
 
@@ -31,6 +32,16 @@ public class Warhead : MonoBehaviour
     {
         body = GetComponent<Rigidbody>();
         drone = GetComponent<DroneController>();
+
+        Profile = WarheadProfile.For(type);
+
+        // A lighter charge means a livelier drone. Applied here rather than in
+        // the factory so the handling always matches whatever is actually fitted.
+        if (drone != null)
+        {
+            drone.thrust *= Profile.thrustFactor;
+            drone.maxSpeed *= Profile.speedFactor;
+        }
     }
 
     // No manual trigger: the mouse aims the camera, and losing the drone every
@@ -78,7 +89,7 @@ public class Warhead : MonoBehaviour
 
     void ApplyBlast(Vector3 origin)
     {
-        Collider[] caught = Physics.OverlapSphere(origin, blastRadius);
+        Collider[] caught = Physics.OverlapSphere(origin, Profile.blastRadius);
         var alreadyHit = new System.Collections.Generic.HashSet<Target>();
 
         foreach (Collider collider in caught)
@@ -90,9 +101,9 @@ public class Warhead : MonoBehaviour
             if (!alreadyHit.Add(target)) continue;
 
             float distance = Vector3.Distance(origin, collider.ClosestPoint(origin));
-            float falloff = Mathf.Clamp01(1f - distance / blastRadius);
+            float falloff = Mathf.Clamp01(1f - distance / Profile.blastRadius);
 
-            target.TakeDamage(damage * falloff);
+            target.TakeDamage(Profile.damage * falloff);
         }
     }
 }
