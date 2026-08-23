@@ -1,47 +1,51 @@
 using UnityEngine;
 
 /// <summary>
-/// Makes a killed fighter collapse instead of vanishing mid-stride.
+/// Drops a killed fighter as a physics body.
 ///
-/// This is a scripted fall rather than a physics ragdoll: a real ragdoll needs a
-/// Rigidbody and joint on every body part, which costs far more than it is worth
-/// in a WebGL build and would need the whole character rebuilt. Instead the model
-/// topples about its feet with the limbs going slack, which reads as a body
-/// dropping without any physics running at all.
+/// The model is detached from the character, handed a Rigidbody and a collider,
+/// and left to Unity's physics: it falls under gravity, hits the floor, tumbles
+/// and settles wherever it lands. That is why a corpse never ends up in the same
+/// pose twice and never floats — the previous scripted version rotated the model
+/// by a fixed angle, which left bodies bent at odd angles instead of lying down.
 ///
-/// The fall accelerates rather than moving linearly, because a body falling under
-/// gravity starts slow and finishes fast — a constant-speed topple looks wrong
-/// immediately even if you cannot say why.
+/// It is one rigid body rather than a jointed ragdoll per limb. A full ragdoll
+/// needs a Rigidbody and CharacterJoint on all six body parts, which costs
+/// noticeably more in WebGL and — with blocky primitive limbs — tends to jitter
+/// and spasm rather than look convincing.
+///
+/// The corpse goes onto its own layer, set up to collide with the level but not
+/// with living fighters, so bodies never shove players around or block bullets.
 /// </summary>
 public class DeathFall : MonoBehaviour
 {
     public Transform model;
-    public Transform leftLegPivot;
-    public Transform rightLegPivot;
-    public Transform leftArmPivot;
-    public Transform rightArmPivot;
 
     /// <summary>Optional: the first-person camera, so dying drops your view too.</summary>
     public Transform cameraTransform;
 
-    public float fallDuration = 0.55f;
+    [Header("Impulse")]
+    public float launchSpeed = 2.6f;
+    public float spinSpeed = 5.5f;
 
     Health health;
 
-    Quaternion modelRestRotation;
+    Transform modelParent;
     Vector3 modelRestPosition;
+    Quaternion modelRestRotation;
+
     Vector3 cameraRestPosition;
     Quaternion cameraRestRotation;
 
-    Quaternion modelFallenRotation;
-    Vector3 modelFallenPosition;
+    Rigidbody body;
+    BoxCollider corpseCollider;
+
+    bool cameraFalling;
+    float cameraElapsed;
     Vector3 cameraFallenPosition;
     Quaternion cameraFallenRotation;
 
-    Quaternion leftLegSlack, rightLegSlack, leftArmSlack, rightArmSlack;
-
-    bool falling;
-    float elapsed;
+    const float CameraFallDuration = 0.5f;
 
     void Awake()
     {
@@ -49,8 +53,9 @@ public class DeathFall : MonoBehaviour
 
         if (model != null)
         {
-            modelRestRotation = model.localRotation;
+            modelParent = model.parent;
             modelRestPosition = model.localPosition;
+            modelRestRotation = model.localRotation;
         }
 
         if (cameraTransform != null)
@@ -75,49 +80,96 @@ public class DeathFall : MonoBehaviour
 
     void HandleDied(GameObject killer)
     {
-        // Topple in a random direction so a row of kills does not look identical.
-        float tipDirection = Random.Range(0f, 360f);
-        Vector3 axis = Quaternion.Euler(0f, tipDirection, 0f) * Vector3.right;
-
-        modelFallenRotation = Quaternion.AngleAxis(Random.Range(82f, 95f), axis) * modelRestRotation;
-        // Dropping the model as it rotates keeps the body on the floor rather
-        // than leaving it pivoting around its waist in the air.
-        modelFallenPosition = modelRestPosition + Vector3.down * 0.15f;
-
-        // Limbs go slack at slightly different angles, which is what sells it as
-        // a body rather than a rotating statue.
-        leftLegSlack = Quaternion.Euler(Random.Range(-25f, 10f), 0f, Random.Range(-12f, 12f));
-        rightLegSlack = Quaternion.Euler(Random.Range(-25f, 10f), 0f, Random.Range(-12f, 12f));
-        leftArmSlack = Quaternion.Euler(Random.Range(-40f, 25f), 0f, Random.Range(-30f, 5f));
-        rightArmSlack = Quaternion.Euler(Random.Range(-40f, 25f), 0f, Random.Range(-5f, 30f));
-
-        if (cameraTransform != null)
-        {
-            // First person: the view sinks to about knee height and rolls over.
-            cameraFallenPosition = new Vector3(cameraRestPosition.x, 0.35f, cameraRestPosition.z);
-            cameraFallenRotation = Quaternion.Euler(12f, 0f, Random.Range(-70f, 70f));
-        }
-
-        elapsed = 0f;
-        falling = true;
+        DropBody(killer);
+        DropCamera();
 
         if (GameAudio.Instance != null) GameAudio.Instance.PlayBodyFall(transform.position);
     }
 
+    void DropBody(GameObject killer)
+    {
+        if (model == null) return;
+
+        // Detach first: while the model is a child of the character, the
+        // CharacterController would keep dragging it to the spawn point.
+        model.SetParent(null, true);
+
+        int ragdollLayer = GameLayers.Ragdoll;
+        if (ragdollLayer >= 0) GameLayers.ApplyRecursively(model.gameObject, ragdollLayer);
+
+        if (corpseCollider == null)
+        {
+            corpseCollider = model.gameObject.AddComponent<BoxCollider>();
+            // One box around the whole body rather than per-limb colliders.
+            corpseCollider.center = new Vector3(0f, 0.9f, 0f);
+            corpseCollider.size = new Vector3(0.55f, 1.75f, 0.4f);
+        }
+        corpseCollider.enabled = true;
+
+        if (body == null)
+        {
+            body = model.gameObject.AddComponent<Rigidbody>();
+            body.mass = 70f;
+            body.collisionDetectionMode = CollisionDetectionMode.ContinuousDynamic;
+        }
+
+        body.isKinematic = false;
+        body.useGravity = true;
+
+        // Shoved away from whoever killed them, so a body falls in a direction
+        // that matches the shot rather than an arbitrary one.
+        Vector3 push = Vector3.up * 0.35f;
+        if (killer != null)
+        {
+            Vector3 away = model.position - killer.transform.position;
+            away.y = 0f;
+            if (away.sqrMagnitude > 0.01f) push += away.normalized;
+        }
+        else
+        {
+            push += Random.insideUnitSphere;
+            push.y = Mathf.Abs(push.y);
+        }
+
+        body.linearVelocity = push.normalized * launchSpeed;
+        body.angularVelocity = Random.onUnitSphere * spinSpeed;
+    }
+
+    void DropCamera()
+    {
+        if (cameraTransform == null) return;
+
+        cameraFallenPosition = new Vector3(cameraRestPosition.x, 0.35f, cameraRestPosition.z);
+        cameraFallenRotation = Quaternion.Euler(14f, 0f, Random.Range(-70f, 70f));
+
+        cameraElapsed = 0f;
+        cameraFalling = true;
+    }
+
     void HandleRespawned()
     {
-        falling = false;
+        cameraFalling = false;
+
+        if (body != null)
+        {
+            // Freeze the physics before reattaching, or leftover velocity would
+            // carry into the next life.
+            body.linearVelocity = Vector3.zero;
+            body.angularVelocity = Vector3.zero;
+            body.isKinematic = true;
+        }
+
+        if (corpseCollider != null) corpseCollider.enabled = false;
 
         if (model != null)
         {
-            model.localRotation = modelRestRotation;
+            model.SetParent(modelParent, false);
             model.localPosition = modelRestPosition;
-        }
+            model.localRotation = modelRestRotation;
 
-        ResetPivot(leftLegPivot);
-        ResetPivot(rightLegPivot);
-        ResetPivot(leftArmPivot);
-        ResetPivot(rightArmPivot);
+            int hitboxLayer = GameLayers.Hitbox;
+            if (hitboxLayer >= 0) GameLayers.ApplyRecursively(model.gameObject, hitboxLayer);
+        }
 
         if (cameraTransform != null)
         {
@@ -128,41 +180,17 @@ public class DeathFall : MonoBehaviour
 
     void LateUpdate()
     {
-        if (!falling) return;
+        if (!cameraFalling) return;
 
-        elapsed += Time.deltaTime;
-        float linear = Mathf.Clamp01(elapsed / fallDuration);
+        cameraElapsed += Time.deltaTime;
+        float linear = Mathf.Clamp01(cameraElapsed / CameraFallDuration);
 
-        // Accelerating curve: slow tip at first, then the body drops.
+        // Accelerating, like something actually falling.
         float t = linear * linear;
 
-        if (model != null)
-        {
-            model.localRotation = Quaternion.Slerp(modelRestRotation, modelFallenRotation, t);
-            model.localPosition = Vector3.Lerp(modelRestPosition, modelFallenPosition, t);
-        }
+        cameraTransform.localPosition = Vector3.Lerp(cameraRestPosition, cameraFallenPosition, t);
+        cameraTransform.localRotation = Quaternion.Slerp(cameraRestRotation, cameraFallenRotation, t);
 
-        SlackenPivot(leftLegPivot, leftLegSlack, t);
-        SlackenPivot(rightLegPivot, rightLegSlack, t);
-        SlackenPivot(leftArmPivot, leftArmSlack, t);
-        SlackenPivot(rightArmPivot, rightArmSlack, t);
-
-        if (cameraTransform != null)
-        {
-            cameraTransform.localPosition = Vector3.Lerp(cameraRestPosition, cameraFallenPosition, t);
-            cameraTransform.localRotation = Quaternion.Slerp(cameraRestRotation, cameraFallenRotation, t);
-        }
-
-        if (linear >= 1f) falling = false;
-    }
-
-    void SlackenPivot(Transform pivot, Quaternion slack, float t)
-    {
-        if (pivot != null) pivot.localRotation = Quaternion.Slerp(Quaternion.identity, slack, t);
-    }
-
-    void ResetPivot(Transform pivot)
-    {
-        if (pivot != null) pivot.localRotation = Quaternion.identity;
+        if (linear >= 1f) cameraFalling = false;
     }
 }

@@ -98,7 +98,8 @@ public static class PoolMapBuilder
             fabric = GeneratedMaterials.Load("Mat_Fabric"),
             wood = GeneratedMaterials.Load("Mat_Wood"),
             plant = GeneratedMaterials.Load("Mat_Plant"),
-            accent = GeneratedMaterials.Load("Mat_Accent")
+            accent = GeneratedMaterials.Load("Mat_Accent"),
+            window = GeneratedMaterials.Load("Mat_Window")
         };
     }
 
@@ -196,54 +197,121 @@ public static class PoolMapBuilder
                         new Vector3(PoolMaxX - PoolMinX, SlabThickness, southDepth), floor);
     }
 
+    /// <summary>
+    /// The hall's outer walls, tiled the way a real swimming baths is: a darker
+    /// splash band around the bottom with white tiling above it, and a run of
+    /// clerestory windows near the roof.
+    ///
+    /// Only the lower band carries the collider. The upper band and the windows
+    /// are decoration sitting on top of it, which keeps the collision geometry
+    /// to four simple boxes.
+    /// </summary>
     static void BuildPerimeter()
     {
         var group = MapBlocks.Group("Perimeter");
-        float centreY = WallHeight * 0.5f;
 
-        MapBlocks.BoxAt(group.transform, "Wall_North", new Vector3(0f, centreY, HalfDepth + 0.5f),
-                        new Vector3(HalfWidth * 2f + 2f, WallHeight, 1f), palette.wall);
-        MapBlocks.BoxAt(group.transform, "Wall_South", new Vector3(0f, centreY, -HalfDepth - 0.5f),
-                        new Vector3(HalfWidth * 2f + 2f, WallHeight, 1f), palette.wall);
-        MapBlocks.BoxAt(group.transform, "Wall_East", new Vector3(HalfWidth + 0.5f, centreY, 0f),
-                        new Vector3(1f, WallHeight, HalfDepth * 2f), palette.wall);
-        MapBlocks.BoxAt(group.transform, "Wall_West", new Vector3(-HalfWidth - 0.5f, centreY, 0f),
-                        new Vector3(1f, WallHeight, HalfDepth * 2f), palette.wall);
+        float length = HalfWidth * 2f + 2f;
+        float depth = HalfDepth * 2f;
+
+        BuildTiledWall(group.transform, "Wall_North", new Vector3(0f, 0f, HalfDepth + 0.5f),
+                       new Vector2(length, 1f), 0f);
+        BuildTiledWall(group.transform, "Wall_South", new Vector3(0f, 0f, -HalfDepth - 0.5f),
+                       new Vector2(length, 1f), 0f);
+        BuildTiledWall(group.transform, "Wall_East", new Vector3(HalfWidth + 0.5f, 0f, 0f),
+                       new Vector2(1f, depth), 90f);
+        BuildTiledWall(group.transform, "Wall_West", new Vector3(-HalfWidth - 0.5f, 0f, 0f),
+                       new Vector2(1f, depth), 90f);
     }
 
+    /// <param name="footprint">Wall footprint as (x size, z size).</param>
+    /// <param name="yaw">0 for a wall running along X, 90 for one running along Z.</param>
+    static void BuildTiledWall(Transform parent, string name, Vector3 basePosition,
+                               Vector2 footprint, float yaw)
+    {
+        const float splashBandHeight = 2.2f;
+
+        // The full-height structural wall, tiled dark up to the splash line.
+        MapBlocks.BoxAt(parent, name, basePosition + Vector3.up * (WallHeight * 0.5f),
+                        new Vector3(footprint.x, WallHeight, footprint.y), palette.wallTile);
+
+        bool runsAlongX = Mathf.Approximately(yaw, 0f);
+        float runLength = runsAlongX ? footprint.x : footprint.y;
+
+        // Splash band: a thin skin over the lower part of the wall.
+        Vector3 bandSize = runsAlongX
+            ? new Vector3(runLength, splashBandHeight, footprint.y + 0.12f)
+            : new Vector3(footprint.x + 0.12f, splashBandHeight, runLength);
+
+        var band = MapBlocks.BoxAt(parent, name + "_SplashBand",
+                                   basePosition + Vector3.up * (splashBandHeight * 0.5f),
+                                   bandSize, palette.tile);
+        MapBlocks.NoCollision(band);
+
+        // Clerestory windows just under the roof, the daylight source a real
+        // pool hall has. Emissive-looking pale panels, not actual openings.
+        int windows = Mathf.Max(2, Mathf.RoundToInt(runLength / 7f));
+        for (int i = 0; i < windows; i++)
+        {
+            float offset = -runLength * 0.5f + runLength * (i + 0.5f) / windows;
+
+            Vector3 position = runsAlongX
+                ? new Vector3(basePosition.x + offset, 4.9f, basePosition.z)
+                : new Vector3(basePosition.x, 4.9f, basePosition.z + offset);
+
+            Vector3 size = runsAlongX
+                ? new Vector3(runLength / windows * 0.62f, 1.4f, footprint.y + 0.16f)
+                : new Vector3(footprint.x + 0.16f, 1.4f, runLength / windows * 0.62f);
+
+            var window = MapBlocks.BoxAt(parent, name + "_Window" + i, position, size, palette.window);
+            MapBlocks.NoCollision(MapBlocks.NoShadows(window));
+        }
+    }
+
+    const float RoofHeight = 6.2f;
+
     /// <summary>
-    /// Roofs the two side wings and leaves the pool hall open to the sky.
+    /// Roofs the whole arena, turning it into an indoor pool hall like the
+    /// reference map.
     ///
-    /// This is what turns the arena from an outdoor yard into an indoor complex
-    /// like the reference, while keeping it lit: a fully closed roof would block
-    /// the directional light and leave the whole map in flat ambient gloom. The
-    /// open centre acts as an atrium — the pool stays sunlit and the wings read
-    /// as enclosed interiors, which also reinforces what each route plays like.
+    /// The roof is built as strips with gaps between them rather than one solid
+    /// slab: the gaps are skylights, and they are the only way sunlight reaches
+    /// the floor once the hall is closed in. A single unbroken roof would kill
+    /// the directional light and leave the entire map in flat ambient gloom.
+    /// Ceiling lights fill in the rest.
     /// </summary>
     static void BuildRoof()
     {
         var group = MapBlocks.Group("Roof");
-        const float roofHeight = 5.6f;
 
-        float leftWidth = LeftWingX + HalfWidth;
-        MapBlocks.BoxAt(group.transform, "Roof_LeftWing",
-                        new Vector3(-HalfWidth + leftWidth * 0.5f, roofHeight, 0f),
-                        new Vector3(leftWidth, 0.4f, HalfDepth * 2f), palette.concrete);
+        const int strips = 7;
+        const float skylightWidth = 2.6f;
 
-        float rightWidth = HalfWidth - RightWingX;
-        MapBlocks.BoxAt(group.transform, "Roof_RightWing",
-                        new Vector3(HalfWidth - rightWidth * 0.5f, roofHeight, 0f),
-                        new Vector3(rightWidth, 0.4f, HalfDepth * 2f), palette.concrete);
+        float span = HalfDepth * 2f;
+        float stripDepth = (span - skylightWidth * (strips - 1)) / strips;
 
-        // Beams spanning the open pool hall: the frame of a glass atrium roof,
-        // left unglazed so sunlight still reaches the water.
-        for (int i = 0; i < 7; i++)
+        for (int i = 0; i < strips; i++)
         {
-            float z = -HalfDepth + 2f + i * ((HalfDepth * 2f - 4f) / 6f);
-            var beam = MapBlocks.BoxAt(group.transform, "Beam" + i,
-                                       new Vector3(0f, roofHeight, z),
-                                       new Vector3(RightWingX - LeftWingX, 0.3f, 0.35f), palette.metal);
-            MapBlocks.NoCollision(MapBlocks.NoShadows(beam));
+            float z = -HalfDepth + stripDepth * 0.5f + i * (stripDepth + skylightWidth);
+
+            MapBlocks.BoxAt(group.transform, "RoofStrip" + i,
+                            new Vector3(0f, RoofHeight, z),
+                            new Vector3(HalfWidth * 2f + 2f, 0.4f, stripDepth), palette.concrete);
+        }
+
+        // Cross beams spanning the skylights, so the gaps read as a glazed roof
+        // frame rather than as holes in the ceiling.
+        for (int i = 0; i < strips - 1; i++)
+        {
+            float z = -HalfDepth + stripDepth + skylightWidth * 0.5f + i * (stripDepth + skylightWidth);
+
+            for (int j = 0; j < 5; j++)
+            {
+                float x = -HalfWidth + 6f + j * (HalfWidth * 2f - 12f) / 4f;
+                var beam = MapBlocks.BoxAt(group.transform, "Beam",
+                                           new Vector3(x, RoofHeight, z),
+                                           new Vector3(0.3f, 0.25f, skylightWidth), palette.metal);
+                MapBlocks.NoCollision(MapBlocks.NoShadows(beam));
+            }
         }
     }
 

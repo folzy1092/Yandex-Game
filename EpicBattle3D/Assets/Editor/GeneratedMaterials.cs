@@ -125,6 +125,26 @@ public static class GeneratedMaterials
         SaveFlatMaterial("Mat_Plant", new Color(0.24f, 0.46f, 0.22f), 0.14f);         // foliage
         SaveFlatMaterial("Mat_Accent", new Color(0.16f, 0.62f, 0.62f), 0.35f);        // turquoise fittings
         SaveFlatMaterial("Mat_LaneMarking", new Color(0.09f, 0.20f, 0.34f), 0.5f);    // pool lane stripes
+
+        // Clerestory glazing. Emissive so the windows read as the daylight
+        // source in a hall that is otherwise closed in by its roof.
+        SaveEmissiveMaterial("Mat_Window", new Color(0.78f, 0.88f, 0.95f),
+                             new Color(0.55f, 0.68f, 0.78f));
+    }
+
+    static void SaveEmissiveMaterial(string name, Color color, Color emission)
+    {
+        var material = new Material(Shader.Find("Standard"));
+        material.color = color;
+        material.SetFloat("_Glossiness", 0.6f);
+        material.SetFloat("_Metallic", 0f);
+        material.EnableKeyword("_EMISSION");
+        material.SetColor("_EmissionColor", emission);
+        material.globalIlluminationFlags = MaterialGlobalIlluminationFlags.RealtimeEmissive;
+
+        string path = MaterialFolder + "/" + name + ".mat";
+        AssetDatabase.DeleteAsset(path);
+        AssetDatabase.CreateAsset(material, path);
     }
 
     /// <summary>

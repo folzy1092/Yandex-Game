@@ -22,6 +22,7 @@ public static class PoolProps
         public Material wood;
         public Material plant;
         public Material accent;
+        public Material window;
     }
 
     // ---------- low cover ----------

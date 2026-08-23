@@ -15,10 +15,12 @@ public static class GameLayers
     public const string CharacterName = "Character";
     public const string HitboxName = "Hitbox";
     public const string WeaponName = "ViewWeapon";
+    public const string RagdollName = "Ragdoll";
 
     public static int Character { get { return LayerMask.NameToLayer(CharacterName); } }
     public static int Hitbox { get { return LayerMask.NameToLayer(HitboxName); } }
     public static int Weapon { get { return LayerMask.NameToLayer(WeaponName); } }
+    public static int Ragdoll { get { return LayerMask.NameToLayer(RagdollName); } }
 
     /// <summary>
     /// What bullets and line-of-sight checks are allowed to hit: level geometry
@@ -36,6 +38,11 @@ public static class GameLayers
 
             int weapon = Weapon;
             if (weapon >= 0) mask &= ~(1 << weapon);
+
+            // Corpses are scenery. Shooting one should not stop the bullet, and
+            // bots must not mistake a body on the floor for cover or a target.
+            int ragdoll = Ragdoll;
+            if (ragdoll >= 0) mask &= ~(1 << ragdoll);
 
             return mask;
         }

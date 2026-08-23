@@ -17,6 +17,7 @@ public static class GameLayersSetup
         AddLayer(GameLayers.CharacterName);
         AddLayer(GameLayers.HitboxName);
         AddLayer(GameLayers.WeaponName);
+        AddLayer(GameLayers.RagdollName);
 
         AssetDatabase.SaveAssets();
         ConfigureCollisions();
@@ -62,12 +63,24 @@ public static class GameLayersSetup
     {
         int hitbox = GameLayers.Hitbox;
         int weapon = GameLayers.Weapon;
+        int ragdoll = GameLayers.Ragdoll;
+        int character = GameLayers.Character;
         if (hitbox < 0) return;
 
         for (int layer = 0; layer < 32; layer++)
         {
             Physics.IgnoreLayerCollision(hitbox, layer, true);
             if (weapon >= 0) Physics.IgnoreLayerCollision(weapon, layer, true);
+        }
+
+        // Corpses fall onto the level but pass through everything alive, so a
+        // body can never shove a player or wedge a bot against a wall.
+        if (ragdoll >= 0)
+        {
+            Physics.IgnoreLayerCollision(ragdoll, ragdoll, true);
+            if (character >= 0) Physics.IgnoreLayerCollision(ragdoll, character, true);
+            if (hitbox >= 0) Physics.IgnoreLayerCollision(ragdoll, hitbox, true);
+            if (weapon >= 0) Physics.IgnoreLayerCollision(ragdoll, weapon, true);
         }
     }
 }
