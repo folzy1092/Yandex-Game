@@ -821,14 +821,10 @@ public static class PoolMapBuilder
         // rather than just switching to a menu.
         var deathFall = player.AddComponent<DeathFall>();
         deathFall.model = parts.root;
-        deathFall.leftLegPivot = parts.leftLegPivot;
-        deathFall.rightLegPivot = parts.rightLegPivot;
-        deathFall.leftArmPivot = parts.leftArmPivot;
-        deathFall.rightArmPivot = parts.rightArmPivot;
         deathFall.cameraTransform = cameraGO.transform;
 
-        // The walk cycle must stop on death, or it would fight DeathFall for
-        // control of the same limb pivots.
+        // The walk cycle has to stop on death: it drives the limb pivots every
+        // frame, which would keep animating a corpse while physics tumbles it.
         health.disableOnDeath = new MonoBehaviour[] { fps, weapon, animator };
 
         player.AddComponent<CursorRelease>();

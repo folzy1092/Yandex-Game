@@ -63,13 +63,9 @@ public static class BotFactory
 
         var deathFall = bot.AddComponent<DeathFall>();
         deathFall.model = parts.root;
-        deathFall.leftLegPivot = parts.leftLegPivot;
-        deathFall.rightLegPivot = parts.rightLegPivot;
-        deathFall.leftArmPivot = parts.leftArmPivot;
-        deathFall.rightArmPivot = parts.rightArmPivot;
 
-        // The walk cycle has to stop on death, or it would fight DeathFall for
-        // control of the same limb pivots.
+        // The walk cycle has to stop on death: it drives the limb pivots every
+        // frame, which would keep animating a corpse while physics tumbles it.
         health.disableOnDeath = new MonoBehaviour[] { botController, animator };
 
         return bot;

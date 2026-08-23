@@ -51,7 +51,10 @@ public static class UIFactory
     /// <summary>Buttons and sliders do nothing without an EventSystem in the scene.</summary>
     public static void EnsureEventSystem()
     {
-        if (Object.FindObjectOfType<EventSystem>() != null) return;
+        // FindAnyObjectByType rather than the deprecated FindObjectOfType: any
+        // EventSystem will do, and not caring which one lets Unity take the
+        // faster path.
+        if (Object.FindAnyObjectByType<EventSystem>() != null) return;
 
         var go = new GameObject("EventSystem");
         go.AddComponent<EventSystem>();
