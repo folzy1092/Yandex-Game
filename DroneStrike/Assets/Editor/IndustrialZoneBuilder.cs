@@ -137,8 +137,11 @@ public static class IndustrialZoneBuilder
         BuildApron(group.transform);
         BuildFence(group.transform);
         BuildBuildings(group.transform);
-        BuildTargets(group.transform);
+        targetCount = BuildTargets(group.transform);
     }
+
+    /// <summary>Set by BuildCompound, read by BuildManagers when sizing the drone rack.</summary>
+    static int targetCount;
 
     /// <summary>A concrete apron under the compound, so vehicles are not parked on grass.</summary>
     static void BuildApron(Transform parent)
@@ -228,7 +231,7 @@ public static class IndustrialZoneBuilder
     /// The targets themselves: eight of them, spread across the compound so no
     /// single pass can take out more than a couple.
     /// </summary>
-    static void BuildTargets(Transform parent)
+    static int BuildTargets(Transform parent)
     {
         var group = new GameObject("Targets");
         group.transform.SetParent(parent, false);
@@ -244,6 +247,8 @@ public static class IndustrialZoneBuilder
         TargetProps.SupplyDepot(group.transform, OnGround(-46f, 4f), 0f, palette);
 
         TargetProps.Antenna(group.transform, OnGround(48f, 42f), 0f, palette);
+
+        return group.transform.childCount;
     }
 
     // ---------- woodland ----------
@@ -307,7 +312,13 @@ public static class IndustrialZoneBuilder
 
         var mission = managers.AddComponent<MissionManager>();
         mission.launchPoint = launch;
-        mission.droneCount = 3;
+
+        // A kamikaze drone clears roughly one target per run, so the rack has
+        // to hold at least one per target plus a margin for crashes and misses.
+        // A flat "3" here regardless of the map's actual target count is what
+        // made the mission unwinnable — three drones cannot ever clear eight
+        // targets no matter how well they are flown.
+        mission.droneCount = Mathf.Max(4, Mathf.CeilToInt(targetCount * 1.3f));
 
         managers.AddComponent<DroneHUD>();
     }
