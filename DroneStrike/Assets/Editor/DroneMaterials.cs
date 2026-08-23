@@ -1,0 +1,265 @@
+using System.IO;
+using UnityEditor;
+using UnityEngine;
+
+/// <summary>
+/// Generates every texture and material the game uses and saves them as project
+/// assets.
+///
+/// They have to be real assets, not objects made on the fly: a material created
+/// at runtime and assigned into a scene leaves a broken reference the next time
+/// that scene is opened.
+/// </summary>
+public static class DroneMaterials
+{
+    public const string TextureFolder = "Assets/Resources/Textures";
+    public const string MaterialFolder = "Assets/Resources/Materials";
+
+    [MenuItem("Tools/Drone Strike/1 - Generate Materials")]
+    public static void Generate()
+    {
+        Directory.CreateDirectory(TextureFolder);
+        Directory.CreateDirectory(MaterialFolder);
+
+        BuildGroundMaterials();
+        BuildStructureMaterials();
+        BuildVehicleMaterials();
+        BuildDroneMaterials();
+        BuildEffectMaterials();
+
+        AssetDatabase.SaveAssets();
+        AssetDatabase.Refresh();
+        Debug.Log("Drone Strike: textures and materials generated in Assets/Resources.");
+    }
+
+    static void BuildGroundMaterials()
+    {
+        // Grass, tiled hard because the ground mesh is hundreds of metres across.
+        SaveSurface("Ground",
+            ProceduralTextures.CreateConcrete(512, new Color(0.32f, 0.42f, 0.24f), 0.45f, 4001, 0.5f),
+            new Vector2(60f, 60f), 0.05f);
+
+        SaveSurface("Asphalt",
+            ProceduralTextures.CreateConcrete(512, new Color(0.24f, 0.24f, 0.26f), 0.30f, 4002, 0.6f),
+            new Vector2(6f, 6f), 0.12f);
+
+        SaveFlat("Mat_Water", new Color(0.16f, 0.30f, 0.38f), 0.85f);
+    }
+
+    static void BuildStructureMaterials()
+    {
+        SaveSurface("Concrete",
+            ProceduralTextures.CreateConcrete(512, new Color(0.62f, 0.61f, 0.58f), 0.28f, 4003, 0.55f),
+            new Vector2(4f, 4f), 0.08f);
+
+        SaveSurface("RustMetal",
+            ProceduralTextures.CreateConcrete(512, new Color(0.45f, 0.33f, 0.24f), 0.40f, 4004, 0.7f),
+            new Vector2(3f, 3f), 0.35f, 0.45f);
+
+        SaveSurface("Roof",
+            ProceduralTextures.CreateTiles(512, 10, new Color(0.38f, 0.39f, 0.41f),
+                                           new Color(0.26f, 0.27f, 0.29f), 0.06f, 4005, 0.5f),
+            new Vector2(5f, 5f), 0.25f);
+
+        SaveFlat("Mat_Foliage", new Color(0.20f, 0.34f, 0.17f), 0.10f);
+        SaveFlat("Mat_TreeTrunk", new Color(0.28f, 0.22f, 0.16f), 0.08f);
+        SaveFlat("Mat_Burnt", new Color(0.09f, 0.08f, 0.08f), 0.15f);
+    }
+
+    static void BuildVehicleMaterials()
+    {
+        // Military olive, and a lighter shade so vehicle details read at distance.
+        SaveFlat("Mat_Vehicle", new Color(0.27f, 0.30f, 0.20f), 0.20f);
+        SaveFlat("Mat_VehicleDark", new Color(0.16f, 0.18f, 0.13f), 0.25f);
+        SaveFlat("Mat_Crate", new Color(0.42f, 0.36f, 0.22f), 0.12f);
+    }
+
+    static void BuildDroneMaterials()
+    {
+        SaveFlat("Mat_DroneFrame", new Color(0.12f, 0.12f, 0.13f), 0.45f, 0.5f);
+        SaveFlat("Mat_DroneAccent", new Color(0.15f, 0.45f, 0.75f), 0.55f, 0.3f);
+
+        // Props are near-invisible while spinning, so they only need to be dark
+        // and slightly translucent-looking.
+        SaveFlat("Mat_Propeller", new Color(0.20f, 0.20f, 0.22f), 0.35f);
+    }
+
+    /// <summary>
+    /// Effect materials, copied in behaviour from the shooter: unlit and additive,
+    /// because an explosion that responds to scene lighting looks dull and a
+    /// muzzle flash has to read as its own light source.
+    /// </summary>
+    static void BuildEffectMaterials()
+    {
+        Texture2D flash = RadialGlow(128, new Color(1f, 0.92f, 0.65f), 6);
+        SaveAdditive("Mat_Muzzle", flash, new Color(1f, 0.85f, 0.5f));
+
+        Texture2D soft = RadialGlow(64, Color.white, 0);
+        SaveAdditive("Mat_Tracer", soft, new Color(1f, 0.9f, 0.6f));
+        SaveAdditive("Mat_Spark", soft, new Color(1f, 0.78f, 0.3f));
+
+        SaveTransparent("Mat_Blood", soft, new Color(0.25f, 0.22f, 0.20f));   // dust, not blood
+        SaveTransparent("Mat_BulletHole", ScorchMark(64), new Color(0.06f, 0.05f, 0.05f));
+    }
+
+    // ---------- asset writing ----------
+
+    static void SaveSurface(string name, Texture2D texture, Vector2 tiling, float glossiness,
+                            float metallic = 0f)
+    {
+        string texturePath = TextureFolder + "/Tex_" + name + ".asset";
+        AssetDatabase.DeleteAsset(texturePath);
+        AssetDatabase.CreateAsset(texture, texturePath);
+
+        var material = new Material(Shader.Find("Standard"));
+        material.mainTexture = texture;
+        material.mainTextureScale = tiling;
+        material.SetFloat("_Glossiness", glossiness);
+        material.SetFloat("_Metallic", metallic);
+
+        Save(material, "Mat_" + name);
+    }
+
+    static void SaveFlat(string name, Color color, float glossiness, float metallic = 0f)
+    {
+        var material = new Material(Shader.Find("Standard"));
+        material.color = color;
+        material.SetFloat("_Glossiness", glossiness);
+        material.SetFloat("_Metallic", metallic);
+
+        Save(material, name);
+    }
+
+    static void SaveAdditive(string name, Texture2D texture, Color tint)
+    {
+        SaveTexture(name, texture);
+
+        var material = new Material(EffectShader());
+        material.mainTexture = texture;
+        material.color = tint;
+
+        if (material.HasProperty("_Mode")) material.SetFloat("_Mode", 4f);
+        if (material.HasProperty("_SrcBlend")) material.SetFloat("_SrcBlend", (float)UnityEngine.Rendering.BlendMode.SrcAlpha);
+        if (material.HasProperty("_DstBlend")) material.SetFloat("_DstBlend", (float)UnityEngine.Rendering.BlendMode.One);
+        if (material.HasProperty("_ZWrite")) material.SetFloat("_ZWrite", 0f);
+        if (material.HasProperty("_Cull")) material.SetFloat("_Cull", 0f);
+
+        material.EnableKeyword("_ALPHABLEND_ON");
+        material.renderQueue = 3000;
+
+        Save(material, name);
+    }
+
+    static void SaveTransparent(string name, Texture2D texture, Color tint)
+    {
+        SaveTexture(name, texture);
+
+        var material = new Material(EffectShader());
+        material.mainTexture = texture;
+        material.color = tint;
+
+        if (material.HasProperty("_Mode")) material.SetFloat("_Mode", 2f);
+        if (material.HasProperty("_SrcBlend")) material.SetFloat("_SrcBlend", (float)UnityEngine.Rendering.BlendMode.SrcAlpha);
+        if (material.HasProperty("_DstBlend")) material.SetFloat("_DstBlend", (float)UnityEngine.Rendering.BlendMode.OneMinusSrcAlpha);
+        if (material.HasProperty("_ZWrite")) material.SetFloat("_ZWrite", 0f);
+        if (material.HasProperty("_Cull")) material.SetFloat("_Cull", 0f);
+
+        material.EnableKeyword("_ALPHABLEND_ON");
+        material.renderQueue = 3000;
+
+        Save(material, name);
+    }
+
+    static Shader EffectShader()
+    {
+        Shader shader = Shader.Find("Particles/Standard Unlit");
+        return shader != null ? shader : Shader.Find("Sprites/Default");
+    }
+
+    static void SaveTexture(string materialName, Texture2D texture)
+    {
+        string path = TextureFolder + "/Tex_" + materialName + ".asset";
+        AssetDatabase.DeleteAsset(path);
+        AssetDatabase.CreateAsset(texture, path);
+    }
+
+    static void Save(Material material, string name)
+    {
+        string path = MaterialFolder + "/" + name + ".mat";
+        AssetDatabase.DeleteAsset(path);
+        AssetDatabase.CreateAsset(material, path);
+    }
+
+    public static Material Load(string materialName)
+    {
+        var material = AssetDatabase.LoadAssetAtPath<Material>(MaterialFolder + "/" + materialName + ".mat");
+        if (material == null)
+            Debug.LogWarning("Drone Strike: material " + materialName + " not found. "
+                             + "Run Tools > Drone Strike > 1 - Generate Materials first.");
+        return material;
+    }
+
+    // ---------- procedural textures ----------
+
+    static Texture2D RadialGlow(int size, Color color, int spikes)
+    {
+        var texture = new Texture2D(size, size, TextureFormat.RGBA32, false);
+        texture.name = "Glow";
+        texture.wrapMode = TextureWrapMode.Clamp;
+
+        float centre = (size - 1) * 0.5f;
+
+        for (int y = 0; y < size; y++)
+        {
+            for (int x = 0; x < size; x++)
+            {
+                float dx = (x - centre) / centre;
+                float dy = (y - centre) / centre;
+                float distance = Mathf.Sqrt(dx * dx + dy * dy);
+
+                float falloff = Mathf.Clamp01(1f - distance);
+                float alpha = falloff * falloff;
+
+                if (spikes > 0)
+                {
+                    float angle = Mathf.Atan2(dy, dx);
+                    float star = Mathf.Abs(Mathf.Cos(angle * spikes * 0.5f));
+                    alpha = Mathf.Clamp01(alpha + falloff * star * 0.55f);
+                }
+
+                texture.SetPixel(x, y, new Color(color.r, color.g, color.b, alpha));
+            }
+        }
+
+        texture.Apply();
+        return texture;
+    }
+
+    static Texture2D ScorchMark(int size)
+    {
+        var texture = new Texture2D(size, size, TextureFormat.RGBA32, false);
+        texture.name = "Scorch";
+        texture.wrapMode = TextureWrapMode.Clamp;
+
+        float centre = (size - 1) * 0.5f;
+
+        for (int y = 0; y < size; y++)
+        {
+            for (int x = 0; x < size; x++)
+            {
+                float dx = (x - centre) / centre;
+                float dy = (y - centre) / centre;
+                float distance = Mathf.Sqrt(dx * dx + dy * dy);
+
+                float angle = Mathf.Atan2(dy, dx);
+                float wobble = 0.8f + Mathf.Sin(angle * 5f) * 0.08f + Mathf.Sin(angle * 11f) * 0.05f;
+
+                float alpha = distance < wobble ? Mathf.Clamp01(1f - distance / wobble) : 0f;
+                texture.SetPixel(x, y, new Color(1f, 1f, 1f, alpha * alpha));
+            }
+        }
+
+        texture.Apply();
+        return texture;
+    }
+}

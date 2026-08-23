@@ -9,6 +9,16 @@ EpicBattle3D/[Uu]ser[Ss]ettings/
 EpicBattle3D/[Mm]emoryCaptures/
 EpicBattle3D/[Rr]ecordings/
 
+DroneStrike/[Ll]ibrary/
+DroneStrike/[Tt]emp/
+DroneStrike/[Oo]bj/
+DroneStrike/[Bb]uild/
+DroneStrike/[Bb]uilds/
+DroneStrike/[Ll]ogs/
+DroneStrike/[Uu]ser[Ss]ettings/
+DroneStrike/[Mm]emoryCaptures/
+DroneStrike/[Rr]ecordings/
+
 # Visual Studio / Rider
 .vs/
 .idea/
