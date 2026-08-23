@@ -17,6 +17,11 @@ public class MatchManager : MonoBehaviour
 
     public int fragLimit = MatchSettings.DefaultFrags;
 
+    /// <summary>Match length in seconds. Whoever leads when it runs out wins.</summary>
+    public float matchDuration = 300f;
+
+    public float TimeRemaining { get; private set; }
+
     public List<Health> Combatants { get { return combatants; } }
 
     /// <summary>Fired with (combatant, newScore) after every frag.</summary>
@@ -33,6 +38,21 @@ public class MatchManager : MonoBehaviour
         Instance = this;
         IsMatchRunning = true;
         fragLimit = MatchSettings.FragLimit;
+        TimeRemaining = matchDuration;
+    }
+
+    void Update()
+    {
+        if (!IsMatchRunning) return;
+
+        TimeRemaining -= Time.deltaTime;
+        if (TimeRemaining > 0f) return;
+
+        TimeRemaining = 0f;
+        // Time is up: the current leader takes it. GetLeader returns null if
+        // nobody scored at all, which EndMatch reports as a draw.
+        GameObject leader = GetLeader();
+        EndMatch(leader, leader != null ? GetScore(leader) : 0);
     }
 
     void OnDestroy()
@@ -74,6 +94,30 @@ public class MatchManager : MonoBehaviour
         }
 
         return leader;
+    }
+
+    /// <summary>
+    /// One row of the end-of-match scoreboard.
+    /// </summary>
+    public struct Standing
+    {
+        public GameObject combatant;
+        public int score;
+    }
+
+    /// <summary>Everyone in the match, best score first.</summary>
+    public List<Standing> GetStandings()
+    {
+        var standings = new List<Standing>();
+
+        foreach (KeyValuePair<GameObject, int> entry in scores)
+        {
+            if (entry.Key == null) continue;
+            standings.Add(new Standing { combatant = entry.Key, score = entry.Value });
+        }
+
+        standings.Sort((a, b) => b.score.CompareTo(a.score));
+        return standings;
     }
 
     void AwardFrag(GameObject killer, GameObject victim)

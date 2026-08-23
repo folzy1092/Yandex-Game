@@ -94,12 +94,28 @@ public class FirstPersonController : MonoBehaviour
             // A small downward bias keeps the controller glued to slopes.
             if (velocity.y < 0f) velocity.y = -2f;
 
-            if (Input.GetKeyDown(KeyCode.Space) && !crouching)
+            // Crouching no longer blocks the jump: holding Ctrl and jumping is
+            // normal shooter movement, and refusing it just feels broken.
+            if (JumpPressed())
                 velocity.y = Mathf.Sqrt(jumpHeight * -2f * gravity);
         }
 
         velocity.y += gravity * Time.deltaTime;
         controller.Move((move * speed + Vector3.up * velocity.y) * Time.deltaTime);
+    }
+
+    /// <summary>
+    /// Jump on Space or on either direction of the mouse wheel. Bunny-hoppers
+    /// expect the wheel, and nothing else in the game uses it — planned weapon
+    /// switching goes on the number keys.
+    /// </summary>
+    bool JumpPressed()
+    {
+        if (Input.GetKeyDown(KeyCode.Space)) return true;
+
+        // The scroll axis is non-zero only on the frame the wheel actually moves,
+        // so this behaves like a key press rather than a held button.
+        return Mathf.Abs(Input.GetAxis("Mouse ScrollWheel")) > 0.01f;
     }
 
     public static void LockCursor(bool locked)

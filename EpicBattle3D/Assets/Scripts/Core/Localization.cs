@@ -32,7 +32,7 @@ public static class Localization
         { "frags",         "Фрагов до победы" },
         { "play",          "В БОЙ" },
         { "loading",       "Загрузка..." },
-        { "controls",      "WASD — движение   Shift — бег   Space — прыжок   Ctrl — присесть\nЛКМ — огонь   R — перезарядка   Esc — освободить курсор" },
+        { "controls",      "WASD — движение   Shift — бег   Space/колесо — прыжок   Ctrl — присесть\nЛКМ — огонь   R — перезарядка   Esc — освободить курсор" },
         { "your_frags",    "Ваши фраги" },
         { "to_win",        "до победы" },
         { "leader",        "Лидер" },
@@ -45,6 +45,9 @@ public static class Localization
         { "you_died",      "ВЫ УБИТЫ" },
         { "respawn_in",    "Возрождение через" },
         { "respawn_now",   "Возродиться сразу (реклама)" },
+        { "results",       "ИТОГИ МАТЧА" },
+        { "draw",          "НИЧЬЯ" },
+        { "time_up",       "ВРЕМЯ ВЫШЛО" },
         { "player",        "Игрок" },
         { "bot",           "Бот" }
     };
@@ -57,7 +60,7 @@ public static class Localization
         { "frags",         "Frags to win" },
         { "play",          "PLAY" },
         { "loading",       "Loading..." },
-        { "controls",      "WASD — move   Shift — sprint   Space — jump   Ctrl — crouch\nLMB — fire   R — reload   Esc — release cursor" },
+        { "controls",      "WASD — move   Shift — sprint   Space/wheel — jump   Ctrl — crouch\nLMB — fire   R — reload   Esc — release cursor" },
         { "your_frags",    "Your frags" },
         { "to_win",        "to win" },
         { "leader",        "Leader" },
@@ -70,6 +73,9 @@ public static class Localization
         { "you_died",      "YOU WERE KILLED" },
         { "respawn_in",    "Respawning in" },
         { "respawn_now",   "Respawn now (watch an ad)" },
+        { "results",       "MATCH RESULTS" },
+        { "draw",          "DRAW" },
+        { "time_up",       "TIME UP" },
         { "player",        "Player" },
         { "bot",           "Bot" }
     };
