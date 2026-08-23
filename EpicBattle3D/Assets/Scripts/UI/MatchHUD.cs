@@ -1,4 +1,5 @@
 using System;
+using System.Collections;
 using System.Text;
 using UnityEngine;
 using UnityEngine.UI;
@@ -182,6 +183,21 @@ public class MatchHUD : MonoBehaviour
             resultsTitle.text += "  ·  " + Localization.Get("time_up");
 
         resultsBoard.text = BuildScoreboard();
+
+        StartCoroutine(ShowResultsPanelAfterDelay());
+    }
+
+    /// <summary>
+    /// The kill that ends the match calls this from inside Health.TakeDamage,
+    /// before the shot that caused it has returned control to WeaponController
+    /// and fired its muzzle flash, tracer, hitmarker and sound. Popping the
+    /// results panel up immediately would bury all of that under a full-screen
+    /// overlay in the same frame it happens, so the killing blow gets a brief
+    /// moment to actually be felt before the screen takes over.
+    /// </summary>
+    IEnumerator ShowResultsPanelAfterDelay()
+    {
+        yield return new WaitForSeconds(0.6f);
 
         resultsPanel.SetActive(true);
         FirstPersonController.LockCursor(false);
