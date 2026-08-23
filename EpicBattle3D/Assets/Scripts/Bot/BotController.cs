@@ -36,6 +36,9 @@ public class BotController : MonoBehaviour
     public float spreadDegrees = 5f;
     public float aimTolerance = 12f;
 
+    /// <summary>Where shots come from. Set by the factory to the pistol's muzzle.</summary>
+    public Transform muzzle;
+
     CharacterController controller;
     Health health;
 
@@ -128,7 +131,8 @@ public class BotController : MonoBehaviour
         // Start the ray just outside our own capsule, otherwise it can begin
         // inside our collider and report nothing at all.
         Vector3 origin = EyePosition + direction.normalized * (controller.radius + 0.1f);
-        return Physics.Raycast(origin, direction, distance);
+        return Physics.Raycast(origin, direction, distance,
+                               GameLayers.GeometryMask, QueryTriggerInteraction.Ignore);
     }
 
     void RotateTowardYaw(float yaw)
@@ -158,7 +162,34 @@ public class BotController : MonoBehaviour
         if (Time.time < nextFireTime) return;
         nextFireTime = Time.time + fireCooldown;
 
-        Hitscan.Fire(gameObject, EyePosition, toTarget.normalized, range, damage, spreadDegrees);
+        ShotResult shot = Hitscan.Fire(gameObject, EyePosition, toTarget.normalized,
+                                       range, damage, spreadDegrees);
+        PlayShotFeedback(shot);
+    }
+
+    void PlayShotFeedback(ShotResult shot)
+    {
+        Vector3 muzzlePosition = muzzle != null ? muzzle.position : EyePosition;
+
+        if (GameAudio.Instance != null) GameAudio.Instance.PlayBotShot(muzzlePosition);
+
+        if (GameEffects.Instance != null)
+        {
+            GameEffects.Instance.MuzzleFlash(muzzlePosition, transform.forward, muzzle);
+            GameEffects.Instance.Tracer(muzzlePosition, shot.point, new Color(1f, 0.6f, 0.35f));
+        }
+
+        if (!shot.hitSomething) return;
+
+        if (shot.hitCharacter)
+        {
+            if (GameEffects.Instance != null) GameEffects.Instance.FleshImpact(shot.point, shot.normal);
+            if (GameAudio.Instance != null) GameAudio.Instance.PlayFleshImpact(shot.point);
+            return;
+        }
+
+        if (GameEffects.Instance != null) GameEffects.Instance.HardImpact(shot.point, shot.normal);
+        if (GameAudio.Instance != null) GameAudio.Instance.PlayHardImpact(shot.point);
     }
 
     Vector3 TargetAimPoint()
@@ -197,10 +228,14 @@ public class BotController : MonoBehaviour
     bool HasLineOfSight(Health candidate, Vector3 toCandidate, float distance)
     {
         RaycastHit hit;
-        if (!Physics.Raycast(EyePosition, toCandidate.normalized, out hit, distance + 0.5f))
+        if (!Physics.Raycast(EyePosition, toCandidate.normalized, out hit, distance + 0.5f,
+                             GameLayers.ShootableMask, QueryTriggerInteraction.Collide))
             return false;
 
-        return hit.collider.GetComponentInParent<Health>() == candidate;
+        Hitbox hitbox = hit.collider.GetComponent<Hitbox>();
+        Health hitHealth = hitbox != null ? hitbox.owner : hit.collider.GetComponentInParent<Health>();
+
+        return hitHealth == candidate;
     }
 
     // ---------- physics ----------

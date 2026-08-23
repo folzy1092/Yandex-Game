@@ -1,9 +1,8 @@
 using UnityEngine;
 
 /// <summary>
-/// Builds bot GameObjects from primitives at runtime. Bots are created in code
-/// rather than from a prefab so the whole game can be produced without any
-/// manual work in the Unity editor.
+/// Builds bot GameObjects at runtime. Bots are created in code rather than from
+/// a prefab so the whole game can be produced without any manual editor work.
 /// </summary>
 public static class BotFactory
 {
@@ -27,20 +26,21 @@ public static class BotFactory
         bot.transform.position = position;
         bot.transform.rotation = Quaternion.Euler(0f, Random.Range(0f, 360f), 0f);
 
+        int characterLayer = GameLayers.Character;
+        if (characterLayer >= 0) bot.layer = characterLayer;
+
         var controller = bot.AddComponent<CharacterController>();
         controller.height = 1.8f;
         controller.radius = 0.35f;
         controller.center = new Vector3(0f, 0.9f, 0f);
+        controller.slopeLimit = 50f;
+        controller.stepOffset = 0.4f;
 
         Color color = Palette[colorIndex % Palette.Length];
-        Material material = CreateMaterial(color);
-
-        AddVisual(bot.transform, PrimitiveType.Capsule, "Body",
-                  new Vector3(0f, 0.9f, 0f), new Vector3(0.7f, 0.9f, 0.7f), material);
-
-        // A small block on the front so you can tell which way a bot is facing.
-        AddVisual(bot.transform, PrimitiveType.Cube, "Muzzle",
-                  new Vector3(0f, 1.4f, 0.45f), new Vector3(0.18f, 0.18f, 0.5f), material);
+        Material bodyMaterial = TintedMaterial("Materials/Mat_Bot", color);
+        // The head is a shade darker, which reads as a helmet and makes the
+        // headshot target easy to pick out at a distance.
+        Material headMaterial = TintedMaterial("Materials/Mat_Bot", color * 0.55f);
 
         var botController = bot.AddComponent<BotController>();
 
@@ -49,35 +49,35 @@ public static class BotFactory
         health.respawnDelay = 3f;
         health.disableOnDeath = new MonoBehaviour[] { botController };
 
+        CharacterModel.Parts parts = CharacterModel.Build(bot, health, bodyMaterial, headMaterial, false);
+
+        Material gunMaterial = Resources.Load<Material>("Materials/Mat_Gun");
+        Material gunAccent = Resources.Load<Material>("Materials/Mat_GunAccent");
+        Transform muzzle = PistolModel.Build(parts.weaponMount, gunMaterial, gunAccent, 1f);
+        botController.muzzle = muzzle;
+
+        var animator = bot.AddComponent<CharacterAnimator>();
+        animator.leftLegPivot = parts.leftLegPivot;
+        animator.rightLegPivot = parts.rightLegPivot;
+        animator.leftArmPivot = parts.leftArmPivot;
+        animator.rightArmPivot = parts.rightArmPivot;
+
         return bot;
     }
 
-    static Material CreateMaterial(Color color)
+    /// <summary>
+    /// Copies the shared bot material and recolours it. Loaded from Resources
+    /// rather than built with Shader.Find so the shader is certain to be
+    /// included in the WebGL build.
+    /// </summary>
+    static Material TintedMaterial(string resourcePath, Color color)
     {
-        // Loaded from Resources rather than Shader.Find so the shader is
-        // guaranteed to be included in the WebGL build.
-        Material template = Resources.Load<Material>("Materials/Mat_Bot");
+        Material template = Resources.Load<Material>(resourcePath);
         Material material = template != null
             ? new Material(template)
             : new Material(Shader.Find("Standard"));
 
         material.color = color;
         return material;
-    }
-
-    static void AddVisual(Transform parent, PrimitiveType type, string name,
-                          Vector3 localPosition, Vector3 localScale, Material material)
-    {
-        var visual = GameObject.CreatePrimitive(type);
-        visual.name = name;
-        visual.transform.SetParent(parent, false);
-        visual.transform.localPosition = localPosition;
-        visual.transform.localScale = localScale;
-
-        // The CharacterController is the only collider a bot needs; leaving the
-        // primitive colliders on would make shots register twice.
-        Object.Destroy(visual.GetComponent<Collider>());
-
-        visual.GetComponent<Renderer>().sharedMaterial = material;
     }
 }

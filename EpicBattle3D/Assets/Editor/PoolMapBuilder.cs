@@ -244,12 +244,16 @@ public static class PoolMapBuilder
     static void BuildPlayer(Transform spawn)
     {
         Material bodyMaterial = GeneratedMaterials.Load("Mat_Player");
+        Material headMaterial = GeneratedMaterials.Load("Mat_Player");
 
         // Kept in English so the scene file reads the same in every language;
         // MatchHUD translates it for display.
         var player = new GameObject("Player");
         player.transform.position = spawn.position;
         player.transform.rotation = spawn.rotation;
+
+        int characterLayer = GameLayers.Character;
+        if (characterLayer >= 0) player.layer = characterLayer;
 
         var controller = player.AddComponent<CharacterController>();
         controller.height = 1.8f;
@@ -262,30 +266,38 @@ public static class PoolMapBuilder
         cameraGO.transform.SetParent(player.transform, false);
         cameraGO.transform.localPosition = new Vector3(0f, 1.6f, 0f);
         var camera = cameraGO.AddComponent<Camera>();
-        camera.nearClipPlane = 0.1f;
+        camera.nearClipPlane = 0.05f;
         camera.farClipPlane = 200f;
         cameraGO.AddComponent<AudioListener>();
 
-        // A body so the bots have something to shoot at. Standard shader culls
-        // back faces, so it is invisible from inside in first person.
-        var body = GameObject.CreatePrimitive(PrimitiveType.Capsule);
-        body.name = "Body";
-        body.transform.SetParent(player.transform, false);
-        body.transform.localPosition = new Vector3(0f, 0.9f, 0f);
-        body.transform.localScale = new Vector3(0.7f, 0.9f, 0.7f);
-        Object.DestroyImmediate(body.GetComponent<Collider>());
-        if (bodyMaterial != null) body.GetComponent<Renderer>().sharedMaterial = bodyMaterial;
+        // The weapon is drawn by its own camera on its own layer. Without this a
+        // gun held close to the lens pokes through walls when you stand next to one.
+        int weaponLayer = GameLayers.Weapon;
+        if (weaponLayer >= 0) camera.cullingMask &= ~(1 << weaponLayer);
 
         var fps = player.AddComponent<FirstPersonController>();
         fps.cameraTransform = cameraGO.transform;
 
-        var weapon = player.AddComponent<WeaponController>();
-        weapon.playerCamera = camera;
-
         var health = player.AddComponent<Health>();
         health.maxHealth = 100;
         health.respawnDelay = 3f;
+
+        // A body with real hitboxes, so bots can land headshots on the player too.
+        // The renderers are switched off: drawing your own head and arms in front
+        // of a first-person camera looks wrong.
+        CharacterModel.Parts parts = CharacterModel.Build(player, health, bodyMaterial, headMaterial, true);
+
+        var weapon = player.AddComponent<WeaponController>();
+        weapon.playerCamera = camera;
+        weapon.view = BuildWeaponView(cameraGO.transform, camera, controller);
+
         health.disableOnDeath = new MonoBehaviour[] { fps, weapon };
+
+        var animator = player.AddComponent<CharacterAnimator>();
+        animator.leftLegPivot = parts.leftLegPivot;
+        animator.rightLegPivot = parts.rightLegPivot;
+        animator.leftArmPivot = parts.leftArmPivot;
+        animator.rightArmPivot = parts.rightArmPivot;
 
         player.AddComponent<CursorRelease>();
 
@@ -295,6 +307,44 @@ public static class PoolMapBuilder
 
         var matchHUD = player.AddComponent<MatchHUD>();
         matchHUD.player = player;
+    }
+
+    /// <summary>
+    /// Builds the first-person weapon: a second camera that draws only the weapon
+    /// layer on top of the main view, and the pistol model hanging in front of it.
+    /// </summary>
+    static WeaponView BuildWeaponView(Transform cameraTransform, Camera mainCamera,
+                                      CharacterController owner)
+    {
+        int weaponLayer = GameLayers.Weapon;
+
+        var weaponCameraGO = new GameObject("WeaponCamera");
+        weaponCameraGO.transform.SetParent(cameraTransform, false);
+
+        var weaponCamera = weaponCameraGO.AddComponent<Camera>();
+        // Depth-only clear draws the weapon over the world without erasing it.
+        weaponCamera.clearFlags = CameraClearFlags.Depth;
+        weaponCamera.cullingMask = weaponLayer >= 0 ? (1 << weaponLayer) : 0;
+        weaponCamera.depth = mainCamera.depth + 1;
+        weaponCamera.nearClipPlane = 0.01f;
+        weaponCamera.farClipPlane = 5f;
+        weaponCamera.fieldOfView = 50f;
+
+        var holder = new GameObject("WeaponView");
+        holder.transform.SetParent(cameraTransform, false);
+
+        Material gunMaterial = GeneratedMaterials.Load("Mat_Gun");
+        Material gunAccent = GeneratedMaterials.Load("Mat_GunAccent");
+        Transform muzzle = PistolModel.Build(holder.transform, gunMaterial, gunAccent, 1f);
+
+        if (weaponLayer >= 0) GameLayers.ApplyRecursively(holder, weaponLayer);
+
+        var view = holder.AddComponent<WeaponView>();
+        view.muzzle = muzzle;
+        view.owner = owner;
+        holder.transform.localPosition = view.restPosition;
+
+        return view;
     }
 
     // ---------- helpers ----------

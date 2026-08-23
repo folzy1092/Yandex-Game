@@ -11,6 +11,16 @@ public static class BuildSetup
     [MenuItem("Tools/Epic Battle 3D/BUILD EVERYTHING", priority = -100)]
     public static void BuildEverything()
     {
+        // Layers first: the scene builders assign them while placing objects.
+        GameLayersSetup.CreateLayers();
+
+        if (GameLayers.Character < 0 || GameLayers.Hitbox < 0 || GameLayers.Weapon < 0)
+        {
+            Debug.LogError("Epic Battle 3D: the layers were just created but Unity has not picked "
+                           + "them up yet. Run BUILD EVERYTHING once more to finish the setup.");
+            return;
+        }
+
         GeneratedMaterials.Generate();
         PoolMapBuilder.BuildScene();
         MainMenuBuilder.BuildScene();

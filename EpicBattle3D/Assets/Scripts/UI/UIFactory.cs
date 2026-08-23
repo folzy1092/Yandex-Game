@@ -10,6 +10,31 @@ using UnityEngine.UI;
 public static class UIFactory
 {
     static Font cachedFont;
+    static Sprite cachedSprite;
+
+    /// <summary>
+    /// A plain white 1x1 sprite. An Image with no sprite still draws as a
+    /// rectangle, but fillAmount does nothing — there is no sprite geometry to
+    /// fill — so every Image here gets this one and health bars actually drain.
+    /// </summary>
+    public static Sprite BlankSprite
+    {
+        get
+        {
+            if (cachedSprite == null)
+            {
+                var texture = new Texture2D(1, 1, TextureFormat.RGBA32, false);
+                texture.SetPixel(0, 0, Color.white);
+                texture.Apply();
+                texture.wrapMode = TextureWrapMode.Clamp;
+
+                cachedSprite = Sprite.Create(texture, new Rect(0f, 0f, 1f, 1f), new Vector2(0.5f, 0.5f));
+                cachedSprite.name = "UIBlank";
+            }
+
+            return cachedSprite;
+        }
+    }
 
     public static Font DefaultFont
     {
@@ -82,6 +107,7 @@ public static class UIFactory
         go.transform.SetParent(parent, false);
 
         var image = go.AddComponent<Image>();
+        image.sprite = BlankSprite;
         image.color = color;
 
         Place(go, anchor, pivot, position, size);
@@ -116,6 +142,7 @@ public static class UIFactory
         go.transform.SetParent(parent, false);
 
         var image = go.AddComponent<Image>();
+        image.sprite = BlankSprite;
         image.color = new Color(0.16f, 0.45f, 0.75f);
 
         var button = go.AddComponent<Button>();

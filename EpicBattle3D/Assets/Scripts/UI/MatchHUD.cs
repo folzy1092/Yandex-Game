@@ -61,6 +61,7 @@ public class MatchHUD : MonoBehaviour
         resultsPanel.transform.SetParent(root, false);
 
         var background = resultsPanel.AddComponent<Image>();
+        background.sprite = UIFactory.BlankSprite;
         background.color = new Color(0f, 0f, 0f, 0.85f);
         UIFactory.Stretch(resultsPanel);
 

@@ -51,6 +51,12 @@ public static class GeneratedMaterials
         SaveFlatMaterial("Mat_Player", new Color(0.25f, 0.75f, 0.45f), 0.2f);
         SaveFlatMaterial("Mat_SpawnMarker", new Color(0.95f, 0.85f, 0.25f), 0.3f);
 
+        // Weapons: dark gunmetal with a lighter accent for barrel and sights.
+        SaveFlatMaterial("Mat_Gun", new Color(0.16f, 0.17f, 0.19f), 0.55f, 0.7f);
+        SaveFlatMaterial("Mat_GunAccent", new Color(0.42f, 0.44f, 0.48f), 0.75f, 0.9f);
+
+        SaveEffectMaterials();
+
         AssetDatabase.SaveAssets();
         AssetDatabase.Refresh();
         Debug.Log("Epic Battle 3D: textures and materials generated in Assets/Resources.");
@@ -73,16 +79,178 @@ public static class GeneratedMaterials
         AssetDatabase.CreateAsset(material, materialPath);
     }
 
-    static void SaveFlatMaterial(string name, Color color, float glossiness)
+    static void SaveFlatMaterial(string name, Color color, float glossiness, float metallic = 0f)
     {
         var material = new Material(Shader.Find("Standard"));
         material.color = color;
         material.SetFloat("_Glossiness", glossiness);
-        material.SetFloat("_Metallic", 0f);
+        material.SetFloat("_Metallic", metallic);
 
         string path = MaterialFolder + "/" + name + ".mat";
         AssetDatabase.DeleteAsset(path);
         AssetDatabase.CreateAsset(material, path);
+    }
+
+    /// <summary>
+    /// Materials for muzzle flashes, tracers, sparks and bullet holes.
+    ///
+    /// These use unlit shaders on purpose: an effect that reacts to scene lighting
+    /// looks dull, and a muzzle flash needs to read as its own light source. The
+    /// flash, tracer and spark materials are additive, so they brighten whatever
+    /// is behind them; the bullet hole is a normal cutout that darkens the wall.
+    /// </summary>
+    static void SaveEffectMaterials()
+    {
+        Texture2D flashTexture = RadialGlow(128, new Color(1f, 0.95f, 0.7f), 6);
+        SaveAdditiveMaterial("Mat_Muzzle", flashTexture, new Color(1f, 0.88f, 0.55f));
+
+        Texture2D softTexture = RadialGlow(64, Color.white, 0);
+        SaveAdditiveMaterial("Mat_Tracer", softTexture, new Color(1f, 0.92f, 0.6f));
+        SaveAdditiveMaterial("Mat_Spark", softTexture, new Color(1f, 0.82f, 0.35f));
+
+        // Blood is not additive — additive red on a dark wall would glow pink.
+        SaveTransparentMaterial("Mat_Blood", softTexture, new Color(0.65f, 0.05f, 0.05f));
+
+        Texture2D holeTexture = BulletHole(64);
+        SaveTransparentMaterial("Mat_BulletHole", holeTexture, new Color(0.05f, 0.05f, 0.06f));
+    }
+
+    static void SaveAdditiveMaterial(string name, Texture2D texture, Color tint)
+    {
+        SaveTexture(name, texture);
+
+        // Particles/Standard Unlit ships with Unity and supports additive blending
+        // through its blend-mode keyword, so no custom shader is needed.
+        Shader shader = Shader.Find("Particles/Standard Unlit");
+        if (shader == null) shader = Shader.Find("Sprites/Default");
+
+        var material = new Material(shader);
+        material.mainTexture = texture;
+        material.color = tint;
+
+        if (material.HasProperty("_Mode")) material.SetFloat("_Mode", 4f);       // additive
+        if (material.HasProperty("_BlendOp")) material.SetFloat("_BlendOp", 0f);
+        if (material.HasProperty("_SrcBlend")) material.SetFloat("_SrcBlend", (float)UnityEngine.Rendering.BlendMode.SrcAlpha);
+        if (material.HasProperty("_DstBlend")) material.SetFloat("_DstBlend", (float)UnityEngine.Rendering.BlendMode.One);
+        if (material.HasProperty("_ZWrite")) material.SetFloat("_ZWrite", 0f);
+        if (material.HasProperty("_Cull")) material.SetFloat("_Cull", 0f);
+
+        material.EnableKeyword("_ALPHABLEND_ON");
+        material.renderQueue = 3000;
+
+        SaveMaterialAsset(name, material);
+    }
+
+    static void SaveTransparentMaterial(string name, Texture2D texture, Color tint)
+    {
+        SaveTexture(name, texture);
+
+        Shader shader = Shader.Find("Particles/Standard Unlit");
+        if (shader == null) shader = Shader.Find("Sprites/Default");
+
+        var material = new Material(shader);
+        material.mainTexture = texture;
+        material.color = tint;
+
+        if (material.HasProperty("_Mode")) material.SetFloat("_Mode", 2f);       // fade
+        if (material.HasProperty("_SrcBlend")) material.SetFloat("_SrcBlend", (float)UnityEngine.Rendering.BlendMode.SrcAlpha);
+        if (material.HasProperty("_DstBlend")) material.SetFloat("_DstBlend", (float)UnityEngine.Rendering.BlendMode.OneMinusSrcAlpha);
+        if (material.HasProperty("_ZWrite")) material.SetFloat("_ZWrite", 0f);
+        if (material.HasProperty("_Cull")) material.SetFloat("_Cull", 0f);
+
+        material.EnableKeyword("_ALPHABLEND_ON");
+        material.renderQueue = 3000;
+
+        SaveMaterialAsset(name, material);
+    }
+
+    static void SaveTexture(string materialName, Texture2D texture)
+    {
+        string path = TextureFolder + "/Tex_" + materialName + ".asset";
+        AssetDatabase.DeleteAsset(path);
+        AssetDatabase.CreateAsset(texture, path);
+    }
+
+    static void SaveMaterialAsset(string name, Material material)
+    {
+        string path = MaterialFolder + "/" + name + ".mat";
+        AssetDatabase.DeleteAsset(path);
+        AssetDatabase.CreateAsset(material, path);
+    }
+
+    /// <summary>
+    /// A soft circular glow, optionally with spikes radiating out of it so a
+    /// muzzle flash looks like a starburst rather than a plain dot.
+    /// </summary>
+    static Texture2D RadialGlow(int size, Color color, int spikes)
+    {
+        var texture = new Texture2D(size, size, TextureFormat.RGBA32, false);
+        texture.name = "Glow";
+        texture.wrapMode = TextureWrapMode.Clamp;
+
+        float centre = (size - 1) * 0.5f;
+
+        for (int y = 0; y < size; y++)
+        {
+            for (int x = 0; x < size; x++)
+            {
+                float dx = (x - centre) / centre;
+                float dy = (y - centre) / centre;
+                float distance = Mathf.Sqrt(dx * dx + dy * dy);
+
+                float falloff = Mathf.Clamp01(1f - distance);
+                float alpha = falloff * falloff;
+
+                if (spikes > 0)
+                {
+                    float angle = Mathf.Atan2(dy, dx);
+                    float star = Mathf.Abs(Mathf.Cos(angle * spikes * 0.5f));
+                    alpha = Mathf.Clamp01(alpha + falloff * star * 0.55f);
+                }
+
+                texture.SetPixel(x, y, new Color(color.r, color.g, color.b, alpha));
+            }
+        }
+
+        texture.Apply();
+        return texture;
+    }
+
+    /// <summary>A dark ragged dot with a soft rim, standing in for a bullet hole.</summary>
+    static Texture2D BulletHole(int size)
+    {
+        var texture = new Texture2D(size, size, TextureFormat.RGBA32, false);
+        texture.name = "BulletHole";
+        texture.wrapMode = TextureWrapMode.Clamp;
+
+        Random.State previous = Random.state;
+        Random.InitState(909);
+
+        float centre = (size - 1) * 0.5f;
+
+        for (int y = 0; y < size; y++)
+        {
+            for (int x = 0; x < size; x++)
+            {
+                float dx = (x - centre) / centre;
+                float dy = (y - centre) / centre;
+                float distance = Mathf.Sqrt(dx * dx + dy * dy);
+
+                // Wobble the edge so holes do not all look like identical circles.
+                float angle = Mathf.Atan2(dy, dx);
+                float wobble = 0.82f + Mathf.Sin(angle * 5f) * 0.06f + Mathf.Sin(angle * 11f) * 0.04f;
+
+                float alpha = distance < wobble
+                    ? Mathf.Clamp01(1f - distance / wobble)
+                    : 0f;
+
+                texture.SetPixel(x, y, new Color(1f, 1f, 1f, alpha * alpha));
+            }
+        }
+
+        Random.state = previous;
+        texture.Apply();
+        return texture;
     }
 
     public static Material Load(string materialName)
