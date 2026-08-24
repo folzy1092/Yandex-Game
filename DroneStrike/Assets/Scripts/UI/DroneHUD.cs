@@ -24,6 +24,8 @@ public class DroneHUD : MonoBehaviour
     GameObject resultPanel;
     Text resultTitle;
     Text resultDetail;
+    Button reviveButton;
+    Text reviveLabel;
 
     Text signalLostBanner;
     float signalLostUntil;
@@ -304,11 +306,31 @@ public class DroneHUD : MonoBehaviour
                                             TextAnchor.MiddleCenter, Color.white,
                                             centre, centre, new Vector2(0f, 40f), new Vector2(900f, 160f));
 
-        UIFactory.CreateButton(resultPanel.transform, "RetryButton", "ЗАНОВО", 32,
-                               centre, centre, new Vector2(0f, -110f), new Vector2(340f, 70f),
+        // The revive offer sits above the restart button, because it is the one
+        // the player actually wants after a loss — running the rack dry one
+        // drone short of the last target is exactly the moment an extra drone is
+        // worth watching something for.
+        reviveButton = UIFactory.CreateButton(resultPanel.transform, "ReviveButton",
+                                              "+1 ДРОН ЗА РЕКЛАМУ", 30,
+                                              centre, centre, new Vector2(0f, -100f),
+                                              new Vector2(460f, 74f), RequestExtraDrone);
+
+        var reviveImage = reviveButton.targetGraphic as Image;
+        if (reviveImage != null) reviveImage.color = new Color(0.72f, 0.48f, 0.12f);
+        reviveLabel = reviveButton.GetComponentInChildren<Text>();
+
+        UIFactory.CreateButton(resultPanel.transform, "RetryButton", "ЗАНОВО", 30,
+                               centre, centre, new Vector2(-180f, -196f), new Vector2(330f, 66f),
                                () =>
                                {
                                    if (MissionManager.Instance != null) MissionManager.Instance.Restart();
+                               });
+
+        UIFactory.CreateButton(resultPanel.transform, "MenuButton", "В МЕНЮ", 30,
+                               centre, centre, new Vector2(180f, -196f), new Vector2(330f, 66f),
+                               () =>
+                               {
+                                   if (MissionManager.Instance != null) MissionManager.Instance.ReturnToMenu();
                                });
 
         resultPanel.SetActive(false);
@@ -356,6 +378,7 @@ public class DroneHUD : MonoBehaviour
 
         missionText.text = "ЦЕЛЕЙ: " + mission.TargetsDestroyed + " / " + mission.TargetsTotal
                            + "\nДРОНОВ: " + mission.DronesRemaining
+                           + "\nБОРТ: " + DroneLoadout.Selected.displayName
                            + "\nЗАРЯД: " + warhead;
     }
 
@@ -369,8 +392,45 @@ public class DroneHUD : MonoBehaviour
         resultDetail.text = "Уничтожено целей: " + mission.TargetsDestroyed + " из " + mission.TargetsTotal
                             + "\nОчки: " + mission.Score;
 
+        // Nothing to revive into once every target is down, and no offer left
+        // once the per-mission cap is spent.
+        if (reviveButton != null)
+        {
+            reviveButton.gameObject.SetActive(!won && mission.CanRequestExtraDrone);
+            reviveButton.interactable = true;
+        }
+
+        if (reviveLabel != null) reviveLabel.text = "+1 ДРОН ЗА РЕКЛАМУ";
+
         resultPanel.SetActive(true);
         Cursor.lockState = CursorLockMode.None;
         Cursor.visible = true;
+    }
+
+    /// <summary>
+    /// Asks for the extra drone and closes the results screen if it was granted.
+    /// The mission carries on from where it stopped, so every target already
+    /// destroyed stays destroyed — which is what makes the offer worth taking
+    /// rather than just restarting.
+    /// </summary>
+    void RequestExtraDrone()
+    {
+        MissionManager mission = MissionManager.Instance;
+        if (mission == null || reviveButton == null) return;
+
+        reviveButton.interactable = false;
+        if (reviveLabel != null) reviveLabel.text = "ЗАГРУЗКА...";
+
+        mission.RequestExtraDrone(granted =>
+        {
+            if (granted)
+            {
+                resultPanel.SetActive(false);
+                return;
+            }
+
+            reviveButton.interactable = true;
+            if (reviveLabel != null) reviveLabel.text = "РЕКЛАМА НЕДОСТУПНА";
+        });
     }
 }

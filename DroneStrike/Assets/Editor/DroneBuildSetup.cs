@@ -14,6 +14,7 @@ public static class DroneBuildSetup
 
         DroneMaterials.Generate();
         IndustrialZoneBuilder.BuildScene();
+        MainMenuBuilder.BuildScene();
         ApplyBuildSettings();
 
         if (!InputSettingsSetup.IsLegacyInputEnabled())
@@ -24,15 +25,17 @@ public static class DroneBuildSetup
             return;
         }
 
-        Debug.Log("Drone Strike: project ready. Open Assets/Scenes/IndustrialZone.unity and press Play. "
+        Debug.Log("Drone Strike: project ready. Open Assets/Scenes/MainMenu.unity and press Play. "
                   + "If input was just switched, restart Unity first.");
     }
 
     [MenuItem("Tools/Drone Strike/3 - Apply Build Settings")]
     public static void ApplyBuildSettings()
     {
+        // The menu is first, so it is what the player lands on.
         var scenes = new List<EditorBuildSettingsScene>
         {
+            new EditorBuildSettingsScene("Assets/Scenes/MainMenu.unity", true),
             new EditorBuildSettingsScene("Assets/Scenes/IndustrialZone.unity", true)
         };
 

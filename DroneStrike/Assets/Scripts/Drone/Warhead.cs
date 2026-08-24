@@ -18,6 +18,13 @@ public class Warhead : MonoBehaviour
     /// <summary>Impact speed, in m/s, needed to set the warhead off.</summary>
     public float armingSpeed = 4f;
 
+    /// <summary>
+    /// Scales blast damage for the airframe carrying it. A heavier drone lifts
+    /// a bigger charge, which is what the "Молот" unlock actually buys — set by
+    /// DroneFactory from the selected loadout.
+    /// </summary>
+    public float damageMultiplier = 1f;
+
     /// <summary>Fired once, when the warhead goes off.</summary>
     public event Action OnDetonated;
 
@@ -52,7 +59,20 @@ public class Warhead : MonoBehaviour
     {
         if (HasDetonated) return;
 
-        // A gentle bump — clipping a branch on the way in — should not set it off.
+        // Hitting an actual target always sets it off, however gently it was
+        // clipped. The arming speed is measured along the collision normal, so
+        // a hit into the back or the flank of a vehicle can report a low
+        // relative velocity even when the drone was doing forty — which read as
+        // "flew straight into the tank and nothing happened". A pilot who
+        // touches the target has earned the detonation.
+        if (collision.collider.GetComponentInParent<Target>() != null)
+        {
+            Detonate();
+            return;
+        }
+
+        // Scenery still needs the gate, or clipping a branch on the way in
+        // ends the run.
         if (collision.relativeVelocity.magnitude < armingSpeed) return;
 
         Detonate();
@@ -103,7 +123,7 @@ public class Warhead : MonoBehaviour
             float distance = Vector3.Distance(origin, collider.ClosestPoint(origin));
             float falloff = Mathf.Clamp01(1f - distance / Profile.blastRadius);
 
-            target.TakeDamage(Profile.damage * falloff);
+            target.TakeDamage(Profile.damage * damageMultiplier * falloff);
         }
     }
 }

@@ -64,6 +64,19 @@ public static class DroneMaterials
         SaveFlat("Mat_Foliage", new Color(0.20f, 0.34f, 0.17f), 0.10f);
         SaveFlat("Mat_TreeTrunk", new Color(0.28f, 0.22f, 0.16f), 0.08f);
         SaveFlat("Mat_Burnt", new Color(0.09f, 0.08f, 0.08f), 0.15f);
+
+        // Road markings. Nearly white and slightly glossy, so the lines still
+        // read from altitude where the asphalt underneath has gone flat grey.
+        SaveFlat("Mat_RoadLine", new Color(0.88f, 0.87f, 0.82f), 0.30f);
+
+        // Field positions: churned earth for the berms, hessian for the
+        // sandbags, and netting dark enough to read as shade from above.
+        SaveSurface("Dirt",
+            ProceduralTextures.CreateConcrete(512, new Color(0.34f, 0.27f, 0.19f), 0.42f, 4006, 0.65f),
+            new Vector2(3f, 3f), 0.05f);
+
+        SaveFlat("Mat_Sandbag", new Color(0.48f, 0.44f, 0.31f), 0.06f);
+        SaveFlat("Mat_CamoNet", new Color(0.19f, 0.24f, 0.15f), 0.05f);
     }
 
     static void BuildVehicleMaterials()
@@ -78,6 +91,10 @@ public static class DroneMaterials
     {
         SaveFlat("Mat_DroneFrame", new Color(0.12f, 0.12f, 0.13f), 0.45f, 0.5f);
         SaveFlat("Mat_DroneAccent", new Color(0.15f, 0.45f, 0.75f), 0.55f, 0.3f);
+
+        // Olive drab, the way a real ordnance body is painted.
+        SaveFlat("Mat_Warhead", new Color(0.24f, 0.26f, 0.16f), 0.2f);
+        SaveFlat("Mat_WarheadBand", new Color(0.55f, 0.1f, 0.08f), 0.15f);
 
         // Props are near-invisible while spinning, so they only need to be dark
         // and slightly translucent-looking.

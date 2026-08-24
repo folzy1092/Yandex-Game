@@ -45,6 +45,9 @@ public static class TargetProps
     const float ModelScale = 1f;
     const float ModelYawOffset = 0f;
 
+    /// <summary>Length a real main battle tank comes out at, in metres.</summary>
+    const float TankFootprint = 7.2f;
+
     public static Target ArmouredVehicle(Transform parent, Vector3 position, float yaw, Palette palette)
     {
         GameObject root = CreateRoot(parent, "ArmouredVehicle", position, yaw,
@@ -54,6 +57,7 @@ public static class TargetProps
         GameObject tankModel = ModelLibrary.Instantiate("Tank", root.transform, ModelScale, ModelYawOffset);
         if (tankModel != null)
         {
+            NormalizeModelSize(root, tankModel, TankFootprint);
             FitColliderToModel(root, tankModel);
             return root.GetComponent<Target>();
         }
@@ -182,6 +186,9 @@ public static class TargetProps
     const float TentModelScale = 1f;
     const float TentModelYawOffset = 0f;
 
+    /// <summary>Width a field supply tent comes out at, in metres.</summary>
+    const float TentFootprint = 5.4f;
+
     public static Target SupplyDepot(Transform parent, Vector3 position, float yaw, Palette palette)
     {
         const float postHeight = 2.6f;
@@ -195,6 +202,7 @@ public static class TargetProps
                                                         TentModelScale, TentModelYawOffset);
         if (tentModel != null)
         {
+            NormalizeModelSize(root, tentModel, TentFootprint);
             FitColliderToModel(root, tentModel);
             return root.GetComponent<Target>();
         }
@@ -377,20 +385,81 @@ public static class TargetProps
     static void FitColliderToModel(GameObject root, GameObject modelInstance)
     {
         var collider = root.GetComponent<BoxCollider>();
+        if (collider == null) return;
+
+        Bounds bounds;
+        if (!MeasureLocalBounds(root, modelInstance, out bounds)) return;
+
+        collider.center = bounds.center;
+
+        // Nothing thinner than this collides reliably. A tarp or a tent panel
+        // measures a few centimetres through, and a drone doing thirty metres a
+        // second covers that inside one physics step — continuous detection
+        // saves the frontal hit but not a clip through a corner. Padding the
+        // box out to something a moving object cannot miss is what makes the
+        // tent destructible at all.
+        const float minThickness = 1.2f;
+        collider.size = new Vector3(
+            Mathf.Max(bounds.size.x, minThickness),
+            Mathf.Max(bounds.size.y, minThickness),
+            Mathf.Max(bounds.size.z, minThickness));
+    }
+
+    /// <summary>
+    /// Rescales a model so its longest horizontal dimension comes out at
+    /// <paramref name="desiredSize"/> metres, whatever units the source file
+    /// happened to be authored in.
+    ///
+    /// A model downloaded from a public site can arrive in metres, centimetres
+    /// or inches, and there is no way to tell which without opening it. Placing
+    /// one at scale 1 and hoping is how a tent ends up the size of a hangar and
+    /// pokes through the fence next to it. Measuring what actually arrived and
+    /// scaling to a known footprint makes placement predictable — every position
+    /// in the scene builder is then a real distance rather than a guess.
+    /// </summary>
+    static void NormalizeModelSize(GameObject root, GameObject modelInstance, float desiredSize)
+    {
+        Bounds bounds;
+        if (!MeasureLocalBounds(root, modelInstance, out bounds)) return;
+
+        float largest = Mathf.Max(bounds.size.x, bounds.size.z);
+        if (largest <= 0.0001f) return;
+
+        float correction = desiredSize / largest;
+
+        // Only correct a genuine unit mismatch. A model that already arrives at
+        // roughly the right size should keep its own proportions rather than be
+        // squeezed to an exact number.
+        if (correction > 0.75f && correction < 1.33f) return;
+
+        modelInstance.transform.localScale *= correction;
+    }
+
+    /// <summary>
+    /// The union of a model's renderer bounds, expressed in the root's local
+    /// space.
+    ///
+    /// Renderer.bounds is an axis-aligned box in world space, which only equals
+    /// a local-space box when the root has no rotation at the moment it is
+    /// measured — so the root is squared up to identity for the measurement and
+    /// restored immediately after.
+    /// </summary>
+    static bool MeasureLocalBounds(GameObject root, GameObject modelInstance, out Bounds bounds)
+    {
+        bounds = new Bounds();
+
         Renderer[] renderers = modelInstance.GetComponentsInChildren<Renderer>();
-        if (collider == null || renderers.Length == 0) return;
+        if (renderers.Length == 0) return false;
 
         Vector3 originalPosition = root.transform.position;
         Quaternion originalRotation = root.transform.rotation;
         root.transform.SetPositionAndRotation(Vector3.zero, Quaternion.identity);
 
-        Bounds bounds = renderers[0].bounds;
+        bounds = renderers[0].bounds;
         for (int i = 1; i < renderers.Length; i++) bounds.Encapsulate(renderers[i].bounds);
 
         root.transform.SetPositionAndRotation(originalPosition, originalRotation);
-
-        collider.center = bounds.center;
-        collider.size = bounds.size;
+        return true;
     }
 
     static GameObject AddPart(GameObject parent, string name, Vector3 localPosition, Vector3 size,

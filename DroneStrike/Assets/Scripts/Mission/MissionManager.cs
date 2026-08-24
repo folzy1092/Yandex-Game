@@ -23,11 +23,22 @@ public class MissionManager : MonoBehaviour
     public int droneCount = 3;
 
     /// <summary>
-    /// Which charge the drones carry. Chosen in the briefing on a later stage.
-    /// Compact by default: the lighter drone is far more pleasant to fly, and
-    /// most of the targets on this map do not need the bigger charge.
+    /// Which charge the drones carry. Set from the briefing screen at startup;
+    /// the value in the scene is only the fallback for pressing Play straight
+    /// into the mission without going through the menu.
     /// </summary>
     public WarheadType warhead = WarheadType.Compact;
+
+    /// <summary>
+    /// How many extra drones a rewarded ad has already granted this mission.
+    /// Capped, so a player cannot grind an unlimited rack out of the ad slot —
+    /// which would both wreck the difficulty and get the placement flagged.
+    /// </summary>
+    public int ExtraDronesGranted { get; private set; }
+
+    public const int MaxExtraDrones = 3;
+
+    public bool CanRequestExtraDrone { get { return ExtraDronesGranted < MaxExtraDrones; } }
 
     /// <summary>Seconds between losing a drone and the next one launching.</summary>
     public float relaunchDelay = 2.5f;
@@ -71,6 +82,10 @@ public class MissionManager : MonoBehaviour
 
     void Start()
     {
+        // What the player picked in the briefing wins over whatever the scene
+        // was saved with.
+        warhead = DroneLoadout.SelectedWarhead;
+
         CollectTargets();
         DronesRemaining = droneCount;
         IsRunning = true;
@@ -185,13 +200,62 @@ public class MissionManager : MonoBehaviour
         EndMission(won);
     }
 
-    /// <summary>Adds a drone to the rack. Used by the rewarded ad on later stages.</summary>
+    /// <summary>
+    /// Shows a rewarded ad and, if it was watched through, puts another drone in
+    /// the rack and resumes the mission.
+    ///
+    /// This is the second half of the monetisation and the half that matters:
+    /// it is offered exactly when the player has just lost and wants one more
+    /// go, which is the only moment an ad is genuinely worth something to them.
+    /// The mission is revived rather than restarted, so every target already
+    /// destroyed stays destroyed.
+    /// </summary>
+    public void RequestExtraDrone(Action<bool> onResolved = null)
+    {
+        if (!CanRequestExtraDrone)
+        {
+            if (onResolved != null) onResolved(false);
+            return;
+        }
+
+        YandexAds.ShowRewarded(watched =>
+        {
+#if UNITY_EDITOR
+            // No ad network in the editor, so the revive could never be tested
+            // before a build. Editor only — a shipped build grants nothing
+            // without a completed view.
+            watched = true;
+#endif
+            if (watched) GrantExtraDrone();
+            if (onResolved != null) onResolved(watched);
+        });
+    }
+
+    /// <summary>Adds a drone to the rack and puts the mission back in play.</summary>
     public void GrantExtraDrone()
     {
+        ExtraDronesGranted++;
         DronesRemaining++;
+
+        // The mission has usually already ended by the time this is called —
+        // that is the whole point of the offer — so it has to be revived, not
+        // merely topped up.
+        if (!IsRunning)
+        {
+            IsRunning = true;
+            LockCursor(true);
+        }
+
         Notify();
 
-        if (IsRunning && ActiveDrone == null) LaunchDrone();
+        if (ActiveDrone == null || activeDroneLost) LaunchDrone();
+    }
+
+    /// <summary>Back to the briefing screen.</summary>
+    public void ReturnToMenu()
+    {
+        LockCursor(false);
+        SceneManager.LoadScene("MainMenu");
     }
 
     // ---------- mission end ----------
@@ -210,7 +274,10 @@ public class MissionManager : MonoBehaviour
 
     public void Restart()
     {
-        SceneManager.LoadScene(SceneManager.GetActiveScene().name);
+        // An interstitial on the transition between attempts: the one break in
+        // play where an ad does not interrupt anything.
+        YandexAds.ShowFullscreen(_ =>
+            SceneManager.LoadScene(SceneManager.GetActiveScene().name));
     }
 
     void Notify()

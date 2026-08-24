@@ -32,22 +32,39 @@ public static class DroneFactory
         var collider = drone.AddComponent<BoxCollider>();
         collider.size = new Vector3(0.62f, 0.16f, 0.62f);
 
+        DroneModel model = DroneLoadout.Selected;
+
         Material frameMaterial = Resources.Load<Material>("Materials/Mat_DroneFrame");
-        Material accentMaterial = Resources.Load<Material>("Materials/Mat_DroneAccent");
         Material propMaterial = Resources.Load<Material>("Materials/Mat_Propeller");
+
+        // A runtime instance rather than the shared asset: three airframes fly
+        // in the same session and each wears its own colour, so tinting the
+        // shared material would repaint the ones already built.
+        Material accentMaterial = TintedAccent(model.accent);
 
         BuildFrame(drone.transform, frameMaterial, accentMaterial);
         BuildArmsAndRotors(drone.transform, frameMaterial, propMaterial);
         Transform view = BuildCamera(drone.transform, accentMaterial);
+        BuildWarheadView(view, warhead);
 
         var controller = drone.AddComponent<DroneController>();
         // Forward is measured from the camera, so the controller needs it before
         // its first FixedUpdate.
         controller.aimReference = view;
 
+        // The airframe's own handling, applied before Warhead.Awake stacks the
+        // charge's factors on top — the two multiply, so a light drone with a
+        // light charge really is the nimblest thing on the map.
+        controller.thrust *= model.thrustFactor;
+        controller.maxSpeed *= model.speedFactor;
+        controller.climbThrust *= model.thrustFactor;
+
         var warheadComponent = drone.AddComponent<Warhead>();
         warheadComponent.type = warhead;
-        drone.AddComponent<DroneBattery>();
+        warheadComponent.damageMultiplier = model.damageFactor;
+
+        var battery = drone.AddComponent<DroneBattery>();
+        battery.hoverEndurance *= model.enduranceFactor;
         drone.AddComponent<SignalLink>();
         drone.AddComponent<DroneImpact>();
         drone.AddComponent<RotorSpin>();
@@ -130,7 +147,85 @@ public static class DroneFactory
         return cameraGO.transform;
     }
 
+    /// <summary>
+    /// The payload itself, in view. FPV kamikaze footage always shows the
+    /// warhead's own nose poking into the bottom of frame — it is mounted
+    /// ahead of and below the camera, not out of sight — so it is built here
+    /// as a fixture of the camera rather than of the airframe: it has to stay
+    /// framed the same way no matter how the drone is tilted, exactly like
+    /// DroneCameraGimbal keeps the horizon steady.
+    ///
+    /// Modelled on a PG-7-style rocket rather than a plain cone: a bulbous
+    /// ogive nose wider than the tube behind it, which is the actual shape a
+    /// warhead like this has and reads as "ordnance" rather than "party hat".
+    /// The compact charge is visibly smaller than the standard one, so the
+    /// loadout is legible before a single HUD number is read.
+    /// </summary>
+    static void BuildWarheadView(Transform cameraTransform, WarheadType warhead)
+    {
+        Material body = Resources.Load<Material>("Materials/Mat_Warhead");
+        Material band = Resources.Load<Material>("Materials/Mat_WarheadBand");
+
+        float scale = warhead == WarheadType.Compact ? 0.75f : 1f;
+
+        var root = new GameObject("WarheadView");
+        root.transform.SetParent(cameraTransform, false);
+        // Slung low and forward, nose tipped down and away — mounted under the
+        // drone's belly the way the real thing is, not held up in front of the lens.
+        root.transform.localPosition = new Vector3(0f, -0.30f, 0.5f);
+        root.transform.localRotation = Quaternion.Euler(70f, 0f, 0f);
+        root.transform.localScale = Vector3.one * scale;
+
+        AddCapsule(root.transform, "Nose", new Vector3(0f, 0.16f, 0f),
+                  new Vector3(0.17f, 0.11f, 0.17f), body);
+
+        AddCylinder(root.transform, "Band", new Vector3(0f, 0.02f, 0f),
+                   new Vector3(0.135f, 0.012f, 0.135f), band);
+
+        AddCylinder(root.transform, "Tube", new Vector3(0f, -0.08f, 0f),
+                   new Vector3(0.075f, 0.22f, 0.075f), body);
+
+        // Tail fins: four thin fins fanned out around the tube's rear, the
+        // last detail that sells the silhouette at a glance.
+        for (int i = 0; i < 4; i++)
+        {
+            Quaternion spin = Quaternion.Euler(0f, i * 90f, 0f);
+            Vector3 offset = spin * new Vector3(0f, 0f, 0.045f);
+
+            var fin = AddBox(root.transform, "Fin" + i, new Vector3(0f, -0.26f, 0f) + offset,
+                             new Vector3(0.01f, 0.09f, 0.09f), body);
+            fin.transform.localRotation = spin;
+        }
+    }
+
     // ---------- helpers ----------
+
+    /// <summary>
+    /// The accent colour for the airframe being built, as its own material
+    /// instance so each drone keeps its own paint.
+    /// </summary>
+    static Material TintedAccent(Color accent)
+    {
+        Material source = Resources.Load<Material>("Materials/Mat_DroneAccent");
+        if (source == null) return null;
+
+        var instance = new Material(source);
+        instance.color = accent;
+        return instance;
+    }
+
+    static GameObject AddCapsule(Transform parent, string name, Vector3 localPosition,
+                                 Vector3 size, Material material)
+    {
+        var capsule = GameObject.CreatePrimitive(PrimitiveType.Capsule);
+        capsule.name = name;
+        capsule.transform.SetParent(parent, false);
+        capsule.transform.localPosition = localPosition;
+        capsule.transform.localScale = size;
+
+        Strip(capsule, material);
+        return capsule;
+    }
 
     static GameObject AddBox(Transform parent, string name, Vector3 localPosition,
                              Vector3 size, Material material)
