@@ -1,5 +1,7 @@
 DRONE STRIKE — карточка игры для Яндекс Игр
 =============================================
+Обновлено под финальную сборку (три визуально разные карты, честная лесенка
+дронов, реалистичный урон от скорости удара).
 
 
 НАЗВАНИЕ
@@ -12,11 +14,11 @@ EN: Drone Strike
 ------------------------------------------------------------
 RU:
 Пилотируй ударный FPV-дрон и уничтожай технику противника с воздуха. Три
-карты, три борта, честная прокачка без доната — только за рекламу.
+разные карты, три дрона, честная прокачка без доната — только за рекламу.
 
 EN:
 Fly a kamikaze FPV drone and take out enemy vehicles from the air. Three
-maps, three airframes, upgrades earned by watching ads — no paywall.
+distinct maps, three drones, upgrades earned by watching ads — no paywall.
 
 
 ПОЛНОЕ ОПИСАНИЕ
@@ -26,32 +28,40 @@ RU:
 Drone Strike — симулятор ударного FPV-дрона. Управляешь камерой, дрон летит
 туда, куда смотришь: наклонил взгляд вниз — пикируешь и разгоняешься,
 выровнял — летишь ровно. Прицеливание и пилотирование — одно и то же
-действие.
+действие. Чем точнее и быстрее удар, тем больше урона — ленивый тычок в цель
+и разгон в пике на полной скорости больше не одно и то же.
 
 Задача — долететь до целей и подорвать боевую часть точным ударом. Никаких
 людей на поле: только техника, палатки снабжения и антенны связи. Дроны
-одноразовые — не долетел или промазал, запускаешь следующий с рации.
+одноразовые — не долетел или промазал, запускаешь следующий с новой площадки.
 
 ЧТО В ИГРЕ
 
 — Камера-полёт от первого лица со стабилизированным подвесом и честной
-  физикой: инерция, снос, разгон в пикировании.
-— Три карты, каждая построена процедурно: опорный пункт на ровном поле,
-  лесная дорога с холмами и низким подлётом, ночной перекрёсток с
-  разветвлённой сетью дорог. Карты открываются прохождением предыдущей —
-  либо рекламой, для тех, кто спешит.
-— Три борта с честной прогрессией: каждый следующий быстрее и бьёт сильнее
-  предыдущего. Стартовый борт проходит всю игру сам — реклама даёт
-  преимущество, а не пропуск.
-— Два боеприпаса: лёгкий заряд ради резвости борта или тяжёлый — для брони с
+  физикой: инерция, снос, разгон в пикировании, дрон сам держит высоту.
+— Три карты, каждая со своим лицом, не просто перестановка декораций:
+  опорный пункт на ровном поле с асфальтовой кольцевой дорогой; лесная дорога
+  с холмами, вдвое более густым лесом, грунтовкой в колеях и единственным на
+  всю игру прудом; ночной перекрёсток с разветвлённой сетью дорог и длинными
+  тенями. Карты открываются прохождением предыдущей — либо рекламой, для тех,
+  кто спешит.
+— Три дрона с честной лесенкой прогрессии: каждый следующий быстрее и бьёт
+  сильнее предыдущего, никаких компромиссов «одно за счёт другого». Стартовый
+  дрон проходит всю игру сам — реклама даёт преимущество, а не пропуск.
+— Два боеприпаса: лёгкий заряд ради резвости дрона или тяжёлый — для брони с
   одного захода.
 — Связь с дроном ограничена дальностью и высотой: удаляешься или лезешь
-  слишком высоко — картинка рябит, потом отказывает мотор, и через
-  пару секунд боевая часть самоликвидируется. Настоящая граница карты вместо
-  невидимой стены.
-— Патрульная техника ездит по размеченной дороге, поражённые цели горят.
-— Каждый новый дрон стартует с новой площадки — заучить один заход не
-  получится.
+  слишком высоко — картинка рвётся короткими рывками, как настоящий обрыв
+  сигнала, потом отказывает мотор, и через пару секунд боевая часть
+  самоликвидируется. Настоящая граница карты вместо невидимой стены — и
+  никакого потолка высоты, поднимайся, пока сигнал не откажет.
+— Живая местность: патрульная техника ездит по размеченной дороге и
+  разворачивается перед препятствием, а не проезжает сквозь него; трава,
+  земляные брустверы и мешки с песком вокруг позиций; подбитая, но не
+  уничтоженная цель темнеет и дымит — видно, что удар засчитан, даже если
+  цель ещё жива.
+— Каждый новый дрон стартует с новой площадки среди шести точек по периметру
+  позиции — заучить один заход не получится.
 
 Всё снаряжение и все карты открыты без единого платежа — рекламой или
 собственным навыком.
@@ -60,30 +70,40 @@ EN:
 
 Drone Strike is an FPV kamikaze-drone strike simulator. The camera is the
 stick — look down and push forward and the drone dives and accelerates,
-level the camera and it flies level. Aiming and piloting are the same act.
+level the camera and it flies level. Aiming and piloting are the same act,
+and a fast, committed hit now does noticeably more damage than a lazy tap.
 
 Fly to the target and detonate on impact. No infantry on the map — only
 vehicles, supply tents and radio masts. Drones are one-shot: miss, and you
-launch the next one from the rack.
+launch the next one from a fresh pad.
 
 FEATURES
 
 — First-person flight on a stabilised gimbal with real momentum: inertia,
-  drift, a dive that actually gains speed.
-— Three procedurally built maps — an open outpost, a hilly wooded supply
-  road, a night crossroads — unlocked by clearing the last one or by a
-  rewarded ad.
-— Three airframes on an honest ladder: every unlock is both faster and
-  harder-hitting than the last. The starter drone clears the whole game on
-  its own.
+  drift, a dive that actually gains speed, and the drone holds its own
+  altitude so you fly it, not fight it.
+— Three maps that actually look different from each other, not the same
+  terrain reshuffled: an open outpost with a paved ring road; a hilly forest
+  supply route with a dirt track, tyre ruts and the game's one pond; a dusk
+  crossroads with a branching road network and long shadows. Unlocked by
+  clearing the last one or by a rewarded ad.
+— Three drones on an honest ladder — every unlock is both faster and
+  harder-hitting than the last, no side-grades. The starter drone clears the
+  whole game on its own.
 — Two warheads: a light charge for a livelier drone, or a heavy one that
   drops armour in a single run.
 — The radio link is the real map boundary — range and altitude both degrade
-  the picture, then cut the motor, before the payload self-destructs.
-— Patrol trucks run a marked road; every kill burns.
-— A fresh launch pad every life, so no run is a memorised line.
+  the picture into real signal-dropout glitching, then cut the motor, before
+  the payload self-destructs. No altitude ceiling either — climb until the
+  signal gives out.
+— A position that feels occupied: patrol trucks that swerve or turn back
+  rather than driving through an obstacle, grass and dug-in cover scattered
+  across the ground, and a target that survives a hit visibly shows it
+  instead of looking identical to one that is dead.
+— A fresh launch pad every life, picked from six points around the position,
+  so no run is a memorised line.
 
-Every airframe and every map opens for free — by ad or by skill, no paywall.
+Every drone and every map opens for free — by ad or by skill, no paywall.
 
 
 КЛЮЧЕВЫЕ СЛОВА / ТЕГИ
@@ -109,24 +129,35 @@ arcade, first-person, single player
 
 УПРАВЛЕНИЕ
 ----------
-W / S       — вперёд / назад по направлению взгляда
-A / D       — снос влево / вправо
-Space / Ctrl — высота вверх / вниз
-Мышь        — управление камерой (= направлением полёта)
-Esc         — освободить курсор
+W / S        — вперёд / назад по направлению взгляда
+A / D        — снос влево / вправо
+Space / Shift — высота вверх
+Ctrl         — высота вниз
+Мышь         — управление камерой (= направлением полёта)
+Esc          — пауза (сводка миссии, продолжить или выйти в меню)
 
-Детонация — при ударе о цель, без ручного нажатия.
+Детонация — при ударе о цель, без ручного нажатия. Чем выше скорость
+столкновения, тем больше урона.
 
 
 МОНЕТИЗАЦИЯ (для справки, не для карточки)
 ---------------------------------------------
-Rewarded-реклама: открыть борт, открыть тяжёлый заряд, открыть карту,
+Rewarded-реклама: открыть дрон, открыть тяжёлый заряд, открыть карту,
 +1 дрон после провала миссии (максимум 3 за миссию).
 Fullscreen-реклама: между попытками (кнопка «Заново»).
-Всё содержимое проходится и без единой рекламы — стартовый борт и лёгкий
+Всё содержимое проходится и без единой рекламы — стартовый дрон и лёгкий
 заряд достаточны для победы на любой карте.
 
 
 ПЛАТФОРМА
 ---------
 WebGL, Яндекс Игры. Мышь + клавиатура.
+
+
+СТОРОННИЕ АССЕТЫ (для модерации, не для карточки)
+------------------------------------------------------
+Три скачанных 3D-модели — ракета (CC-BY, атрибуция Poly by Google),
+мешок с песком для окопов (CC0, Quaternius), плюс ранее подключённые танк и
+палатка снабжения. Спрайты огня/дыма/подпалины — Kenney Particle Pack (CC0).
+Полный список и лицензии — DroneStrike/CREDITS.txt. Всё остальное (текстуры,
+звуки, остальная геометрия) сгенерировано кодом, без сторонних лицензий.
