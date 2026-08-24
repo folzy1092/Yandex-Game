@@ -186,20 +186,42 @@ public static class DroneLoadout
 
     // ---------- charges ----------
 
-    const string WarheadUnlockKey = "warhead_unlocked_standard";
+    // A three-rung ladder, the same shape as the airframes: compact is free,
+    // standard is one ad, heavy is a second ad and requires standard already
+    // unlocked. One free tier and one ad tier gave the player nothing left
+    // to want after a single rewarded view — a compact charge on the fastest
+    // unlocked airframe already clears the whole game, so "watch an ad for
+    // standard" was the entire monetisation loop for ordnance. A third rung
+    // keeps there being a next thing to unlock.
 
-    /// <summary>The compact charge is always fitted; the standard one is earned.</summary>
+    const string WarheadUnlockKeyPrefix = "warhead_unlocked_";
+
     public static bool IsWarheadUnlocked(WarheadType charge)
     {
-        if (charge != WarheadType.Standard) return true;
-        return PlayerPrefs.GetInt(WarheadUnlockKey, 0) == 1;
+        if (charge == WarheadType.Compact) return true;
+        return PlayerPrefs.GetInt(WarheadUnlockKeyPrefix + charge, 0) == 1;
+    }
+
+    /// <summary>Whether this charge's unlock can even be offered yet — the same idea as DroneLoadout.IsAvailable.</summary>
+    public static bool IsWarheadAvailable(WarheadType charge)
+    {
+        if (charge != WarheadType.Heavy) return true;
+        return IsWarheadUnlocked(WarheadType.Standard);
+    }
+
+    /// <summary>Display name of the charge that has to be unlocked first, or an empty string.</summary>
+    public static string WarheadPrerequisiteName(WarheadType charge)
+    {
+        if (charge != WarheadType.Heavy) return string.Empty;
+        return WarheadProfile.For(WarheadType.Standard).DisplayName;
     }
 
     public static void UnlockWarhead(WarheadType charge)
     {
-        if (charge != WarheadType.Standard) return;
+        if (charge == WarheadType.Compact) return;
+        if (!IsWarheadAvailable(charge)) return;
 
-        PlayerPrefs.SetInt(WarheadUnlockKey, 1);
+        PlayerPrefs.SetInt(WarheadUnlockKeyPrefix + charge, 1);
         PlayerPrefs.Save();
         Notify();
     }
@@ -209,14 +231,11 @@ public static class DroneLoadout
     {
         get
         {
-            bool standard =
-                PlayerPrefs.GetInt(WarheadKey, (int)WarheadType.Compact) == (int)WarheadType.Standard;
+            var stored = (WarheadType)PlayerPrefs.GetInt(WarheadKey, (int)WarheadType.Compact);
 
             // Same guard as the airframe: a selection can outlive its unlock if
             // browser storage is wiped between sessions.
-            return standard && IsWarheadUnlocked(WarheadType.Standard)
-                ? WarheadType.Standard
-                : WarheadType.Compact;
+            return IsWarheadUnlocked(stored) ? stored : WarheadType.Compact;
         }
         set
         {

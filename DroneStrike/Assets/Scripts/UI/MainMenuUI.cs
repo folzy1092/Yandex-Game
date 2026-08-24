@@ -65,7 +65,8 @@ public class MainMenuUI : MonoBehaviour
     static readonly Color ActionAd = new Color(0.72f, 0.48f, 0.12f);
     static readonly Color ActionDead = new Color(0.20f, 0.21f, 0.22f);
 
-    static readonly WarheadType[] Charges = { WarheadType.Compact, WarheadType.Standard };
+    static readonly WarheadType[] Charges =
+        { WarheadType.Compact, WarheadType.Standard, WarheadType.Heavy };
 
     Transform root;
     Text statusText;
@@ -433,7 +434,7 @@ public class MainMenuUI : MonoBehaviour
     void BuildWarheadPanel(Transform parent)
     {
         float y = PanelHeader(parent, "БОЕПРИПАС",
-                              "Малый заряд легче — дрон резвее. Стандартный бьёт вдвое сильнее.");
+                              "Малый заряд легче — дрон резвее. Тяжёлый бьёт больнее всех, но вязче в управлении.");
 
         warheadButtons = new Button[Charges.Length];
         warheadFrames = new Image[Charges.Length];
@@ -446,7 +447,15 @@ public class MainMenuUI : MonoBehaviour
         string[] blurbs =
         {
             "Штатная боевая часть. Дрон с ней заметно легче и охотнее слушается.",
-            "Тяжёлая боевая часть. Снимает броню с первого захода, но дрон вязче."
+            "Основной заряд. Снимает броню с первого захода при точном попадании.",
+            "Тяжёлая боевая часть. С запасом хватит на что угодно, но дрон вязче."
+        };
+
+        Color[] accents =
+        {
+            new Color(0.35f, 0.60f, 0.45f),
+            new Color(0.72f, 0.30f, 0.22f),
+            new Color(0.62f, 0.20f, 0.20f)
         };
 
         for (int i = 0; i < Charges.Length; i++)
@@ -455,7 +464,7 @@ public class MainMenuUI : MonoBehaviour
             int index = i;
 
             var position = new Vector2(startX + i * (ChargeCardWidth + CardGap), centreY);
-            Color accent = i == 0 ? new Color(0.35f, 0.60f, 0.45f) : new Color(0.72f, 0.30f, 0.22f);
+            Color accent = accents[i];
 
             Image frame = Card(parent, "Charge" + i, position,
                                new Vector2(ChargeCardWidth, ChargeCardHeight), accent);
@@ -614,14 +623,16 @@ public class MainMenuUI : MonoBehaviour
         for (int i = 0; i < Charges.Length; i++)
         {
             bool unlocked = DroneLoadout.IsWarheadUnlocked(Charges[i]);
+            bool available = DroneLoadout.IsWarheadAvailable(Charges[i]);
             bool active = unlocked && Charges[i] == selected;
 
             string action = unlocked
                 ? (active ? "УСТАНОВЛЕН" : "УСТАНОВИТЬ")
-                : "ОТКРЫТЬ ЗА РЕКЛАМУ";
+                : available ? "ОТКРЫТЬ ЗА РЕКЛАМУ"
+                            : "СНАЧАЛА «" + DroneLoadout.WarheadPrerequisiteName(Charges[i]) + "»";
 
             Dress(warheadFrames[i], warheadButtons[i], warheadActions[i],
-                  action, unlocked, true, active);
+                  action, unlocked, available, active);
         }
     }
 
@@ -706,6 +717,12 @@ public class MainMenuUI : MonoBehaviour
         {
             DroneLoadout.SelectedWarhead = charge;
             SetStatus("");
+            return;
+        }
+
+        if (!DroneLoadout.IsWarheadAvailable(charge))
+        {
+            SetStatus("Сначала откройте заряд «" + DroneLoadout.WarheadPrerequisiteName(charge) + "».");
             return;
         }
 

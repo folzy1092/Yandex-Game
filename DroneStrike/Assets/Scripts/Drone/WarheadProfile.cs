@@ -6,7 +6,10 @@ public enum WarheadType
     Compact,
 
     /// <summary>Standard charge. Enough for anything on the map if you hit it properly.</summary>
-    Standard
+    Standard,
+
+    /// <summary>Heavy charge. Overkills anything, widest blast, noticeably heavier to fly.</summary>
+    Heavy
 }
 
 /// <summary>
@@ -44,13 +47,25 @@ public struct WarheadProfile
             };
         }
 
+        if (type == WarheadType.Standard)
+        {
+            return new WarheadProfile
+            {
+                damage = 165f,
+                blastRadius = 7.5f,
+                thrustFactor = 1f,
+                speedFactor = 1f,
+                DisplayName = "СТАНДАРТ"
+            };
+        }
+
         return new WarheadProfile
         {
-            damage = 165f,
-            blastRadius = 7.5f,
-            thrustFactor = 1f,
-            speedFactor = 1f,
-            DisplayName = "СТАНДАРТ"
+            damage = 230f,
+            blastRadius = 9.5f,
+            thrustFactor = 0.85f,
+            speedFactor = 0.9f,
+            DisplayName = "ТЯЖЁЛЫЙ"
         };
     }
 }

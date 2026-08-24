@@ -187,22 +187,24 @@ public static class DroneFactory
     /// airframe: it has to stay framed the same way no matter how the drone is
     /// tilted, exactly like DroneCameraGimbal keeps the horizon steady.
     ///
-    /// Built as a short, thick pod rather than an elongated tapered dart —
-    /// both the original procedural cone and a downloaded missile model were
-    /// reported as reading wrong the same way regardless of how either was
-    /// oriented, and length-to-width ratio is the one lever that actually
-    /// changes that: a long thin taper to a rounded point is what read wrong,
-    /// and neither is true of a stubby cylinder with a flat, chamfered nose
-    /// and a visible sensor block on its face. No downloaded model is used
-    /// here any more; guessing its rest orientation blind cost two rounds and
-    /// still did not land.
+    /// The nose is one continuous curved profile — cylindrical tube, a shoulder
+    /// that flares out wider than the tube, then an ogive taper to a point —
+    /// built as a single lofted mesh with PrimitiveMesh.Revolve rather than a
+    /// stack of separate frustums. Separate pieces meeting at mismatched radii
+    /// is what read as a stepped, pancake-like shape when this was tried as a
+    /// stubby flat-nosed pod instead; a shorter tube keeps this version from
+    /// reading as an elongated dart without breaking the one silhouette that
+    /// was never reported as actually broken, only mildly phallic.
     ///
-    /// A short mounting strap ties the body to the camera housing above it, so
+    /// A short mounting strap ties the tube to the camera housing above it, so
     /// it reads as slung underneath the airframe rather than floating loose in
-    /// front of the lens.
+    /// front of the lens. No downloaded model is used here — a missile GLB was
+    /// tried and pulled off this same mount in a later pass; guessing a
+    /// downloaded model's rest orientation and pivot blind cost two rounds and
+    /// still read as floating.
     ///
     /// It also grows with the airframe: a second band on the second drone, a
-    /// second charge block and more fins on the third. A number on a menu the
+    /// tandem precursor and more fins on the third. A number on a menu the
     /// player has already left does not sell an upgrade — the charge sitting in
     /// front of them all mission does.
     /// </summary>
@@ -220,72 +222,72 @@ public static class DroneFactory
         root.transform.SetParent(cameraTransform, false);
         // Slung close under the housing, nose tipped forward and down — mounted
         // to the airframe the way the real thing is, not held out in empty air.
-        root.transform.localPosition = new Vector3(0f, -0.20f, 0.36f);
-        root.transform.localRotation = Quaternion.Euler(68f, 0f, 0f);
+        root.transform.localPosition = new Vector3(0f, -0.22f, 0.40f);
+        root.transform.localRotation = Quaternion.Euler(70f, 0f, 0f);
         root.transform.localScale = Vector3.one * scale;
 
-        const float bodyRadius = 0.10f;
-        const float bodyBottom = -0.10f;
-        const float bodyTop = 0.09f;
+        const float tubeRadius = 0.072f;
+        // Shortened from -0.17f: the same flare-and-point nose on a shorter
+        // tube softens the length-to-width ratio without touching the one
+        // part of the shape that was ever actually complained about.
+        const float tubeBottom = -0.12f;
+        const float tubeTop = 0.05f;
 
-        // The body: short and thick, not long and tapered.
-        AddCylinder(root.transform, "Body", new Vector3(0f, (bodyBottom + bodyTop) * 0.5f, 0f),
-                    new Vector3(bodyRadius * 2f, (bodyTop - bodyBottom) * 0.5f, bodyRadius * 2f), body);
+        var profile = new[]
+        {
+            new Vector2(tubeRadius, tubeBottom),          // tail end of the tube
+            new Vector2(tubeRadius, tubeTop),              // tube meets the shoulder
+            new Vector2(0.100f, tubeTop + 0.045f),          // the flare — wider than the tube,
+                                                             // the silhouette that reads as "warhead"
+            new Vector2(0.086f, tubeTop + 0.095f),
+            new Vector2(0.058f, tubeTop + 0.150f),
+            new Vector2(0.026f, tubeTop + 0.195f),
+            new Vector2(0f, tubeTop + 0.225f)               // the point
+        };
 
-        // The nose: a shallow chamfer that stops at a real flat face, the way
-        // a guidance section actually terminates, rather than tapering all
-        // the way to a rounded point.
-        const float noseHeight = 0.065f;
-        const float noseTopRadius = 0.05f;
-        AddMesh(root.transform, "Nose", new Vector3(0f, bodyTop + noseHeight * 0.5f, 0f),
-                PrimitiveMesh.Frustum(bodyRadius, noseTopRadius, noseHeight), body);
+        AddMesh(root.transform, "Nose", Vector3.zero, PrimitiveMesh.Revolve(profile), body);
 
-        AddCylinder(root.transform, "NoseCap", new Vector3(0f, bodyTop + noseHeight + 0.006f, 0f),
-                    new Vector3(noseTopRadius * 1.9f, 0.012f, noseTopRadius * 1.9f), trim);
-
-        // The sensor block on the nose face — the detail that reads as
-        // guidance hardware rather than a smooth tip.
-        AddBox(root.transform, "Sensor", new Vector3(0f, bodyTop + noseHeight + 0.03f, 0f),
-              new Vector3(0.035f, 0.03f, 0.035f), trim);
-
-        // A strap linking the body to the underside of the camera housing —
+        // A strap linking the tube to the underside of the camera housing —
         // the detail that reads as "attached" rather than "hovering nearby".
-        var strap = AddBox(root.transform, "MountStrap", new Vector3(0f, bodyTop - 0.02f, -0.07f),
-                           new Vector3(0.03f, 0.09f, 0.03f), trim);
-        strap.transform.localRotation = Quaternion.Euler(-22f, 0f, 0f);
+        var strap = AddBox(root.transform, "MountStrap", new Vector3(0f, tubeTop - 0.03f, -0.055f),
+                           new Vector3(0.03f, 0.10f, 0.03f), trim);
+        strap.transform.localRotation = Quaternion.Euler(-24f, 0f, 0f);
 
         // The warning band. A second one on the better charges is the cheapest
         // possible "this is the stronger one" cue, and it reads at a glance
         // because it is the only bright ring on an otherwise olive body.
-        AddCylinder(root.transform, "Band", new Vector3(0f, bodyBottom + 0.03f, 0f),
-                    new Vector3(bodyRadius * 2.15f, 0.011f, bodyRadius * 2.15f), band);
+        AddCylinder(root.transform, "Band", new Vector3(0f, tubeTop - 0.01f, 0f),
+                    new Vector3(tubeRadius * 1.18f, 0.011f, tubeRadius * 1.18f), band);
 
         if (tier >= 1)
-            AddCylinder(root.transform, "BandLower", new Vector3(0f, bodyBottom - 0.015f, 0f),
-                        new Vector3(bodyRadius * 2.05f, 0.008f, bodyRadius * 2.05f), trim);
+            AddCylinder(root.transform, "BandLower", new Vector3(0f, tubeTop - 0.06f, 0f),
+                        new Vector3(tubeRadius * 1.1f, 0.008f, tubeRadius * 1.1f), trim);
 
-        // The top airframe carries a second charge block riding piggy-back —
-        // visibly bigger hardware, not just a bigger number in a menu.
+        // The top airframe carries a tandem precursor on a standoff probe, which
+        // is what a real one looks like and is unmistakable in silhouette.
         if (tier >= 2)
         {
-            AddBox(root.transform, "SecondaryCharge",
-                  new Vector3(0f, bodyTop + noseHeight + 0.075f, 0f),
-                  new Vector3(0.05f, 0.045f, 0.05f), trim);
+            float tipY = profile[profile.Length - 1].y;
+
+            AddCylinder(root.transform, "Probe", new Vector3(0f, tipY + 0.05f, 0f),
+                        new Vector3(0.012f, 0.05f, 0.012f), body);
+
+            AddMesh(root.transform, "Precursor", new Vector3(0f, tipY + 0.125f, 0f),
+                    PrimitiveMesh.Frustum(0.03f, 0f, 0.07f), trim);
         }
 
-        // Tail fins, fanned around the body's rear. The better airframes carry
+        // Tail fins, fanned around the tube's rear. The better airframes carry
         // more of them, so the tail reads differently too.
         int fins = tier >= 2 ? 6 : 4;
-        float finY = bodyBottom + 0.02f;
-        float finSpan = bodyRadius + 0.05f;
+        float finY = tubeBottom + 0.06f;
 
         for (int i = 0; i < fins; i++)
         {
             Quaternion spin = Quaternion.Euler(0f, i * (360f / fins), 0f);
-            Vector3 offset = spin * new Vector3(0f, 0f, finSpan * 0.7f);
+            Vector3 offset = spin * new Vector3(0f, 0f, tubeRadius * 0.72f);
 
             var fin = AddBox(root.transform, "Fin" + i, new Vector3(0f, finY, 0f) + offset,
-                             new Vector3(0.01f, 0.075f, 0.09f), body);
+                             new Vector3(0.008f, 0.085f, 0.075f), body);
             fin.transform.localRotation = spin;
         }
     }

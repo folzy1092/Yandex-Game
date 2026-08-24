@@ -109,6 +109,20 @@ from the README alone:
   `Editor/DroneBuildSetup.cs`'s `BUILD EVERYTHING` command runs materials
   generation, all mission scenes, the menu scene, and build-settings setup
   in one pass — that's the only thing the user needs to re-run after a sync.
+- **Unlock ladders share one shape, used twice.** `DroneLoadout.Models`
+  (airframes) and `DroneLoadout`'s warhead unlock section (`WarheadType`
+  Compact/Standard/Heavy) both follow the same pattern: one free rung, each
+  later rung gated behind the previous one's `PlayerPrefs` unlock key
+  (`IsAvailable`/`IsUnlocked`/`PrerequisiteName` for drones,
+  `IsWarheadAvailable`/`IsWarheadUnlocked`/`WarheadPrerequisiteName` for
+  charges), and `MainMenuUI` renders each ladder as N cards from an array
+  rather than hand-laid-out UI, so adding a rung is a data change plus one
+  array entry, not a new screen. A single free-then-one-ad tier gave players
+  nothing left to want after one rewarded view — a compact charge on the
+  fastest unlocked drone already clears the game — so this ladder needs at
+  least two ad-gated rungs to keep monetisation meaningful. Adding a fourth
+  rung to either ladder: extend the array/struct, add one more prefs key
+  gated behind the previous rung, add one more card — no other code changes.
 - **Placement is rejection sampling against a claim list**, not hand-picked
   coordinates: everything (targets, field works, clutter, patrol road)
   registers the ground it occupies as a circle (or a chain of circles for
@@ -139,11 +153,16 @@ from the README alone:
   near-identical dark colours at one point and were indistinguishable from
   any real distance, which read as a game bug ("looks dead, keeps fighting")
   rather than a design choice.
-- **Warhead orientation** (`DroneFactory.BuildWarheadView`,
-  `WarheadModelPitch/Yaw/Roll` constants): currently believed correct,
-  derived from the GLB's own parsed accessor bounds rather than guessed —
-  see the glTF-parsing note above for the technique if it's ever wrong again
-  or a different model gets swapped in.
+- **Warhead shape settled on procedural, not a downloaded model**
+  (`DroneFactory.BuildWarheadView`): went model → orientation-guessed model
+  (fixed via the glTF-accessor technique above) → stubby procedural pod →
+  back to the original `PrimitiveMesh.Revolve` ogive (tube/flare/point),
+  just shorter. The ogive silhouette was the only one never reported as
+  actually broken, only "phallic" — every other shape (stubby pod, the
+  model at any orientation) read as worse. If a warhead redesign comes up
+  again, don't re-attempt a downloaded model or a flat-nosed pod without a
+  strong reason; the length-to-width ratio of a tapered ogive is the shape
+  that has actually held up across four rounds of user feedback.
 - **Balance knobs**: `DroneStrike/README.md` has a full table
   ("Настройка баланса"). The signal range (`SignalLink.cleanRange` /
   `maximumRange`) and the launch-pad ring radius in `MissionBuilder.cs` are

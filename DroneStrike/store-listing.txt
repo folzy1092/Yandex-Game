@@ -48,8 +48,10 @@ Drone Strike — симулятор ударного FPV-дрона. Управ�
 — Три дрона с честной лесенкой прогрессии: каждый следующий быстрее и бьёт
   сильнее предыдущего, никаких компромиссов «одно за счёт другого». Стартовый
   дрон проходит всю игру сам — реклама даёт преимущество, а не пропуск.
-— Два боеприпаса: лёгкий заряд ради резвости дрона или тяжёлый — для брони с
-  одного захода.
+— Три боеприпаса с той же лесенкой: малый заряд — для резвости дрона,
+  стандартный открывается рекламой и валит любую цель точным попаданием,
+  тяжёлый — второй рекламой, с запасом мощности на всё, но дрон тяжелее в
+  управлении.
 — Связь с дроном ограничена дальностью и высотой: удаляешься или лезешь
   слишком высоко — картинка рвётся короткими рывками, как настоящий обрыв
   сигнала, потом отказывает мотор, и через пару секунд боевая часть
@@ -90,8 +92,10 @@ FEATURES
 — Three drones on an honest ladder — every unlock is both faster and
   harder-hitting than the last, no side-grades. The starter drone clears the
   whole game on its own.
-— Two warheads: a light charge for a livelier drone, or a heavy one that
-  drops armour in a single run.
+— Three warheads on the same ladder: a light charge for a livelier drone, a
+  standard one unlocked by ad that drops armour on a clean hit, and a heavy
+  one — a second ad — with enough punch for anything, at the cost of a
+  sluggisher airframe.
 — The radio link is the real map boundary — range and altitude both degrade
   the picture into real signal-dropout glitching, then cut the motor, before
   the payload self-destructs. No altitude ceiling either — climb until the
@@ -142,8 +146,9 @@ Esc          — пауза (сводка миссии, продолжить и�
 
 МОНЕТИЗАЦИЯ (для справки, не для карточки)
 ---------------------------------------------
-Rewarded-реклама: открыть дрон, открыть тяжёлый заряд, открыть карту,
-+1 дрон после провала миссии (максимум 3 за миссию).
+Rewarded-реклама: открыть дрон, открыть стандартный заряд, открыть тяжёлый
+заряд (после стандартного), открыть карту, +1 дрон после провала миссии
+(максимум 3 за миссию).
 Fullscreen-реклама: между попытками (кнопка «Заново»).
 Всё содержимое проходится и без единой рекламы — стартовый дрон и лёгкий
 заряд достаточны для победы на любой карте.
