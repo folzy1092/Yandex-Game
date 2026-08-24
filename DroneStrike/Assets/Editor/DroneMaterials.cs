@@ -83,9 +83,13 @@ public static class DroneMaterials
         SaveFlat("Mat_Burnt", new Color(0.09f, 0.08f, 0.08f), 0.15f);
 
         // A target that survives a hit but is not dead has to look different
-        // from both "untouched" and "wrecked", or a solid hit on armour reads as
-        // a miss. Charcoal rather than pure black — it is scorched, not burnt out.
-        SaveFlat("Mat_Damaged", new Color(0.20f, 0.19f, 0.18f), 0.10f);
+        // from both "untouched" and "wrecked" — a charcoal grey close to
+        // Mat_Burnt's own near-black looked identical to it from any real
+        // distance, which is what made a damaged tank read as a kill and left
+        // the player confused when it kept fighting. A scorched rust-orange
+        // is unmistakably a different colour from black at a glance, however
+        // far away, while still reading as "burned" rather than "repainted".
+        SaveFlat("Mat_Damaged", new Color(0.46f, 0.27f, 0.15f), 0.12f);
 
         // A faint marker under every target, so a vehicle tucked in shade or
         // behind netting still catches the eye from altitude.

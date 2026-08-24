@@ -869,16 +869,33 @@ public static class MissionBuilder
 
         bool anyPlaced = false;
 
+        Vector3 sideways = Quaternion.Euler(0f, 90f, 0f) * direction;
+
         for (int i = 0; i < segments; i++)
         {
             float along = -length * 0.5f + (i + 0.5f) * (length / segments);
-            Vector3 segmentPos = OnGround(x + direction.x * along, z + direction.z * along, 0f);
+
+            // A perfectly even, perfectly aligned row of identical objects is
+            // what read as "an assembly line", not sandbags someone actually
+            // stacked — every segment gets its own jitter along the line, a
+            // sideways nudge off the centreline, and its own facing and
+            // height, so no two sit exactly the same way.
+            float alongJitter = Random.Range(-0.6f, 0.6f);
+            float sidewaysJitter = Random.Range(-0.5f, 0.5f);
+            float yawJitter = Random.Range(-14f, 14f);
+            float heightJitter = Random.Range(-0.05f, 0.08f);
+            float scaleJitter = Random.Range(0.9f, 1.12f);
+
+            Vector3 segmentPos = OnGround(
+                x + direction.x * (along + alongJitter) + sideways.x * sidewaysJitter,
+                z + direction.z * (along + alongJitter) + sideways.z * sidewaysJitter,
+                heightJitter);
 
             GameObject trench = ModelLibrary.Instantiate("Trench", parent, 1f,
-                                                          yaw + TrenchModelYawOffset);
+                                                          yaw + TrenchModelYawOffset + yawJitter);
             if (trench == null) break;
 
-            NormalizeTrenchSegment(trench, TrenchSegmentSpan);
+            NormalizeTrenchSegment(trench, TrenchSegmentSpan * scaleJitter);
             trench.transform.position = segmentPos;
             anyPlaced = true;
         }
@@ -1003,8 +1020,14 @@ public static class MissionBuilder
         sheet.transform.SetParent(group.transform, false);
         sheet.transform.localPosition = new Vector3(0f, poleHeight, 0f);
 
+        // A 0.6 m dip across a sixteen-plus-metre sheet is under 4% of the
+        // span — invisible at any distance a drone actually sees it from, so
+        // even with the lighting bug fixed it still read as a flat plate
+        // rather than netting. A real sag deep enough to actually show up as
+        // shading, on a finer grid so the curve looks smooth rather than
+        // faceted.
         var sheetFilter = sheet.AddComponent<MeshFilter>();
-        sheetFilter.sharedMesh = PrimitiveMesh.Drape(size + 1f, size * 0.7f + 1f, 0.6f, 6,
+        sheetFilter.sharedMesh = PrimitiveMesh.Drape(size + 1f, size * 0.7f + 1f, 2.4f, 10,
                                                      Mathf.RoundToInt(x * 13f + z * 7f));
 
         var sheetRenderer = sheet.AddComponent<MeshRenderer>();

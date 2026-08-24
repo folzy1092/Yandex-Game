@@ -87,7 +87,7 @@ public class Warhead : MonoBehaviour
         // touches the target has earned the detonation.
         if (collision.collider.GetComponentInParent<Target>() != null)
         {
-            Detonate();
+            Detonate(collision.relativeVelocity.magnitude);
             return;
         }
 
@@ -95,10 +95,18 @@ public class Warhead : MonoBehaviour
         // ends the run.
         if (collision.relativeVelocity.magnitude < armingSpeed) return;
 
-        Detonate();
+        Detonate(collision.relativeVelocity.magnitude);
     }
 
-    public void Detonate()
+    /// <summary>
+    /// <paramref name="impactSpeed"/> is the relative velocity the collision
+    /// went off at, or left at its default when there was no collision at all
+    /// — the signal-loss self-destruct calls this with nothing to measure.
+    /// Only a real impact can earn the speed bonus in ApplyBlast; everything
+    /// else deals exactly the charge's own base damage, same as before this
+    /// existed.
+    /// </summary>
+    public void Detonate(float impactSpeed = -1f)
     {
         if (HasDetonated) return;
         HasDetonated = true;
@@ -113,7 +121,7 @@ public class Warhead : MonoBehaviour
 
         if (GameAudio.Instance != null) GameAudio.Instance.PlayExplosion(origin);
 
-        ApplyBlast(origin);
+        ApplyBlast(origin, impactSpeed);
 
         if (drone != null) drone.CutPower();
         if (OnDetonated != null) OnDetonated();
@@ -127,8 +135,20 @@ public class Warhead : MonoBehaviour
         body.isKinematic = true;
     }
 
-    void ApplyBlast(Vector3 origin)
+    void ApplyBlast(Vector3 origin, float impactSpeed)
     {
+        // A drone that barely bumps a target and one flown into it at full
+        // speed used to deal identical damage — the charge alone decided the
+        // outcome, and there was no reason to fly a fast, committed run over
+        // a lazy tap except that it looked better. A fast hit now earns up to
+        // 50% more damage, floored at the charge's own base figure so nothing
+        // gets weaker than it already was. impactSpeed is negative for a
+        // detonation with no collision behind it (the signal-loss
+        // self-destruct) — that case gets no bonus and no penalty, unchanged.
+        float speedBonus = impactSpeed >= 0f
+            ? 1f + Mathf.Clamp01((impactSpeed - armingSpeed) / 40f) * 0.5f
+            : 1f;
+
         Collider[] caught = Physics.OverlapSphere(origin, Profile.blastRadius);
         var alreadyHit = new System.Collections.Generic.HashSet<Target>();
 
@@ -143,7 +163,7 @@ public class Warhead : MonoBehaviour
             float distance = Vector3.Distance(origin, collider.ClosestPoint(origin));
             float falloff = Mathf.Clamp01(1f - distance / Profile.blastRadius);
 
-            target.TakeDamage(Profile.damage * damageMultiplier * falloff);
+            target.TakeDamage(Profile.damage * damageMultiplier * falloff * speedBonus);
         }
     }
 }

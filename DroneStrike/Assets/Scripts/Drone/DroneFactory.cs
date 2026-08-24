@@ -213,9 +213,17 @@ public static class DroneFactory
     /// on its side, nose backwards, or upside down — nothing else about the
     /// mount needs to move.
     /// </summary>
+    // Derived from the actual glTF accessor bounds, not guessed: the raw mesh
+    // spans X -11.92..1.0 (a 12.9-unit span), against Y ±2.66 and Z ±2.35 —
+    // X is unambiguously the nose-to-tail axis, and the file's own origin
+    // sits within one unit of the tail end (a sensible "mount it from here"
+    // pivot). A -90 degree roll maps local -X (the nose, since most of the
+    // body extends in -X from the tail-side origin) onto this root's +Y,
+    // which is the axis the procedural nose used to point along — nothing
+    // else needs correcting.
     const float WarheadModelPitch = 0f;
     const float WarheadModelYaw = 0f;
-    const float WarheadModelRoll = 0f;
+    const float WarheadModelRoll = -90f;
 
     /// <summary>Nose-to-tail length the model is rescaled to, in metres, before the loadout scale is applied.</summary>
     const float WarheadModelLength = 0.42f;
@@ -247,7 +255,13 @@ public static class DroneFactory
             downloaded.transform.localRotation =
                 Quaternion.Euler(WarheadModelPitch, WarheadModelYaw, WarheadModelRoll);
             FitWarheadModelLength(downloaded, WarheadModelLength);
-            RecentreWarheadModel(root.transform, downloaded);
+            // Deliberately not recentred: the file's own pivot already sits at
+            // the tail, which after the roll above lands within a few
+            // centimetres of the mount point on its own. Recentring to the
+            // model's geometric middle was tried and made it worse — it
+            // pulled the pivot away from the tail into open space along the
+            // body, which is what read as the whole thing floating loose
+            // rather than mounted to anything.
 
             root.transform.localScale = Vector3.one * scale;
             return;
@@ -348,30 +362,6 @@ public static class DroneFactory
         if (longest < 0.0001f) return;
 
         t.localScale *= desiredLength / longest;
-    }
-
-    /// <summary>
-    /// Shifts the model so its own geometric centre sits exactly at the mount
-    /// point, instead of wherever the source file's own pivot happened to put
-    /// it — measured after rotation and scale are both already applied, so the
-    /// offset reflects how the model actually sits once everything else about
-    /// it is finalised.
-    /// </summary>
-    static void RecentreWarheadModel(Transform root, GameObject model)
-    {
-        Renderer[] renderers = model.GetComponentsInChildren<Renderer>();
-        if (renderers.Length == 0) return;
-
-        Vector3 originalPosition = root.position;
-        Quaternion originalRotation = root.rotation;
-        root.SetPositionAndRotation(Vector3.zero, Quaternion.identity);
-
-        Bounds bounds = renderers[0].bounds;
-        for (int i = 1; i < renderers.Length; i++) bounds.Encapsulate(renderers[i].bounds);
-
-        root.SetPositionAndRotation(originalPosition, originalRotation);
-
-        model.transform.localPosition -= bounds.center;
     }
 
     // ---------- helpers ----------
