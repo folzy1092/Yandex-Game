@@ -23,10 +23,10 @@ using UnityEngine;
 public class SignalLink : MonoBehaviour
 {
     /// <summary>Distance at which the picture is still perfectly clean.</summary>
-    public float cleanRange = 230f;
+    public float cleanRange = 150f;
 
     /// <summary>Distance at which the link drops entirely.</summary>
-    public float maximumRange = 350f;
+    public float maximumRange = 200f;
 
     /// <summary>Seconds between losing the link and the payload going off.</summary>
     public float selfDestructDelay = 2f;

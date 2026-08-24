@@ -27,8 +27,32 @@ public class DroneHUD : MonoBehaviour
     Button reviveButton;
     Text reviveLabel;
 
+    GameObject pausePanel;
+    Text pauseSummary;
+
     Text signalLostBanner;
     float signalLostUntil;
+
+    /// <summary>
+    /// The stretched child that actually holds the video-feed overlay
+    /// (scanlines, static, compass, crosshair, telemetry). The signal-loss
+    /// glitch nudges this, not the canvas root — a root Screen Space Overlay
+    /// canvas has its RectTransform recomputed to fit the screen every frame,
+    /// so writing to its anchoredPosition has no visible effect at all.
+    /// </summary>
+    RectTransform feedRoot;
+
+    /// <summary>Link strength below which the picture starts to glitch — a bit above the point the signal bar itself turns red, so the glitching is the first warning rather than simultaneous with it.</summary>
+    const float GlitchThreshold = 0.5f;
+
+    /// <summary>Time.time of the next scheduled glitch tick.</summary>
+    float nextGlitchTime;
+
+    /// <summary>Time.time the current glitch jolt holds until.</summary>
+    float glitchEndTime;
+
+    /// <summary>Static-overlay alpha to hold for the rest of the current glitch.</summary>
+    float glitchAlpha;
 
     /// <summary>Pixels of tape per degree of heading.</summary>
     const float CompassScale = 4f;
@@ -62,6 +86,7 @@ public class DroneHUD : MonoBehaviour
 
     void Update()
     {
+        HandleEscape();
         UpdateSignalLostBanner();
 
         MissionManager mission = MissionManager.Instance;
@@ -70,11 +95,57 @@ public class DroneHUD : MonoBehaviour
         if (drone == null || drone.Controller == null)
         {
             if (staticOverlay != null) staticOverlay.color = new Color(1f, 1f, 1f, 0.35f);
+            // No drone to lose signal to, so nothing should be mid-glitch —
+            // otherwise the next drone could launch into a leftover jolt.
+            if (feedRoot != null) feedRoot.anchoredPosition = Vector2.zero;
+            glitchEndTime = 0f;
             return;
         }
 
         UpdateTelemetry(drone);
         UpdateSignal(drone);
+    }
+
+    /// <summary>
+    /// DroneHUD is the sole owner of Esc during a mission — see the matching
+    /// comment in MissionManager.Update(). It only opens the pause panel while
+    /// a mission is actually in progress and the result screen is not already
+    /// covering it, and it is a toggle so the same key closes the panel again.
+    /// </summary>
+    void HandleEscape()
+    {
+        if (!Input.GetKeyDown(KeyCode.Escape)) return;
+
+        MissionManager mission = MissionManager.Instance;
+        if (mission == null || !mission.IsRunning) return;
+        if (resultPanel != null && resultPanel.activeSelf) return;
+
+        TogglePause();
+    }
+
+    void TogglePause()
+    {
+        if (pausePanel == null) return;
+
+        if (pausePanel.activeSelf)
+        {
+            ClosePause();
+            return;
+        }
+
+        Time.timeScale = 0f;
+        RefreshPauseSummary();
+        pausePanel.SetActive(true);
+        Cursor.lockState = CursorLockMode.None;
+        Cursor.visible = true;
+    }
+
+    void ClosePause()
+    {
+        Time.timeScale = 1f;
+        pausePanel.SetActive(false);
+        Cursor.lockState = CursorLockMode.Locked;
+        Cursor.visible = false;
     }
 
     void UpdateTelemetry(DroneRig drone)
@@ -113,6 +184,60 @@ public class DroneHUD : MonoBehaviour
         float noise = (1f - strength) * 0.5f;
         float flicker = Mathf.PerlinNoise(Time.time * 14f, 0f) * 0.35f + 0.65f;
         staticOverlay.color = new Color(1f, 1f, 1f, noise * flicker);
+
+        UpdateGlitch(strength);
+    }
+
+    /// <summary>
+    /// A weak link does not fade smoothly, it drops out — a horizontal jolt of
+    /// the feed, a cut to near-solid snow, and the noise pattern jumping to a
+    /// new scale, held for a couple of frames and then snapped back. That is
+    /// what a real broken downlink looks like; a uniform alpha fade never
+    /// reads as a dropout, only as a dimmer picture.
+    /// </summary>
+    void UpdateGlitch(float strength)
+    {
+        if (Time.time < glitchEndTime)
+        {
+            // Hold the "cut to snow" look for the rest of the jolt — the
+            // flicker above already overwrote staticOverlay's colour this
+            // frame, so it has to be re-applied every held frame, not just
+            // the one that triggered it.
+            staticOverlay.color = new Color(1f, 1f, 1f, glitchAlpha);
+            return;
+        }
+
+        feedRoot.anchoredPosition = Vector2.zero;
+
+        if (strength >= GlitchThreshold)
+        {
+            // Healthy link: keep the schedule pinned to "now" so a glitch
+            // fires immediately if the link degrades again, rather than
+            // waiting out an interval that was rolled while it was still bad.
+            nextGlitchTime = Time.time;
+            return;
+        }
+
+        if (Time.time < nextGlitchTime) return;
+
+        // 0 at the threshold, 1 at total loss — drives both how often glitches
+        // fire and how rough each one is, so a dying link glitches almost
+        // continuously instead of ticking over at a fixed rate.
+        float severity = Mathf.InverseLerp(GlitchThreshold, 0f, strength);
+        float interval = Mathf.Lerp(1.1f, 0.06f, severity);
+
+        nextGlitchTime = Time.time + interval * (0.5f + Random.value);
+        glitchEndTime = Time.time + Mathf.Lerp(0.03f, 0.12f, severity);
+        glitchAlpha = Mathf.Lerp(0.85f, 1f, severity);
+
+        feedRoot.anchoredPosition = new Vector2(Random.Range(-16f, 16f) * (0.35f + severity), 0f);
+        staticOverlay.color = new Color(1f, 1f, 1f, glitchAlpha);
+
+        // Cheap stand-in for a UV jump: Image has no exposed tile offset, but
+        // rescaling how large each tile reads makes the same noise texture
+        // jump to a different-looking pattern without touching the texture
+        // itself.
+        staticOverlay.pixelsPerUnitMultiplier = Random.Range(0.7f, 1.8f);
     }
 
     // ---------- construction ----------
@@ -120,7 +245,18 @@ public class DroneHUD : MonoBehaviour
     void Build()
     {
         Canvas canvas = UIFactory.CreateCanvas("DroneHUD", 0);
-        Transform root = canvas.transform;
+        Transform canvasRoot = canvas.transform;
+
+        // A stretched child rather than the canvas root itself: Screen Space
+        // Overlay canvases recompute their own RectTransform to fit the
+        // screen every frame, so the signal-loss glitch below has nothing to
+        // nudge unless the video-feed overlay lives one level down from it.
+        // The pause and result panels stay on canvasRoot so a glitch never
+        // shakes them.
+        var feedGO = new GameObject("Feed");
+        feedGO.transform.SetParent(canvasRoot, false);
+        feedRoot = UIFactory.Stretch(feedGO);
+        Transform root = feedRoot;
 
         Vector2 centre = new Vector2(0.5f, 0.5f);
         Vector2 topCentre = new Vector2(0.5f, 1f);
@@ -168,7 +304,8 @@ public class DroneHUD : MonoBehaviour
                                                 new Vector2(900f, 80f));
         signalLostBanner.gameObject.SetActive(false);
 
-        BuildResultPanel(root);
+        BuildResultPanel(canvasRoot);
+        BuildPausePanel(canvasRoot);
     }
 
     /// <summary>
@@ -365,6 +502,48 @@ public class DroneHUD : MonoBehaviour
         resultPanel.SetActive(false);
     }
 
+    /// <summary>
+    /// Same visual language as <see cref="BuildResultPanel"/> — dark
+    /// translucent backdrop, same title/body sizes, same button footprint —
+    /// so pausing does not look like a different screen bolted onto the HUD.
+    /// </summary>
+    void BuildPausePanel(Transform root)
+    {
+        pausePanel = new GameObject("PausePanel");
+        pausePanel.transform.SetParent(root, false);
+
+        var background = pausePanel.AddComponent<Image>();
+        background.sprite = UIFactory.BlankSprite;
+        background.color = new Color(0f, 0f, 0f, 0.85f);
+        UIFactory.Stretch(pausePanel);
+
+        Vector2 centre = new Vector2(0.5f, 0.5f);
+
+        UIFactory.CreateText(pausePanel.transform, "PauseTitle", "ПАУЗА", 60,
+                             TextAnchor.MiddleCenter, Color.white,
+                             centre, centre, new Vector2(0f, 160f), new Vector2(900f, 90f));
+
+        pauseSummary = UIFactory.CreateText(pausePanel.transform, "PauseSummary", "", 32,
+                                            TextAnchor.MiddleCenter, Color.white,
+                                            centre, centre, new Vector2(0f, 40f), new Vector2(900f, 160f));
+
+        UIFactory.CreateButton(pausePanel.transform, "ResumeButton", "ПРОДОЛЖИТЬ", 30,
+                               centre, centre, new Vector2(-180f, -140f), new Vector2(330f, 66f),
+                               ClosePause);
+
+        UIFactory.CreateButton(pausePanel.transform, "PauseMenuButton", "В МЕНЮ", 30,
+                               centre, centre, new Vector2(180f, -140f), new Vector2(330f, 66f),
+                               () =>
+                               {
+                                   // The mission scene is paused, but the menu is not — it must not
+                                   // inherit a frozen clock from the screen it was opened over.
+                                   Time.timeScale = 1f;
+                                   if (MissionManager.Instance != null) MissionManager.Instance.ReturnToMenu();
+                               });
+
+        pausePanel.SetActive(false);
+    }
+
     // ---------- state ----------
 
     /// <summary>
@@ -398,22 +577,43 @@ public class DroneHUD : MonoBehaviour
         signalLostBanner.color = colour;
     }
 
+    /// <summary>The same targets/drones/airframe/charge readout used by both the corner HUD text and the pause summary — one format, so the two never drift apart.</summary>
+    static string BuildMissionSummary(MissionManager mission)
+    {
+        string warhead = WarheadProfile.For(mission.warhead).DisplayName;
+
+        return "ЦЕЛЕЙ: " + mission.TargetsDestroyed + " / " + mission.TargetsTotal
+              + "\nДРОНОВ: " + mission.DronesRemaining
+              + "\nДРОН: " + DroneLoadout.Selected.displayName
+              + "\nЗАРЯД: " + warhead;
+    }
+
     void RefreshMission()
     {
         MissionManager mission = MissionManager.Instance;
         if (mission == null || missionText == null) return;
 
-        string warhead = WarheadProfile.For(mission.warhead).DisplayName;
+        missionText.text = BuildMissionSummary(mission);
+    }
 
-        missionText.text = "ЦЕЛЕЙ: " + mission.TargetsDestroyed + " / " + mission.TargetsTotal
-                           + "\nДРОНОВ: " + mission.DronesRemaining
-                           + "\nБОРТ: " + DroneLoadout.Selected.displayName
-                           + "\nЗАРЯД: " + warhead;
+    void RefreshPauseSummary()
+    {
+        MissionManager mission = MissionManager.Instance;
+        if (mission == null || pauseSummary == null) return;
+
+        pauseSummary.text = BuildMissionSummary(mission);
     }
 
     void ShowResult(bool won)
     {
         MissionManager mission = MissionManager.Instance;
+
+        // The mission cannot normally end while paused — Time.timeScale being
+        // 0 stops the physics and the WaitForSeconds coroutines that end it —
+        // but if that ever changes, the pause panel must not be left sitting
+        // on top of the result screen.
+        if (pausePanel != null) pausePanel.SetActive(false);
+        Time.timeScale = 1f;
 
         resultTitle.text = won ? "МИССИЯ ВЫПОЛНЕНА" : "МИССИЯ ПРОВАЛЕНА";
         resultTitle.color = won ? new Color(0.5f, 0.9f, 0.5f) : new Color(0.95f, 0.4f, 0.35f);

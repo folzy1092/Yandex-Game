@@ -110,15 +110,15 @@ public class MissionManager : MonoBehaviour
 
     void Update()
     {
-        // Esc releases the mouse; clicking back in recaptures it. Browsers drop
-        // pointer lock on their own, so the click path matters in a WebGL build.
-        if (Input.GetKeyDown(KeyCode.Escape))
-        {
-            LockCursor(false);
-            return;
-        }
-
-        if (IsRunning && Input.GetMouseButtonDown(0) && Cursor.lockState != CursorLockMode.Locked)
+        // DroneHUD owns Esc: it opens and closes the pause panel and re-locks
+        // the cursor itself on resume, so handling the key here too would race
+        // it for the same press. This just recaptures the mouse after a click
+        // — still needed because browsers drop pointer lock on their own in a
+        // WebGL build — and the Time.timeScale guard stops it firing while the
+        // pause panel is up, where a click is meant to hit a button, not yank
+        // the cursor back into the game.
+        if (IsRunning && Time.timeScale > 0f &&
+            Input.GetMouseButtonDown(0) && Cursor.lockState != CursorLockMode.Locked)
             LockCursor(true);
     }
 

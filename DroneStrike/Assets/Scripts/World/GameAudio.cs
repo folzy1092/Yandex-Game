@@ -23,6 +23,8 @@ public class GameAudio : MonoBehaviour
     AudioClip hitmarker;
     AudioClip respawn;
     AudioClip bodyFall;
+    AudioClip rotorLoop;
+    AudioClip explosion;
 
     AudioSource[] voices;
     int nextVoice;
@@ -68,6 +70,13 @@ public class GameAudio : MonoBehaviour
         respawn = ProceduralAudio.CreateRespawnChime("Respawn");
         // Heavier and duller than a footstep: a whole body hitting tile.
         bodyFall = ProceduralAudio.CreateFootstep("BodyFall", 0.28f, 1010);
+
+        // Three lightly detuned tones for the "whirr" beat, the way four props
+        // spinning at very slightly different speeds actually sound.
+        rotorLoop = ProceduralAudio.CreateRotorLoop("RotorLoop", 0.25f,
+            new[] { 176f, 184f, 192f }, 1011);
+
+        explosion = ProceduralAudio.CreateExplosion("Explosion", 1.1f, 1012);
     }
 
     void CreateVoices()
@@ -102,6 +111,32 @@ public class GameAudio : MonoBehaviour
     public void PlayFootstep(Vector3 position) { Play(footstep, position, 0.25f, 1f, 0.15f); }
     public void PlayRespawn(Vector3 position) { Play(respawn, position, 0.45f, 1f, 0f); }
     public void PlayBodyFall(Vector3 position) { Play(bodyFall, position, 0.5f, 0.65f, 0.1f); }
+    public void PlayExplosion(Vector3 position) { Play(explosion, position, 0.8f, 1f, 0.06f); }
+
+    /// <summary>
+    /// Starts the rotor hum as its own dedicated, looping source rather than
+    /// handing it to the pooled voices — a pooled voice can be stolen mid-loop
+    /// by the next explosion or impact, which would cut the motor out audibly.
+    /// The caller owns the returned source and is responsible for stopping it.
+    /// </summary>
+    public AudioSource AttachDroneLoop(Transform parent)
+    {
+        var go = new GameObject("RotorLoop");
+        go.transform.SetParent(parent, false);
+
+        var source = go.AddComponent<AudioSource>();
+        source.clip = rotorLoop;
+        source.loop = true;
+        source.playOnAwake = false;
+        source.spatialBlend = 1f;
+        source.rolloffMode = AudioRolloffMode.Linear;
+        source.minDistance = 3f;
+        source.maxDistance = 45f;
+        source.volume = 0f;
+        source.Play();
+
+        return source;
+    }
 
     /// <summary>
     /// The hit confirmation tick. Played flat (not positioned in the world)

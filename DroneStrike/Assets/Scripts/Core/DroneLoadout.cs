@@ -70,7 +70,7 @@ public static class DroneLoadout
         {
             id = "scout",
             displayName = "РАЗВЕДЧИК",
-            tagline = "Базовый борт. Лёгкий, послушный, живучая батарея.",
+            tagline = "Базовый дрон. Лёгкий, послушный, живучая батарея.",
             thrustFactor = 1f,
             speedFactor = 1f,
             enduranceFactor = 1f,
@@ -95,7 +95,7 @@ public static class DroneLoadout
         {
             id = "hammer",
             displayName = "МОЛОТ",
-            tagline = "Топовый борт: быстрее всех и бьёт сильнее всех.",
+            tagline = "Топовый дрон: быстрее всех и бьёт сильнее всех.",
             thrustFactor = 1.55f,
             speedFactor = 1.42f,
             enduranceFactor = 1.15f,

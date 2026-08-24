@@ -158,7 +158,30 @@ public static class TargetProps
         AddPart(root, "TarpRear", new Vector3(0f, chassisTop + 1.05f, -3.52f),
                 new Vector3(2.4f, 1.6f, 0.1f), palette.vehicleDark);
 
-        // Three axles a side. Front axle under the bonnet, two under the bed.
+        // Grille and bumper on the nose — the detail that stops the front from
+        // reading as a plain box with headlamps painted on.
+        AddPart(root, "Grille", new Vector3(0f, chassisTop + 0.4f, 3.48f),
+                new Vector3(1.9f, 0.7f, 0.1f), palette.vehicleDark);
+        AddPart(root, "Bumper", new Vector3(0f, axleHeight - 0.05f, 3.5f),
+                new Vector3(2.2f, 0.2f, 0.2f), palette.vehicleDark);
+
+        // Mirrors on stalks either side of the cab.
+        foreach (float side in new[] { -1.2f, 1.2f })
+        {
+            AddPart(root, "MirrorArm", new Vector3(side, chassisTop + 1.55f, 1.85f),
+                    new Vector3(0.05f, 0.05f, 0.3f), palette.vehicleDark);
+            AddPart(root, "Mirror", new Vector3(side * 1.12f, chassisTop + 1.55f, 1.85f),
+                    new Vector3(0.06f, 0.28f, 0.2f), palette.vehicleDark);
+        }
+
+        // An exhaust stack behind the cab — a common silhouette on a real cargo
+        // truck and the last thing that keeps the chassis from reading as bare.
+        AddPart(root, "Exhaust", new Vector3(-1.3f, chassisTop + 1.1f, 0.9f),
+                new Vector3(0.12f, 1.6f, 0.12f), palette.vehicleDark, PrimitiveType.Cylinder);
+
+        // Three axles a side. Front axle under the bonnet, two under the bed —
+        // each pair skirted by a fender, so the wheel wells read as part of the
+        // body instead of the wheels hanging exposed underneath a flat floor.
         float[] axleZ = { 2.5f, -1.1f, -2.6f };
         foreach (float z in axleZ)
         {
@@ -166,6 +189,14 @@ public static class TargetProps
                      wheelDiameter, 0.42f, palette.vehicleDark);
             AddWheel(root, "Wheel", new Vector3(1.12f, axleHeight, z),
                      wheelDiameter, 0.42f, palette.vehicleDark);
+
+            foreach (float side in new[] { -1.12f, 1.12f })
+            {
+                var fender = AddPart(root, "Fender", new Vector3(side, axleHeight + 0.32f, z),
+                                     new Vector3(0.5f, 0.16f, 0.62f), palette.vehicleDark,
+                                     PrimitiveType.Cylinder);
+                fender.transform.localRotation = Quaternion.Euler(0f, 0f, 90f);
+            }
         }
 
         return root.GetComponent<Target>();
@@ -367,7 +398,39 @@ public static class TargetProps
         var target = root.AddComponent<Target>();
         target.kind = kind;
 
+        AddHighlight(root.transform, Mathf.Max(colliderSize.x, colliderSize.z), target);
+
         return root;
+    }
+
+    /// <summary>
+    /// A soft glowing ring under the target, so something tucked in shade or
+    /// behind netting still catches the eye from altitude instead of blending
+    /// into the ground. Gently breathing rather than static, which is what
+    /// actually pulls the eye without reading as a UI marker painted onto the
+    /// world. Stops once the target is destroyed — a wreck does not need
+    /// finding, it is already found.
+    /// </summary>
+    static void AddHighlight(Transform parent, float footprint, Target target)
+    {
+        Material highlight = Resources.Load<Material>("Materials/Mat_Highlight");
+        if (highlight == null) return;
+
+        var ring = GameObject.CreatePrimitive(PrimitiveType.Quad);
+        ring.name = "Highlight";
+        ring.transform.SetParent(parent, false);
+        ring.transform.localPosition = new Vector3(0f, 0.04f, 0f);
+        ring.transform.localRotation = Quaternion.Euler(90f, 0f, 0f);
+        ring.transform.localScale = Vector3.one * (footprint * 1.15f);
+
+        Object.DestroyImmediate(ring.GetComponent<Collider>());
+        var renderer = ring.GetComponent<Renderer>();
+        renderer.sharedMaterial = highlight;
+        renderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+        renderer.receiveShadows = false;
+
+        var breathe = ring.AddComponent<TargetHighlight>();
+        breathe.target = target;
     }
 
     /// <summary>

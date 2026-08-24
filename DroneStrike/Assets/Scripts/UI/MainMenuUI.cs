@@ -5,34 +5,55 @@ using UnityEngine.UI;
 /// <summary>
 /// The briefing screen.
 ///
-/// Three things decide a mission — which airframe, which charge, which map —
-/// and each gets its own place rather than being stacked into one wall of
-/// cards. The home screen shows what is currently fitted and lets the player
-/// change it; the choosing happens on its own panel with room to read.
+/// Three things decide a mission — which drone, which charge, which map — and
+/// each gets its own place rather than being stacked into one wall of cards.
+/// The home screen shows what is currently fitted and lets the player change
+/// it; the choosing happens on its own panel with room to read.
 ///
 /// Everything locked is opened by a rewarded ad, and the maps can also be
 /// opened by clearing the one before them. That is the whole monetisation
-/// model, and it stays honest: the starter airframe with the compact charge
+/// model, and it stays honest: the starter drone with the compact charge
 /// clears every map in the game, so every ad is a shortcut rather than a toll.
 /// </summary>
 public class MainMenuUI : MonoBehaviour
 {
     // ---------- layout ----------
     //
-    // Named rather than typed inline at each call. What went wrong with the
-    // first version of this screen was things sitting too close together, and
-    // that is impossible to fix reliably when every gap is a different literal
-    // buried in a different method.
+    // Every row is placed by a running "waterline" that tracks the TOP edge of
+    // whatever was placed last, not by a separate hand-picked Y per element.
+    // The previous version typed each element's centre Y as an independent
+    // magic number and derived a section label's Y by adding one flat offset
+    // to it regardless of how tall the row below actually was — which worked
+    // by coincidence for a 92-tall button row and put the label for a
+    // 310-tall card row inside the cards themselves, not above them. Tracking
+    // one edge and always placing the next element some fixed gap below it
+    // makes that whole category of bug impossible: the gap between any two
+    // things on screen is always the literal number written at the call site
+    // that placed them, never a difference between two unrelated formulas.
 
-    const float TitleY = -84f;
-    const float SubtitleY = -152f;
-    const float SectionGap = 54f;      // section label to the row beneath it
-    const float CardGap = 40f;         // between cards in a row
+    const float ContentWidth = 1500f;
 
-    const float DroneCardWidth = 400f;
-    const float DroneCardHeight = 470f;
-    const float MapCardWidth = 400f;
-    const float MapCardHeight = 310f;
+    const float TitleHeight = 88f;
+    const float SubtitleHeight = 38f;
+    const float SectionLabelHeight = 32f;
+    const float NavButtonHeight = 88f;
+    const float LaunchButtonHeight = 92f;
+    const float ControlsHeight = 52f;
+
+    const float GapAfterTitle = 18f;
+    const float GapAfterSubtitle = 40f;
+    const float GapAfterSection = 18f;
+    const float GapAfterRow = 46f;
+    const float GapAboveLaunch = 40f;
+
+    const float DroneCardWidth = 420f;
+    const float DroneCardHeight = 500f;
+    const float MapCardWidth = 420f;
+    const float MapCardHeight = 300f;
+    const float ChargeCardWidth = 490f;
+    const float ChargeCardHeight = 400f;
+
+    const float CardGap = 48f;
 
     static readonly Color Panel = new Color(0.11f, 0.14f, 0.13f);
     static readonly Color PanelActive = new Color(0.15f, 0.24f, 0.19f);
@@ -121,7 +142,7 @@ public class MainMenuUI : MonoBehaviour
         statusText = UIFactory.CreateText(root, "Status", "", 24, TextAnchor.MiddleCenter,
                                           new Color(0.85f, 0.72f, 0.35f),
                                           new Vector2(0.5f, 0f), new Vector2(0.5f, 0f),
-                                          new Vector2(0f, 100f), new Vector2(1500f, 34f));
+                                          new Vector2(0f, 108f), new Vector2(ContentWidth, 34f));
     }
 
     /// <summary>
@@ -165,47 +186,107 @@ public class MainMenuUI : MonoBehaviour
         Vector2 top = new Vector2(0.5f, 1f);
         Vector2 bottom = new Vector2(0.5f, 0f);
 
-        UIFactory.CreateText(parent, "Title", "DRONE STRIKE", 78, TextAnchor.MiddleCenter,
-                             Ink, top, top, new Vector2(0f, TitleY), new Vector2(1400f, 96f));
+        float y = -48f;    // the waterline: the top edge the next element starts at
+
+        y = TopText(parent, "Title", "DRONE STRIKE", 78, TitleHeight, y, Ink);
+        y -= GapAfterTitle;
 
         // No place name in the subtitle. The game is abstract on purpose, and
         // every phrase that sounds like a real front is one more reason for a
         // moderator to look harder at it — which the subtitle buys nothing worth.
-        UIFactory.CreateText(parent, "Subtitle", "СИМУЛЯТОР УДАРНОГО FPV-ДРОНА", 26,
-                             TextAnchor.MiddleCenter, InkDim, top, top,
-                             new Vector2(0f, SubtitleY), new Vector2(1400f, 40f));
+        y = TopText(parent, "Subtitle", "СИМУЛЯТОР УДАРНОГО FPV-ДРОНА", 26, SubtitleHeight, y, InkDim);
+        y -= GapAfterSubtitle;
 
-        const float navY = -268f;
-        const float navWidth = 600f;
+        const float navWidth = 620f;
         float navSpan = navWidth * 2f + CardGap;
 
-        SectionLabel(parent, "Kit", "СНАРЯЖЕНИЕ", navY + SectionGap, navSpan);
+        y = SectionLabel(parent, "Kit", "СНАРЯЖЕНИЕ", y, navSpan);
+        y -= GapAfterSection;
 
+        float navCentreY = y - NavButtonHeight * 0.5f;
         droneNavLabel = NavButton(parent, "DroneNav",
-                                  new Vector2(-(navWidth + CardGap) * 0.5f, navY),
+                                  new Vector2(-(navWidth + CardGap) * 0.5f, navCentreY),
                                   navWidth, () => ShowPanel(dronePanel));
 
         warheadNavLabel = NavButton(parent, "WarheadNav",
-                                    new Vector2((navWidth + CardGap) * 0.5f, navY),
+                                    new Vector2((navWidth + CardGap) * 0.5f, navCentreY),
                                     navWidth, () => ShowPanel(warheadPanel));
 
-        const float mapY = -480f;
+        y -= NavButtonHeight;
+        y -= GapAfterRow;
+
         float mapSpan = MissionCatalog.Maps.Length * MapCardWidth
                         + (MissionCatalog.Maps.Length - 1) * CardGap;
 
-        SectionLabel(parent, "Mission", "ЗАДАНИЕ", mapY + SectionGap, mapSpan);
-        BuildMapCards(parent, mapY, mapSpan);
+        y = SectionLabel(parent, "Mission", "ЗАДАНИЕ", y, mapSpan);
+        y -= GapAfterSection;
+
+        BuildMapCards(parent, y - MapCardHeight * 0.5f, mapSpan);
+        y -= MapCardHeight;
+
+        // The launch button and the controls line are anchored from the
+        // bottom rather than chained off the waterline above: they have to
+        // stay put at the foot of the screen however tall the content above
+        // them ends up being. Built as its own bottom-up stack for the same
+        // reason the top-down stack above exists — so their gap is a literal
+        // number, not a coincidence of two independent Y values.
+        // TopTextBottom is bottom-pivoted and returns its own top edge, and the
+        // launch button below is bottom-pivoted too — so, unlike every
+        // top-down element above, chaining these needs no half-height term at
+        // all: one bottom-pivoted edge feeds the next bottom-pivoted edge
+        // directly, plus the literal gap between them.
+        float controlsTop = TopTextBottom(parent, "Controls",
+            "W / S — вперёд и назад по взгляду     A / D — снос     Space / Ctrl — высота\n"
+            + "Мышь — камера     Esc — пауза     Дрон детонирует при ударе",
+            22, ControlsHeight, 40f, new Color(0.50f, 0.56f, 0.58f));
+
+        float launchBottom = controlsTop + GapAboveLaunch;
 
         Button launch = UIFactory.CreateButton(parent, "Launch", "В БОЙ", 40, bottom, bottom,
-                                               new Vector2(0f, 168f), new Vector2(560f, 96f),
-                                               Launch);
+                                               new Vector2(0f, launchBottom),
+                                               new Vector2(600f, LaunchButtonHeight), Launch);
         launchLabel = launch.GetComponentInChildren<Text>();
+    }
 
-        UIFactory.CreateText(parent, "Controls",
-                             "W / S — вперёд и назад по взгляду     A / D — снос     Space / Ctrl — высота\n"
-                             + "Мышь — камера     Esc — освободить курсор     Дрон детонирует при ударе",
-                             22, TextAnchor.MiddleCenter, new Color(0.50f, 0.56f, 0.58f),
-                             bottom, bottom, new Vector2(0f, 44f), new Vector2(1500f, 56f));
+    // ---------- layout helpers ----------
+
+    /// <summary>
+    /// Places a top-pivoted text block with its top edge at <paramref name="topY"/>
+    /// and returns the Y of its bottom edge, so the caller can chain the next
+    /// element off it without recomputing the height by hand.
+    /// </summary>
+    static float TopText(Transform parent, string name, string text, int fontSize, float height,
+                         float topY, Color colour)
+    {
+        Vector2 top = new Vector2(0.5f, 1f);
+        UIFactory.CreateText(parent, name, text, fontSize, TextAnchor.MiddleCenter, colour,
+                             top, top, new Vector2(0f, topY), new Vector2(ContentWidth, height));
+        return topY - height;
+    }
+
+    /// <summary>The same idea as <see cref="TopText"/>, stacked from the bottom of the screen.</summary>
+    static float TopTextBottom(Transform parent, string name, string text, int fontSize, float height,
+                               float bottomY, Color colour)
+    {
+        Vector2 bottom = new Vector2(0.5f, 0f);
+        UIFactory.CreateText(parent, name, text, fontSize, TextAnchor.MiddleCenter, colour,
+                             bottom, bottom, new Vector2(0f, bottomY), new Vector2(ContentWidth, height));
+        return bottomY + height;
+    }
+
+    /// <summary>
+    /// A left-aligned section heading, top-pivoted so its own top edge is
+    /// exactly <paramref name="topY"/> regardless of the row it introduces —
+    /// the bug this replaced came from measuring a centre-pivoted label
+    /// against rows of very different heights using one shared offset.
+    /// </summary>
+    static float SectionLabel(Transform parent, string name, string text, float topY, float span)
+    {
+        UIFactory.CreateText(parent, "Section" + name, text, 26, TextAnchor.UpperLeft,
+                             new Color(0.50f, 0.60f, 0.57f),
+                             new Vector2(0.5f, 1f), new Vector2(0f, 1f),
+                             new Vector2(-span * 0.5f, topY), new Vector2(span, SectionLabelHeight));
+        return topY - SectionLabelHeight;
     }
 
     Text NavButton(Transform parent, string name, Vector2 position, float width,
@@ -213,7 +294,7 @@ public class MainMenuUI : MonoBehaviour
     {
         Button button = UIFactory.CreateButton(parent, name, "", 28,
                                                new Vector2(0.5f, 1f), new Vector2(0.5f, 0.5f),
-                                               position, new Vector2(width, 92f), onClick);
+                                               position, new Vector2(width, NavButtonHeight), onClick);
 
         var image = button.targetGraphic as Image;
         if (image != null) image.color = new Color(0.15f, 0.20f, 0.22f);
@@ -221,7 +302,7 @@ public class MainMenuUI : MonoBehaviour
         return button.GetComponentInChildren<Text>();
     }
 
-    void BuildMapCards(Transform parent, float y, float span)
+    void BuildMapCards(Transform parent, float centreY, float span)
     {
         int count = MissionCatalog.Maps.Length;
 
@@ -236,7 +317,7 @@ public class MainMenuUI : MonoBehaviour
             MissionMap map = MissionCatalog.Maps[i];
             int index = i;
 
-            var position = new Vector2(startX + i * (MapCardWidth + CardGap), y);
+            var position = new Vector2(startX + i * (MapCardWidth + CardGap), centreY);
 
             Image frame = Card(parent, "Map" + i, position,
                                new Vector2(MapCardWidth, MapCardHeight), map.accent);
@@ -244,20 +325,20 @@ public class MainMenuUI : MonoBehaviour
 
             UIFactory.CreateText(frame.transform, "Name", map.displayName, 30,
                                  TextAnchor.MiddleCenter, Ink,
-                                 new Vector2(0.5f, 1f), new Vector2(0.5f, 0.5f),
-                                 new Vector2(0f, -52f), new Vector2(MapCardWidth - 40f, 40f));
+                                 new Vector2(0.5f, 1f), new Vector2(0.5f, 1f),
+                                 new Vector2(0f, -28f), new Vector2(MapCardWidth - 40f, 40f));
 
             Text tagline = UIFactory.CreateText(frame.transform, "Tagline", map.tagline, 20,
                                                 TextAnchor.UpperCenter, InkDim,
                                                 new Vector2(0.5f, 1f), new Vector2(0.5f, 1f),
-                                                new Vector2(0f, -88f),
-                                                new Vector2(MapCardWidth - 56f, 84f));
+                                                new Vector2(0f, -84f),
+                                                new Vector2(MapCardWidth - 56f, 96f));
             tagline.horizontalOverflow = HorizontalWrapMode.Wrap;
 
             UIFactory.CreateText(frame.transform, "Targets", "ЦЕЛЕЙ:  " + map.targetCount, 21,
                                  TextAnchor.MiddleCenter, new Color(0.55f, 0.62f, 0.60f),
-                                 new Vector2(0.5f, 1f), new Vector2(0.5f, 0.5f),
-                                 new Vector2(0f, -200f), new Vector2(MapCardWidth - 40f, 28f));
+                                 new Vector2(0.5f, 1f), new Vector2(0.5f, 1f),
+                                 new Vector2(0f, -196f), new Vector2(MapCardWidth - 40f, 28f));
 
             Button button = CardButton(frame.transform, MapCardWidth, () => OnMapPressed(index));
             mapButtons[i] = button;
@@ -265,12 +346,12 @@ public class MainMenuUI : MonoBehaviour
         }
     }
 
-    // ---------- airframes ----------
+    // ---------- drones ----------
 
     void BuildDronePanel(Transform parent)
     {
-        PanelHeader(parent, "ВЫБОР БОРТА",
-                    "Каждый следующий борт быстрее и бьёт сильнее предыдущего.");
+        float y = PanelHeader(parent, "ВЫБОР ДРОНА",
+                              "Каждый следующий дрон быстрее и бьёт сильнее предыдущего.");
 
         int count = DroneLoadout.Models.Length;
 
@@ -280,13 +361,14 @@ public class MainMenuUI : MonoBehaviour
 
         float span = count * DroneCardWidth + (count - 1) * CardGap;
         float startX = -span * 0.5f + DroneCardWidth * 0.5f;
+        float centreY = y - DroneCardHeight * 0.5f;
 
         for (int i = 0; i < count; i++)
         {
             DroneModel model = DroneLoadout.Models[i];
             int index = i;
 
-            var position = new Vector2(startX + i * (DroneCardWidth + CardGap), -300f);
+            var position = new Vector2(startX + i * (DroneCardWidth + CardGap), centreY);
 
             Image frame = Card(parent, "Drone" + i, position,
                                new Vector2(DroneCardWidth, DroneCardHeight), model.accent);
@@ -294,20 +376,20 @@ public class MainMenuUI : MonoBehaviour
 
             UIFactory.CreateText(frame.transform, "Name", model.displayName, 34,
                                  TextAnchor.MiddleCenter, Ink,
-                                 new Vector2(0.5f, 1f), new Vector2(0.5f, 0.5f),
-                                 new Vector2(0f, -56f), new Vector2(DroneCardWidth - 40f, 44f));
+                                 new Vector2(0.5f, 1f), new Vector2(0.5f, 1f),
+                                 new Vector2(0f, -34f), new Vector2(DroneCardWidth - 40f, 44f));
 
             Text tagline = UIFactory.CreateText(frame.transform, "Tagline", model.tagline, 20,
                                                 TextAnchor.UpperCenter, InkDim,
                                                 new Vector2(0.5f, 1f), new Vector2(0.5f, 1f),
-                                                new Vector2(0f, -94f),
-                                                new Vector2(DroneCardWidth - 56f, 84f));
+                                                new Vector2(0f, -92f),
+                                                new Vector2(DroneCardWidth - 56f, 96f));
             tagline.horizontalOverflow = HorizontalWrapMode.Wrap;
 
-            StatBar(frame.transform, "ТЯГА", model.thrustFactor, DroneCardWidth, -232f);
+            StatBar(frame.transform, "ТЯГА", model.thrustFactor, DroneCardWidth, -228f);
             StatBar(frame.transform, "СКОРОСТЬ", model.speedFactor, DroneCardWidth, -276f);
-            StatBar(frame.transform, "ЗАРЯД", model.damageFactor, DroneCardWidth, -320f);
-            StatBar(frame.transform, "РЕСУРС", model.enduranceFactor, DroneCardWidth, -364f);
+            StatBar(frame.transform, "ЗАРЯД", model.damageFactor, DroneCardWidth, -324f);
+            StatBar(frame.transform, "РЕСУРС", model.enduranceFactor, DroneCardWidth, -372f);
 
             Button button = CardButton(frame.transform, DroneCardWidth, () => OnDronePressed(index));
             droneButtons[i] = button;
@@ -319,8 +401,8 @@ public class MainMenuUI : MonoBehaviour
 
     /// <summary>
     /// One stat as a bar. Scaled against 1.7, a little above the highest factor
-    /// any airframe has, so the best drone still leaves visible headroom rather
-    /// than pinning the bar and looking finished.
+    /// any drone has, so the best one still leaves visible headroom rather than
+    /// pinning the bar and looking finished.
     /// </summary>
     void StatBar(Transform parent, string label, float factor, float cardWidth, float y)
     {
@@ -329,7 +411,7 @@ public class MainMenuUI : MonoBehaviour
                              new Vector2(0f, 1f), new Vector2(0f, 0.5f),
                              new Vector2(28f, y), new Vector2(150f, 24f));
 
-        const float barWidth = 176f;
+        const float barWidth = 190f;
         float barX = cardWidth - barWidth - 28f;
 
         UIFactory.CreateImage(parent, "Track" + label, new Color(0.06f, 0.08f, 0.08f),
@@ -346,23 +428,21 @@ public class MainMenuUI : MonoBehaviour
 
     void BuildWarheadPanel(Transform parent)
     {
-        PanelHeader(parent, "БОЕПРИПАС",
-                    "Малый заряд легче — борт резвее. Стандартный бьёт вдвое сильнее.");
+        float y = PanelHeader(parent, "БОЕПРИПАС",
+                              "Малый заряд легче — дрон резвее. Стандартный бьёт вдвое сильнее.");
 
         warheadButtons = new Button[Charges.Length];
         warheadFrames = new Image[Charges.Length];
         warheadActions = new Text[Charges.Length];
 
-        const float cardWidth = 470f;
-        const float cardHeight = 390f;
-
-        float span = Charges.Length * cardWidth + (Charges.Length - 1) * CardGap;
-        float startX = -span * 0.5f + cardWidth * 0.5f;
+        float span = Charges.Length * ChargeCardWidth + (Charges.Length - 1) * CardGap;
+        float startX = -span * 0.5f + ChargeCardWidth * 0.5f;
+        float centreY = y - ChargeCardHeight * 0.5f;
 
         string[] blurbs =
         {
-            "Штатная боевая часть. Борт с ней заметно легче и охотнее слушается.",
-            "Тяжёлая боевая часть. Снимает броню с первого захода, но борт вязче."
+            "Штатная боевая часть. Дрон с ней заметно легче и охотнее слушается.",
+            "Тяжёлая боевая часть. Снимает броню с первого захода, но дрон вязче."
         };
 
         for (int i = 0; i < Charges.Length; i++)
@@ -370,33 +450,33 @@ public class MainMenuUI : MonoBehaviour
             WarheadProfile profile = WarheadProfile.For(Charges[i]);
             int index = i;
 
-            var position = new Vector2(startX + i * (cardWidth + CardGap), -330f);
+            var position = new Vector2(startX + i * (ChargeCardWidth + CardGap), centreY);
             Color accent = i == 0 ? new Color(0.35f, 0.60f, 0.45f) : new Color(0.72f, 0.30f, 0.22f);
 
             Image frame = Card(parent, "Charge" + i, position,
-                               new Vector2(cardWidth, cardHeight), accent);
+                               new Vector2(ChargeCardWidth, ChargeCardHeight), accent);
             warheadFrames[i] = frame;
 
             UIFactory.CreateText(frame.transform, "Name", profile.DisplayName, 34,
                                  TextAnchor.MiddleCenter, Ink,
-                                 new Vector2(0.5f, 1f), new Vector2(0.5f, 0.5f),
-                                 new Vector2(0f, -56f), new Vector2(cardWidth - 40f, 44f));
+                                 new Vector2(0.5f, 1f), new Vector2(0.5f, 1f),
+                                 new Vector2(0f, -34f), new Vector2(ChargeCardWidth - 40f, 44f));
 
             Text blurb = UIFactory.CreateText(frame.transform, "Blurb", blurbs[i], 21,
                                               TextAnchor.UpperCenter, InkDim,
                                               new Vector2(0.5f, 1f), new Vector2(0.5f, 1f),
-                                              new Vector2(0f, -96f),
-                                              new Vector2(cardWidth - 56f, 88f));
+                                              new Vector2(0f, -94f),
+                                              new Vector2(ChargeCardWidth - 56f, 100f));
             blurb.horizontalOverflow = HorizontalWrapMode.Wrap;
 
             UIFactory.CreateText(frame.transform, "Figures",
                                  "УРОН  " + Mathf.RoundToInt(profile.damage)
                                  + "          РАДИУС  " + profile.blastRadius.ToString("0.0") + " М",
                                  21, TextAnchor.MiddleCenter, new Color(0.60f, 0.68f, 0.65f),
-                                 new Vector2(0.5f, 1f), new Vector2(0.5f, 0.5f),
-                                 new Vector2(0f, -228f), new Vector2(cardWidth - 40f, 30f));
+                                 new Vector2(0.5f, 1f), new Vector2(0.5f, 1f),
+                                 new Vector2(0f, -222f), new Vector2(ChargeCardWidth - 40f, 30f));
 
-            Button button = CardButton(frame.transform, cardWidth, () => OnChargePressed(index));
+            Button button = CardButton(frame.transform, ChargeCardWidth, () => OnChargePressed(index));
             warheadButtons[i] = button;
             warheadActions[i] = button.GetComponentInChildren<Text>();
         }
@@ -414,23 +494,17 @@ public class MainMenuUI : MonoBehaviour
         return panel;
     }
 
-    void PanelHeader(Transform parent, string title, string note)
+    /// <summary>Returns the Y just below the header block, for the caller to place its own content from.</summary>
+    float PanelHeader(Transform parent, string title, string note)
     {
-        Vector2 top = new Vector2(0.5f, 1f);
+        float y = -70f;
 
-        UIFactory.CreateText(parent, "Header", title, 54, TextAnchor.MiddleCenter, Ink,
-                             top, top, new Vector2(0f, -88f), new Vector2(1400f, 70f));
+        y = TopText(parent, "Header", title, 54, 70f, y, Ink);
+        y -= 14f;
+        y = TopText(parent, "HeaderNote", note, 23, 36f, y, InkDim);
+        y -= 56f;
 
-        UIFactory.CreateText(parent, "HeaderNote", note, 23, TextAnchor.MiddleCenter, InkDim,
-                             top, top, new Vector2(0f, -152f), new Vector2(1400f, 36f));
-    }
-
-    void SectionLabel(Transform parent, string name, string text, float y, float span)
-    {
-        UIFactory.CreateText(parent, "Section" + name, text, 26, TextAnchor.MiddleLeft,
-                             new Color(0.50f, 0.60f, 0.57f),
-                             new Vector2(0.5f, 1f), new Vector2(0f, 0.5f),
-                             new Vector2(-span * 0.5f, y), new Vector2(span, 34f));
+        return y;
     }
 
     /// <summary>A card body with its colour band across the top.</summary>
@@ -451,7 +525,7 @@ public class MainMenuUI : MonoBehaviour
     {
         return UIFactory.CreateButton(parent, "Action", "", 24,
                                       new Vector2(0.5f, 0f), new Vector2(0.5f, 0f),
-                                      new Vector2(0f, 26f),
+                                      new Vector2(0f, 28f),
                                       new Vector2(cardWidth - 56f, 64f), onClick);
     }
 
@@ -459,7 +533,7 @@ public class MainMenuUI : MonoBehaviour
     {
         Button back = UIFactory.CreateButton(parent, "Back", "НАЗАД", 30,
                                              new Vector2(0.5f, 0f), new Vector2(0.5f, 0f),
-                                             new Vector2(0f, 168f), new Vector2(380f, 84f),
+                                             new Vector2(0f, 176f), new Vector2(380f, 84f),
                                              () => ShowPanel(homePanel));
 
         var image = back.targetGraphic as Image;
@@ -488,7 +562,7 @@ public class MainMenuUI : MonoBehaviour
     void RefreshHome()
     {
         if (droneNavLabel != null)
-            droneNavLabel.text = "БОРТ:   " + DroneLoadout.Selected.displayName;
+            droneNavLabel.text = "ДРОН:   " + DroneLoadout.Selected.displayName;
 
         if (warheadNavLabel != null)
             warheadNavLabel.text = "ЗАРЯД:   "
@@ -601,11 +675,11 @@ public class MainMenuUI : MonoBehaviour
 
         if (!DroneLoadout.IsAvailable(model))
         {
-            SetStatus("Сначала откройте борт «" + DroneLoadout.PrerequisiteName(model) + "».");
+            SetStatus("Сначала откройте дрон «" + DroneLoadout.PrerequisiteName(model) + "».");
             return;
         }
 
-        WatchAd("Борт «" + model.displayName + "» открыт.", () =>
+        WatchAd("Дрон «" + model.displayName + "» открыт.", () =>
         {
             DroneLoadout.Unlock(model);
             DroneLoadout.SelectedIndex = index;

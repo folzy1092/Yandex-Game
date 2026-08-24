@@ -99,6 +99,86 @@ public static class PrimitiveMesh
     }
 
     /// <summary>
+    /// A smooth solid of revolution through a profile of (radius, height) rings,
+    /// ordered from the base upward. Where <see cref="Frustum"/> gives one
+    /// straight taper between two radii, this gives a curved one through as many
+    /// as the profile has — which is the difference between an ogive nose cone
+    /// and a warhead that looks like it was built from a stack of lampshades.
+    ///
+    /// A radius of zero at either end closes to a point there instead of a flat
+    /// cap, so the last ring of a nose profile is the tip itself.
+    /// </summary>
+    public static Mesh Revolve(Vector2[] profile, int segments = 20)
+    {
+        segments = Mathf.Max(3, segments);
+
+        var vertices = new List<Vector3>();
+        var normals = new List<Vector3>();
+        var triangles = new List<int>();
+
+        int rings = profile.Length;
+        var ringStart = new int[rings];
+
+        for (int r = 0; r < rings; r++)
+        {
+            ringStart[r] = vertices.Count;
+
+            float radius = profile[r].x;
+            float y = profile[r].y;
+
+            // The normal follows the profile's own tangent (a central difference
+            // against its neighbours), not the ring's own tiny local slope — that
+            // is what makes a curved profile shade as a curve instead of a
+            // sequence of flat, faceted steps.
+            Vector2 previous = r > 0 ? profile[r - 1] : profile[r];
+            Vector2 next = r < rings - 1 ? profile[r + 1] : profile[r];
+            Vector2 tangent = (next - previous).normalized;
+
+            var outward = new Vector2(tangent.y, -tangent.x);
+            if (outward.x < 0f) outward = -outward;
+
+            for (int i = 0; i <= segments; i++)
+            {
+                float angle = (float)i / segments * Mathf.PI * 2f;
+                float cos = Mathf.Cos(angle);
+                float sin = Mathf.Sin(angle);
+
+                vertices.Add(new Vector3(cos * radius, y, sin * radius));
+                normals.Add(new Vector3(cos * outward.x, outward.y, sin * outward.x).normalized);
+            }
+        }
+
+        for (int r = 0; r < rings - 1; r++)
+        {
+            for (int i = 0; i < segments; i++)
+            {
+                int a = ringStart[r] + i;
+                int b = a + 1;
+                int c = ringStart[r + 1] + i;
+                int d = c + 1;
+
+                triangles.Add(a); triangles.Add(c); triangles.Add(d);
+                triangles.Add(a); triangles.Add(d); triangles.Add(b);
+            }
+        }
+
+        if (profile[0].x > 0.0001f)
+            AddCap(vertices, normals, triangles, profile[0].x, profile[0].y, Vector3.down, segments);
+
+        if (profile[rings - 1].x > 0.0001f)
+            AddCap(vertices, normals, triangles, profile[rings - 1].x, profile[rings - 1].y,
+                  Vector3.up, segments);
+
+        var mesh = new Mesh();
+        mesh.name = "Revolve";
+        mesh.SetVertices(vertices);
+        mesh.SetNormals(normals);
+        mesh.SetTriangles(triangles, 0);
+        mesh.RecalculateBounds();
+        return mesh;
+    }
+
+    /// <summary>
     /// A propeller blade: a thin aerofoil that tapers towards the tip and twists
     /// along its length.
     ///

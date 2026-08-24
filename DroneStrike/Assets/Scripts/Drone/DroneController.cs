@@ -64,6 +64,22 @@ public class DroneController : MonoBehaviour
     /// <summary>Extra braking when nothing is commanded, so it settles to a hover.</summary>
     public float hoverBrake = 1.9f;
 
+    [Header("Altitude Hold")]
+    /// <summary>
+    /// Corrective acceleration per metre of drift from the held altitude, once
+    /// the throttle keys are released.
+    ///
+    /// Cancelling gravity exactly (below, in ApplyThrust) zeroes the vertical
+    /// acceleration, but it is open-loop: it does nothing about an altitude the
+    /// drone has already drifted to, whether from a gust of momentum out of a
+    /// climb or ordinary floating-point creep over a long flight. This closes
+    /// the loop — the drone actively corrects back to the altitude it was at
+    /// when the throttle was released, rather than merely not falling further
+    /// from wherever it happens to be.
+    /// </summary>
+    public float altitudeHoldStrength = 6f;
+    public float altitudeHoldDamping = 4f;
+
     [Header("Look")]
     public float yawRate = 130f;
     public float mouseSensitivity = 2.5f;
@@ -86,6 +102,10 @@ public class DroneController : MonoBehaviour
     float yaw;
     Vector3 leanVelocity;
     Quaternion leanRotation = Quaternion.identity;
+
+    /// <summary>The altitude the hold loop is correcting back to.</summary>
+    float heldAltitude;
+    bool holdingAltitude;
 
     void Awake()
     {
@@ -140,9 +160,21 @@ public class DroneController : MonoBehaviour
         float forwardInput = Input.GetAxisRaw("Vertical");     // W / S
         float strafeInput = Input.GetAxisRaw("Horizontal");    // A / D
 
-        bool up = Input.GetKey(KeyCode.Space);
+        // Shift climbs too, alongside Space — some players reach for one,
+        // some the other, and there is no sprint mechanic here to conflict with.
+        bool up = Input.GetKey(KeyCode.Space)
+                 || Input.GetKey(KeyCode.LeftShift) || Input.GetKey(KeyCode.RightShift);
         bool down = Input.GetKey(KeyCode.LeftControl) || Input.GetKey(KeyCode.RightControl);
         float climbInput = (up ? 1f : 0f) - (down ? 1f : 0f);
+
+        // Releasing the throttle keys re-arms the hold at whatever altitude the
+        // drone is at that instant, rather than snapping back to an old one.
+        if (climbInput != 0f) holdingAltitude = false;
+        else if (!holdingAltitude)
+        {
+            heldAltitude = AltitudeMetres;
+            holdingAltitude = true;
+        }
 
         // Aim including its vertical component: this is the whole point — looking
         // down and pushing forward has to dive, not fly level.
@@ -170,6 +202,13 @@ public class DroneController : MonoBehaviour
         // for climbing and descending rather than for not falling.
         body.AddForce(-Physics.gravity, ForceMode.Acceleration);
         body.AddForce(command, ForceMode.Acceleration);
+
+        if (holdingAltitude)
+        {
+            float error = heldAltitude - AltitudeMetres;
+            float correction = error * altitudeHoldStrength - body.linearVelocity.y * altitudeHoldDamping;
+            body.AddForce(Vector3.up * correction, ForceMode.Acceleration);
+        }
     }
 
     void ApplyDrag(Vector3 command)

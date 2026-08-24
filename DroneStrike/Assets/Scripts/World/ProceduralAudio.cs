@@ -216,6 +216,94 @@ public static class ProceduralAudio
         return Build(name, samples);
     }
 
+    /// <summary>
+    /// A seamlessly loopable rotor drone: several detuned tones for the "whirr"
+    /// beat, plus a thin layer of filtered noise for air.
+    ///
+    /// Every tone frequency is chosen as an exact multiple of 1/duration, so
+    /// each one completes a whole number of cycles inside the clip and the
+    /// waveform's value and slope at the end match its value and slope at the
+    /// start — the loop point is inaudible without needing a crossfade. The
+    /// noise layer is not periodic that way, so its own seam is hidden with a
+    /// short crossfade into the start of the buffer instead.
+    /// </summary>
+    public static AudioClip CreateRotorLoop(string name, float duration, float[] toneFrequencies,
+                                            int seed)
+    {
+        int sampleCount = Mathf.CeilToInt(SampleRate * duration);
+        var samples = new float[sampleCount];
+
+        Random.State previous = Random.state;
+        Random.InitState(seed);
+
+        float noiseState = 0f;
+
+        for (int i = 0; i < sampleCount; i++)
+        {
+            float t = (float)i / SampleRate;
+
+            float tone = 0f;
+            for (int f = 0; f < toneFrequencies.Length; f++)
+                tone += Mathf.Sin(2f * Mathf.PI * toneFrequencies[f] * t);
+            tone /= toneFrequencies.Length;
+
+            float noise = Random.value * 2f - 1f;
+            noiseState += (noise - noiseState) * 0.2f;
+
+            samples[i] = Clip(tone * 0.55f + noiseState * 0.14f);
+        }
+
+        Random.state = previous;
+
+        // Hide the noise layer's seam with a short crossfade at the tail.
+        int seam = Mathf.Min(Mathf.RoundToInt(SampleRate * 0.015f), sampleCount / 4);
+        for (int k = 0; k < seam; k++)
+        {
+            float blend = (float)k / seam;
+            int index = sampleCount - seam + k;
+            samples[index] = Mathf.Lerp(samples[index], samples[k], blend);
+        }
+
+        return Build(name, samples);
+    }
+
+    /// <summary>
+    /// A warhead detonation: a sub-bass thump, a burst of heavily filtered
+    /// noise for the blast, and a longer rumbling tail — distinct from the
+    /// crack of a gunshot, which is a much brighter and shorter sound.
+    /// </summary>
+    public static AudioClip CreateExplosion(string name, float duration, int seed)
+    {
+        int sampleCount = Mathf.CeilToInt(SampleRate * duration);
+        var samples = new float[sampleCount];
+
+        Random.State previous = Random.state;
+        Random.InitState(seed);
+
+        float blastFilter = 0f;
+        float rumbleFilter = 0f;
+
+        for (int i = 0; i < sampleCount; i++)
+        {
+            float t = (float)i / SampleRate;
+
+            float noise = Random.value * 2f - 1f;
+            blastFilter += (noise - blastFilter) * 0.35f;
+            rumbleFilter += (noise - rumbleFilter) * 0.04f;
+
+            float blast = blastFilter * Mathf.Exp(-t * 10f) * 0.85f;
+            float rumble = rumbleFilter * Mathf.Exp(-t * 2.5f) * 0.55f;
+
+            float thumpFrequency = 62f * (1f - t * 0.4f);
+            float thump = Mathf.Sin(2f * Mathf.PI * thumpFrequency * t) * Mathf.Exp(-t * 7f) * 0.7f;
+
+            samples[i] = Clip(blast + rumble + thump);
+        }
+
+        Random.state = previous;
+        return Build(name, samples);
+    }
+
     static float Clip(float value)
     {
         return Mathf.Clamp(value, -1f, 1f);

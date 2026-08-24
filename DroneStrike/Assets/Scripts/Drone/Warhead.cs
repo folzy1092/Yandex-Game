@@ -111,7 +111,7 @@ public class Warhead : MonoBehaviour
             GameEffects.Instance.HardImpact(origin, Vector3.up);
         }
 
-        if (GameAudio.Instance != null) GameAudio.Instance.PlayPlayerShot(origin);
+        if (GameAudio.Instance != null) GameAudio.Instance.PlayExplosion(origin);
 
         ApplyBlast(origin);
 

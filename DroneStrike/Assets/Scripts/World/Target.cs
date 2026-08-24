@@ -25,6 +25,9 @@ public class Target : MonoBehaviour
 
     public bool IsDestroyed { get; private set; }
 
+    /// <summary>True once this target has taken a hit it did not die to.</summary>
+    public bool IsDamaged { get; private set; }
+
     public int Points
     {
         get
@@ -61,9 +64,6 @@ public class Target : MonoBehaviour
         health = MaxHealth;
     }
 
-    /// <summary>True once this target has taken a hit it did not die to.</summary>
-    public bool IsDamaged { get; private set; }
-
     public void TakeDamage(float amount)
     {
         if (IsDestroyed || amount <= 0f) return;
@@ -72,11 +72,9 @@ public class Target : MonoBehaviour
 
         if (health > 0f)
         {
-            // A tank that survives a hit has to look like it survived a hit.
-            // Without this the second run in looks identical to the first, and
-            // a player who put a drone dead on target has no way to tell
-            // whether it did anything at all — which reads as the hit not
-            // registering rather than as armour doing its job.
+            // Survives, but has to look like it survived something. Without this
+            // the second run in looks identical to the first, and a hit dead on
+            // target reads as having missed rather than as armour holding.
             if (!IsDamaged) ApplyBattleDamage();
             return;
         }
@@ -87,10 +85,15 @@ public class Target : MonoBehaviour
         if (OnDestroyed != null) OnDestroyed(this, Points);
     }
 
+    // ---------- damaged, not dead ----------
+
     /// <summary>
-    /// The wounded state: scorched paint, a smoke plume and a shunt off level.
-    /// Deliberately smaller than <see cref="SpawnFire"/> — smoke without flame,
-    /// so "hurt" and "dead" never get confused at a distance.
+    /// Repaints every material slot to the scorched look, the same reliable
+    /// technique <see cref="Explode"/> uses for the wrecked state — a
+    /// MaterialPropertyBlock tint was tried here first and silently did nothing
+    /// on some shaders, because the colour property a PropertyBlock overwrites
+    /// is not the same name on every shader a downloaded model can arrive with.
+    /// Swapping the whole material asset does not depend on knowing that name.
     /// </summary>
     void ApplyBattleDamage()
     {
@@ -99,32 +102,25 @@ public class Target : MonoBehaviour
         if (GameEffects.Instance != null)
             GameEffects.Instance.HardImpact(transform.position + Vector3.up, Vector3.up);
 
-        // Darkened through a property block rather than by swapping materials:
-        // it keeps the model's own textures and leaves no material instances
-        // behind, which swapping in a scorched material would do to every
-        // renderer on every damaged target.
-        var block = new MaterialPropertyBlock();
-        foreach (Renderer renderer in GetComponentsInChildren<Renderer>())
+        if (GameAudio.Instance != null)
+            GameAudio.Instance.PlayHardImpact(transform.position);
+
+        Material damaged = Resources.Load<Material>("Materials/Mat_Damaged");
+        if (damaged != null)
         {
-            renderer.GetPropertyBlock(block);
-            block.SetColor("_Color", new Color(0.52f, 0.48f, 0.44f));
-            renderer.SetPropertyBlock(block);
+            foreach (Renderer renderer in GetComponentsInChildren<Renderer>())
+            {
+                int slotCount = renderer.sharedMaterials.Length;
+                var slots = new Material[slotCount];
+                for (int i = 0; i < slotCount; i++) slots[i] = damaged;
+                renderer.sharedMaterials = slots;
+            }
         }
 
-        var box = GetComponent<BoxCollider>();
-        float radius = box != null
-            ? Mathf.Max(0.6f, Mathf.Max(box.size.x, box.size.z) * 0.2f)
-            : 1f;
-        Vector3 centre = box != null ? box.center : Vector3.up;
+        // A light plume, not a fire — smoke without flame is what keeps
+        // "wounded" from being confused with "dead" at a glance.
+        SpawnSmokePlume(0.6f);
 
-        var holder = new GameObject("BattleDamage");
-        holder.transform.SetParent(transform, false);
-        holder.transform.localPosition = centre;
-
-        BuildSmoke(holder.transform, Resources.Load<Material>("Materials/Mat_Spark"), radius);
-
-        // Knocked off level, but only slightly — the wreck tilt is far harder,
-        // so the two states stay distinguishable.
         transform.rotation *= Quaternion.Euler(
             UnityEngine.Random.Range(-3f, 3f), 0f, UnityEngine.Random.Range(-3f, 3f));
     }
@@ -163,40 +159,75 @@ public class Target : MonoBehaviour
         transform.rotation *= Quaternion.Euler(
             UnityEngine.Random.Range(-8f, 8f), 0f, UnityEngine.Random.Range(-8f, 8f));
 
+        SpawnGroundScorch();
         SpawnFire();
+    }
+
+    // ---------- fire ----------
+
+    float FootprintRadius
+    {
+        get
+        {
+            var box = GetComponent<BoxCollider>();
+            return box != null ? Mathf.Max(0.8f, Mathf.Max(box.size.x, box.size.z) * 0.3f) : 1.5f;
+        }
+    }
+
+    Vector3 FootprintCentre
+    {
+        get
+        {
+            var box = GetComponent<BoxCollider>();
+            return box != null ? box.center : Vector3.up;
+        }
+    }
+
+    /// <summary>
+    /// A scorch mark burned into the ground under the wreck. Cheap, and it is
+    /// the one cue that still reads after the flame has burned out — the ground
+    /// itself stays marked as long as the wreck does.
+    /// </summary>
+    void SpawnGroundScorch()
+    {
+        Material scorch = Resources.Load<Material>("Materials/Mat_ScorchGround");
+        if (scorch == null) return;
+
+        float radius = FootprintRadius;
+
+        var quad = GameObject.CreatePrimitive(PrimitiveType.Quad);
+        quad.name = "GroundScorch";
+        quad.transform.SetParent(transform, false);
+        quad.transform.localPosition = FootprintCentre + Vector3.down * (FootprintCentre.y - 0.02f);
+        quad.transform.localRotation = Quaternion.Euler(90f, UnityEngine.Random.Range(0f, 360f), 0f);
+        quad.transform.localScale = Vector3.one * radius * 2.6f;
+
+        Object.Destroy(quad.GetComponent<Collider>());
+        var renderer = quad.GetComponent<Renderer>();
+        renderer.sharedMaterial = scorch;
+        renderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+        renderer.receiveShadows = false;
     }
 
     /// <summary>
     /// The wreck burns.
     ///
     /// A one-frame spark burst and a black repaint is not enough to read as
-    /// "destroyed" from two hundred metres up — from that range the target only
-    /// changes colour slightly. Fire is the one cue that carries at altitude,
-    /// which is exactly the range the player judges their own progress from, so
-    /// it keeps burning instead of playing once.
-    ///
-    /// Sized from the target's own collider, so a burning tank throws a bigger
-    /// column than a burning crate stack without a per-kind table.
+    /// "destroyed" from two hundred metres up. Fire is the one cue that carries
+    /// at altitude, which is exactly the range the player judges their own
+    /// progress from, so it keeps burning instead of playing once.
     /// </summary>
     void SpawnFire()
     {
-        var box = GetComponent<BoxCollider>();
-        float radius = box != null
-            ? Mathf.Max(0.8f, Mathf.Max(box.size.x, box.size.z) * 0.3f)
-            : 1.5f;
-        Vector3 centre = box != null ? box.center : Vector3.up;
+        float radius = FootprintRadius;
 
         var holder = new GameObject("Fire");
         holder.transform.SetParent(transform, false);
-        holder.transform.localPosition = centre;
+        holder.transform.localPosition = FootprintCentre;
 
-        Material spark = Resources.Load<Material>("Materials/Mat_Spark");
+        BuildFlames(holder.transform, radius);
+        SpawnSmokePlume(radius / 0.8f, holder.transform);
 
-        BuildFlames(holder.transform, spark, radius);
-        BuildSmoke(holder.transform, spark, radius);
-
-        // A light, so the fire throws colour onto the wreck and the ground
-        // around it instead of sitting on top of the scene like a decal.
         var lightGO = new GameObject("FireLight");
         lightGO.transform.SetParent(holder.transform, false);
         lightGO.transform.localPosition = Vector3.up * radius;
@@ -210,7 +241,7 @@ public class Target : MonoBehaviour
         lightGO.AddComponent<FireFlicker>();
     }
 
-    static void BuildFlames(Transform parent, Material material, float radius)
+    static void BuildFlames(Transform parent, float radius)
     {
         var go = new GameObject("Flames");
         go.transform.SetParent(parent, false);
@@ -220,26 +251,26 @@ public class Target : MonoBehaviour
         var main = system.main;
         main.loop = true;
         main.duration = 2f;
-        main.startLifetime = new ParticleSystem.MinMaxCurve(0.5f, 1.1f);
-        main.startSpeed = new ParticleSystem.MinMaxCurve(radius * 1.2f, radius * 2.6f);
-        main.startSize = new ParticleSystem.MinMaxCurve(radius * 0.7f, radius * 1.5f);
+        main.startLifetime = new ParticleSystem.MinMaxCurve(0.6f, 1.2f);
+        main.startSpeed = new ParticleSystem.MinMaxCurve(radius * 0.9f, radius * 1.8f);
+        main.startSize = new ParticleSystem.MinMaxCurve(radius * 1.1f, radius * 2.1f);
         main.startColor = new ParticleSystem.MinMaxGradient(
             new Color(1f, 0.72f, 0.25f), new Color(1f, 0.35f, 0.08f));
-        main.gravityModifier = -0.22f;      // flame rises
+        main.gravityModifier = -0.20f;
         main.simulationSpace = ParticleSystemSimulationSpace.World;
-        main.maxParticles = 90;
+        main.maxParticles = 60;
 
         var emission = system.emission;
-        emission.rateOverTime = 26f;
+        emission.rateOverTime = 16f;
 
         var shape = system.shape;
         shape.shapeType = ParticleSystemShapeType.Sphere;
-        shape.radius = radius * 0.75f;
+        shape.radius = radius * 0.6f;
 
         var sizeOverLifetime = system.sizeOverLifetime;
         sizeOverLifetime.enabled = true;
         sizeOverLifetime.size = new ParticleSystem.MinMaxCurve(
-            1f, AnimationCurve.EaseInOut(0f, 0.35f, 1f, 1f));
+            1f, AnimationCurve.EaseInOut(0f, 0.4f, 1f, 0.85f));
 
         var colourOverLifetime = system.colorOverLifetime;
         colourOverLifetime.enabled = true;
@@ -249,52 +280,59 @@ public class Target : MonoBehaviour
             new[]
             {
                 new GradientColorKey(new Color(1f, 0.85f, 0.45f), 0f),
-                new GradientColorKey(new Color(1f, 0.32f, 0.06f), 0.55f),
-                new GradientColorKey(new Color(0.25f, 0.12f, 0.08f), 1f)
+                new GradientColorKey(new Color(1f, 0.32f, 0.06f), 1f)
             },
-            new[]
-            {
-                new GradientAlphaKey(0.95f, 0f),
-                new GradientAlphaKey(0.70f, 0.5f),
-                new GradientAlphaKey(0f, 1f)
-            });
+            new[] { new GradientAlphaKey(1f, 0f), new GradientAlphaKey(0f, 1f) });
         colourOverLifetime.color = new ParticleSystem.MinMaxGradient(gradient);
 
-        ApplyParticleMaterial(go, material);
+        var rotationOverLifetime = system.rotationOverLifetime;
+        rotationOverLifetime.enabled = true;
+        rotationOverLifetime.z = new ParticleSystem.MinMaxCurve(-40f, 40f);
+
+        ApplyParticleMaterial(go, "Mat_FireReal", "Mat_Spark");
     }
 
-    static void BuildSmoke(Transform parent, Material material, float radius)
+    /// <summary>
+    /// A rising smoke column, shared between the persistent wreck fire and the
+    /// lighter one-shot plume a survived hit gets.
+    /// </summary>
+    void SpawnSmokePlume(float radius, Transform parent = null)
     {
         var go = new GameObject("Smoke");
-        go.transform.SetParent(parent, false);
-        go.transform.localPosition = Vector3.up * radius;
+        go.transform.SetParent(parent != null ? parent : transform, false);
+        if (parent == null) go.transform.localPosition = FootprintCentre + Vector3.up * radius;
+        else go.transform.localPosition = Vector3.up * radius;
 
         var system = go.AddComponent<ParticleSystem>();
 
         var main = system.main;
         main.loop = true;
-        main.startLifetime = new ParticleSystem.MinMaxCurve(2.2f, 4.5f);
-        main.startSpeed = new ParticleSystem.MinMaxCurve(radius * 0.8f, radius * 1.8f);
-        main.startSize = new ParticleSystem.MinMaxCurve(radius * 1.4f, radius * 3.2f);
+        main.startLifetime = new ParticleSystem.MinMaxCurve(2.4f, 4.6f);
+        main.startSpeed = new ParticleSystem.MinMaxCurve(radius * 0.7f, radius * 1.5f);
+        main.startSize = new ParticleSystem.MinMaxCurve(radius * 1.6f, radius * 3.2f);
         main.startColor = new ParticleSystem.MinMaxGradient(
-            new Color(0.14f, 0.13f, 0.12f, 0.75f), new Color(0.30f, 0.29f, 0.28f, 0.5f));
-        main.gravityModifier = -0.12f;
+            new Color(0.16f, 0.15f, 0.14f, 0.8f), new Color(0.32f, 0.30f, 0.29f, 0.55f));
+        main.gravityModifier = -0.10f;
         main.simulationSpace = ParticleSystemSimulationSpace.World;
-        main.maxParticles = 60;
+        main.maxParticles = 40;
 
         var emission = system.emission;
-        emission.rateOverTime = 11f;
+        emission.rateOverTime = 6f;
 
         var shape = system.shape;
         shape.shapeType = ParticleSystemShapeType.Cone;
-        shape.angle = 16f;
-        shape.radius = radius * 0.5f;
-        shape.rotation = new Vector3(-90f, 0f, 0f);   // straight up
+        shape.angle = 14f;
+        shape.radius = radius * 0.4f;
+        shape.rotation = new Vector3(-90f, 0f, 0f);
 
         var sizeOverLifetime = system.sizeOverLifetime;
         sizeOverLifetime.enabled = true;
         sizeOverLifetime.size = new ParticleSystem.MinMaxCurve(
-            1f, AnimationCurve.EaseInOut(0f, 0.4f, 1f, 1.9f));
+            1f, AnimationCurve.EaseInOut(0f, 0.5f, 1f, 1.8f));
+
+        var rotationOverLifetime = system.rotationOverLifetime;
+        rotationOverLifetime.enabled = true;
+        rotationOverLifetime.z = new ParticleSystem.MinMaxCurve(-15f, 15f);
 
         var colourOverLifetime = system.colorOverLifetime;
         colourOverLifetime.enabled = true;
@@ -305,23 +343,31 @@ public class Target : MonoBehaviour
             new[]
             {
                 new GradientAlphaKey(0f, 0f),
-                new GradientAlphaKey(0.65f, 0.2f),
+                new GradientAlphaKey(0.6f, 0.25f),
                 new GradientAlphaKey(0f, 1f)
             });
         colourOverLifetime.color = new ParticleSystem.MinMaxGradient(gradient);
 
-        ApplyParticleMaterial(go, material);
+        ApplyParticleMaterial(go, "Mat_SmokeReal", "Mat_Spark");
 
-        // Smoke draws behind the flame: the additive fire material would wash
-        // the column out completely if it rendered on top of it.
         var renderer = go.GetComponent<ParticleSystemRenderer>();
         if (renderer != null) renderer.sortingOrder = -1;
     }
 
-    static void ApplyParticleMaterial(GameObject go, Material material)
+    /// <summary>
+    /// Applies the named material if it exists, falling back to a second name
+    /// rather than leaving the renderer with Unity's default. The default
+    /// particle material is fully opaque, so a missing material does not read
+    /// as "a bit wrong" — it reads as a solid coloured square standing in for
+    /// smoke, which is worse than any fallback.
+    /// </summary>
+    static void ApplyParticleMaterial(GameObject go, string preferred, string fallback)
     {
         var renderer = go.GetComponent<ParticleSystemRenderer>();
         if (renderer == null) return;
+
+        Material material = Resources.Load<Material>("Materials/" + preferred);
+        if (material == null) material = Resources.Load<Material>("Materials/" + fallback);
 
         if (material != null) renderer.sharedMaterial = material;
         renderer.renderMode = ParticleSystemRenderMode.Billboard;

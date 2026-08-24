@@ -71,6 +71,7 @@ public static class DroneFactory
         drone.AddComponent<SignalLink>();
         drone.AddComponent<DroneImpact>();
         drone.AddComponent<RotorSpin>();
+        drone.AddComponent<DroneAudio>();
 
         var gimbal = drone.AddComponent<DroneCameraGimbal>();
         gimbal.cameraTransform = view;
@@ -186,15 +187,21 @@ public static class DroneFactory
     /// airframe: it has to stay framed the same way no matter how the drone is
     /// tilted, exactly like DroneCameraGimbal keeps the horizon steady.
     ///
-    /// Shaped as a shaped-charge warhead: a sharp conical tip, a wide shoulder
-    /// behind it, then a narrow tube. The earlier version used a capsule for
-    /// the nose, which is round at both ends and wider than the tube behind it,
-    /// and the silhouette that produces is not the one anybody wants on screen.
-    /// A cone has a point, and a point reads as ordnance.
+    /// The nose is one continuous curved profile — cylindrical tube, a shoulder
+    /// that flares out wider than the tube, then an ogive taper to a point —
+    /// built as a single lofted mesh with PrimitiveMesh.Revolve rather than a
+    /// stack of separate frustums. Separate pieces meeting at mismatched radii
+    /// is exactly what read as a stepped, pancake-like shape; one continuous
+    /// profile is what an actual shaped-charge round looks like.
     ///
-    /// It also grows with the airframe. Each unlock is meant to feel like
-    /// better kit, and a number on a menu the player has already left does not
-    /// do that — the charge in front of them all mission does.
+    /// A short mounting strap ties the tube to the camera housing above it, so
+    /// it reads as slung underneath the airframe rather than floating loose in
+    /// front of the lens.
+    ///
+    /// It also grows with the airframe: a second band on the second drone, a
+    /// tandem precursor and more fins on the third. A number on a menu the
+    /// player has already left does not sell an upgrade — the charge sitting in
+    /// front of them all mission does.
     /// </summary>
     static void BuildWarheadView(Transform cameraTransform, WarheadType warhead, int tier,
                                  Color accent)
@@ -203,67 +210,73 @@ public static class DroneFactory
         Material band = Resources.Load<Material>("Materials/Mat_WarheadBand");
         Material trim = TintedAccent(accent);
 
-        float scale = warhead == WarheadType.Compact ? 0.78f : 1f;
-        scale *= 1f + tier * 0.09f;
+        float scale = warhead == WarheadType.Compact ? 0.80f : 1f;
+        scale *= 1f + tier * 0.08f;
 
         var root = new GameObject("WarheadView");
         root.transform.SetParent(cameraTransform, false);
-        // Slung low and forward, nose tipped down and away — mounted under the
-        // drone's belly the way the real thing is, not held up in front of the lens.
-        root.transform.localPosition = new Vector3(0f, -0.31f, 0.52f);
-        root.transform.localRotation = Quaternion.Euler(72f, 0f, 0f);
+        // Slung close under the housing, nose tipped forward and down — mounted
+        // to the airframe the way the real thing is, not held out in empty air.
+        root.transform.localPosition = new Vector3(0f, -0.22f, 0.40f);
+        root.transform.localRotation = Quaternion.Euler(70f, 0f, 0f);
         root.transform.localScale = Vector3.one * scale;
 
-        // Tip, shoulder, tube. Heights are chained off each other so the three
-        // always meet however the numbers are tuned.
-        const float tipHeight = 0.20f;
-        const float shoulderHeight = 0.10f;
-        const float tubeHeight = 0.26f;
+        const float tubeRadius = 0.072f;
+        const float tubeBottom = -0.17f;
+        const float tubeTop = 0.05f;
 
-        float tubeTop = -0.06f + tubeHeight * 0.5f;
-        float shoulderCentre = tubeTop + shoulderHeight * 0.5f;
-        float tipCentre = tubeTop + shoulderHeight + tipHeight * 0.5f;
+        var profile = new[]
+        {
+            new Vector2(tubeRadius, tubeBottom),          // tail end of the tube
+            new Vector2(tubeRadius, tubeTop),              // tube meets the shoulder
+            new Vector2(0.100f, tubeTop + 0.045f),          // the flare — wider than the tube,
+                                                             // the silhouette that reads as "warhead"
+            new Vector2(0.086f, tubeTop + 0.095f),
+            new Vector2(0.058f, tubeTop + 0.150f),
+            new Vector2(0.026f, tubeTop + 0.195f),
+            new Vector2(0f, tubeTop + 0.225f)               // the point
+        };
 
-        AddMesh(root.transform, "Tip", new Vector3(0f, tipCentre, 0f),
-                PrimitiveMesh.Frustum(0.062f, 0f, tipHeight), body);
+        AddMesh(root.transform, "Nose", Vector3.zero, PrimitiveMesh.Revolve(profile), body);
 
-        AddMesh(root.transform, "Shoulder", new Vector3(0f, shoulderCentre, 0f),
-                PrimitiveMesh.Frustum(0.115f, 0.062f, shoulderHeight), body);
+        // A strap linking the tube to the underside of the camera housing —
+        // the detail that reads as "attached" rather than "hovering nearby".
+        var strap = AddBox(root.transform, "MountStrap", new Vector3(0f, tubeTop - 0.03f, -0.055f),
+                           new Vector3(0.03f, 0.10f, 0.03f), trim);
+        strap.transform.localRotation = Quaternion.Euler(-24f, 0f, 0f);
 
-        AddCylinder(root.transform, "Tube", new Vector3(0f, -0.06f, 0f),
-                    new Vector3(0.072f, tubeHeight * 0.5f, 0.072f), body);
-
-        // Warning bands. A second one is the cheapest possible "this is the
-        // better charge" cue, and it is read at a glance because it is the only
-        // bright thing on an olive body.
-        AddCylinder(root.transform, "Band", new Vector3(0f, tubeTop - 0.012f, 0f),
-                    new Vector3(0.086f, 0.011f, 0.086f), band);
+        // The warning band. A second one on the better charges is the cheapest
+        // possible "this is the stronger one" cue, and it reads at a glance
+        // because it is the only bright ring on an otherwise olive body.
+        AddCylinder(root.transform, "Band", new Vector3(0f, tubeTop - 0.01f, 0f),
+                    new Vector3(tubeRadius * 1.18f, 0.011f, tubeRadius * 1.18f), band);
 
         if (tier >= 1)
-            AddCylinder(root.transform, "BandLower", new Vector3(0f, tubeTop - 0.056f, 0f),
-                        new Vector3(0.082f, 0.008f, 0.082f), trim);
+            AddCylinder(root.transform, "BandLower", new Vector3(0f, tubeTop - 0.06f, 0f),
+                        new Vector3(tubeRadius * 1.1f, 0.008f, tubeRadius * 1.1f), trim);
 
         // The top airframe carries a tandem precursor on a standoff probe, which
         // is what a real one looks like and is unmistakable in silhouette.
         if (tier >= 2)
         {
-            AddCylinder(root.transform, "Probe", new Vector3(0f, tipCentre + tipHeight * 0.5f + 0.05f, 0f),
+            float tipY = profile[profile.Length - 1].y;
+
+            AddCylinder(root.transform, "Probe", new Vector3(0f, tipY + 0.05f, 0f),
                         new Vector3(0.012f, 0.05f, 0.012f), body);
 
-            AddMesh(root.transform, "Precursor",
-                    new Vector3(0f, tipCentre + tipHeight * 0.5f + 0.125f, 0f),
+            AddMesh(root.transform, "Precursor", new Vector3(0f, tipY + 0.125f, 0f),
                     PrimitiveMesh.Frustum(0.03f, 0f, 0.07f), trim);
         }
 
         // Tail fins, fanned around the tube's rear. The better airframes carry
         // more of them, so the tail reads differently too.
         int fins = tier >= 2 ? 6 : 4;
-        float finY = -0.06f - tubeHeight * 0.5f + 0.055f;
+        float finY = tubeBottom + 0.06f;
 
         for (int i = 0; i < fins; i++)
         {
             Quaternion spin = Quaternion.Euler(0f, i * (360f / fins), 0f);
-            Vector3 offset = spin * new Vector3(0f, 0f, 0.052f);
+            Vector3 offset = spin * new Vector3(0f, 0f, tubeRadius * 0.72f);
 
             var fin = AddBox(root.transform, "Fin" + i, new Vector3(0f, finY, 0f) + offset,
                              new Vector3(0.008f, 0.085f, 0.075f), body);

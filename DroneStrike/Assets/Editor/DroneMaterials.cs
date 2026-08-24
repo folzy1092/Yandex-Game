@@ -26,6 +26,7 @@ public static class DroneMaterials
         BuildVehicleMaterials();
         BuildDroneMaterials();
         BuildEffectMaterials();
+        BuildDownloadedEffectMaterials();
 
         AssetDatabase.SaveAssets();
         AssetDatabase.Refresh();
@@ -34,14 +35,30 @@ public static class DroneMaterials
 
     static void BuildGroundMaterials()
     {
-        // Grass, tiled hard because the ground mesh is hundreds of metres across.
+        // One ground tone per map, tiled hard because the ground mesh is
+        // hundreds of metres across. Three maps built from the same generator
+        // read as reskins of each other if the grass under them is identical —
+        // a different tint is the cheapest thing that actually varies.
         SaveSurface("Ground",
             ProceduralTextures.CreateConcrete(512, new Color(0.32f, 0.42f, 0.24f), 0.45f, 4001, 0.5f),
+            new Vector2(60f, 60f), 0.05f);
+
+        SaveSurface("GroundForest",
+            ProceduralTextures.CreateConcrete(512, new Color(0.20f, 0.32f, 0.16f), 0.55f, 4011, 0.4f),
+            new Vector2(60f, 60f), 0.04f);
+
+        SaveSurface("GroundDusk",
+            ProceduralTextures.CreateConcrete(512, new Color(0.34f, 0.34f, 0.20f), 0.42f, 4012, 0.5f),
             new Vector2(60f, 60f), 0.05f);
 
         SaveSurface("Asphalt",
             ProceduralTextures.CreateConcrete(512, new Color(0.24f, 0.24f, 0.26f), 0.30f, 4002, 0.6f),
             new Vector2(6f, 6f), 0.12f);
+
+        // A worn asphalt for the dusk map — older, patchier, less saturated.
+        SaveSurface("AsphaltWorn",
+            ProceduralTextures.CreateConcrete(512, new Color(0.18f, 0.17f, 0.17f), 0.42f, 4013, 0.5f),
+            new Vector2(6f, 6f), 0.08f);
 
         SaveFlat("Mat_Water", new Color(0.16f, 0.30f, 0.38f), 0.85f);
     }
@@ -64,6 +81,15 @@ public static class DroneMaterials
         SaveFlat("Mat_Foliage", new Color(0.20f, 0.34f, 0.17f), 0.10f);
         SaveFlat("Mat_TreeTrunk", new Color(0.28f, 0.22f, 0.16f), 0.08f);
         SaveFlat("Mat_Burnt", new Color(0.09f, 0.08f, 0.08f), 0.15f);
+
+        // A target that survives a hit but is not dead has to look different
+        // from both "untouched" and "wrecked", or a solid hit on armour reads as
+        // a miss. Charcoal rather than pure black — it is scorched, not burnt out.
+        SaveFlat("Mat_Damaged", new Color(0.20f, 0.19f, 0.18f), 0.10f);
+
+        // A faint marker under every target, so a vehicle tucked in shade or
+        // behind netting still catches the eye from altitude.
+        SaveAdditive("Mat_Highlight", RadialGlow(96, Color.white, 0), new Color(0.55f, 0.85f, 1f));
 
         // Road markings. Nearly white and slightly glossy, so the lines still
         // read from altitude where the asphalt underneath has gone flat grey.
@@ -120,6 +146,76 @@ public static class DroneMaterials
         // Dust, not blood — the targets here are vehicles.
         SaveTransparent("Mat_Blood", RadialGlow(64, Color.white, 0), new Color(0.25f, 0.22f, 0.20f));
         SaveTransparent("Mat_BulletHole", ScorchMark(64), new Color(0.06f, 0.05f, 0.05f));
+    }
+
+    const string ParticleFolder = "Assets/Resources/Textures/Particles";
+
+    /// <summary>
+    /// Materials built from real sprites (Kenney's Particle Pack, CC0 — see
+    /// DroneStrike/CREDITS.txt) rather than the procedural radial gradient.
+    ///
+    /// A 64px generated glow reads fine as a spark, but blown up to the size a
+    /// death cloud needs it shows its pixels and looks like a flat coloured
+    /// square rather than smoke. A painted sprite with an irregular, feathered
+    /// edge is what actually reads as a puff at that scale.
+    /// </summary>
+    static void BuildDownloadedEffectMaterials()
+    {
+        SaveAdditiveFromFile("Mat_FireReal", "fire_01", new Color(1f, 0.55f, 0.2f));
+        SaveTransparentFromFile("Mat_SmokeReal", "smoke_04", new Color(0.30f, 0.29f, 0.28f));
+        SaveTransparentFromFile("Mat_ScorchGround", "scorch_01", new Color(0.05f, 0.05f, 0.05f));
+    }
+
+    static void SaveAdditiveFromFile(string materialName, string fileName, Color tint)
+    {
+        Texture2D texture = LoadDownloadedTexture(fileName);
+        if (texture == null) return;
+
+        var material = new Material(EffectShader());
+        material.mainTexture = texture;
+        material.color = tint;
+
+        if (material.HasProperty("_Mode")) material.SetFloat("_Mode", 4f);
+        if (material.HasProperty("_SrcBlend")) material.SetFloat("_SrcBlend", (float)UnityEngine.Rendering.BlendMode.SrcAlpha);
+        if (material.HasProperty("_DstBlend")) material.SetFloat("_DstBlend", (float)UnityEngine.Rendering.BlendMode.One);
+        if (material.HasProperty("_ZWrite")) material.SetFloat("_ZWrite", 0f);
+        if (material.HasProperty("_Cull")) material.SetFloat("_Cull", 0f);
+        material.EnableKeyword("_ALPHABLEND_ON");
+        material.renderQueue = 3000;
+
+        Save(material, materialName);
+    }
+
+    static void SaveTransparentFromFile(string materialName, string fileName, Color tint)
+    {
+        Texture2D texture = LoadDownloadedTexture(fileName);
+        if (texture == null) return;
+
+        var material = new Material(EffectShader());
+        material.mainTexture = texture;
+        material.color = tint;
+
+        if (material.HasProperty("_Mode")) material.SetFloat("_Mode", 2f);
+        if (material.HasProperty("_SrcBlend")) material.SetFloat("_SrcBlend", (float)UnityEngine.Rendering.BlendMode.SrcAlpha);
+        if (material.HasProperty("_DstBlend")) material.SetFloat("_DstBlend", (float)UnityEngine.Rendering.BlendMode.OneMinusSrcAlpha);
+        if (material.HasProperty("_ZWrite")) material.SetFloat("_ZWrite", 0f);
+        if (material.HasProperty("_Cull")) material.SetFloat("_Cull", 0f);
+        material.EnableKeyword("_ALPHABLEND_ON");
+        material.renderQueue = 3000;
+
+        Save(material, materialName);
+    }
+
+    static Texture2D LoadDownloadedTexture(string fileName)
+    {
+        string path = ParticleFolder + "/" + fileName + ".png";
+        var texture = AssetDatabase.LoadAssetAtPath<Texture2D>(path);
+
+        if (texture == null)
+            Debug.LogWarning("Drone Strike: " + path + " not found — the fire/smoke sprites did not "
+                             + "come through the sync. Falling back to the procedural glow.");
+
+        return texture;
     }
 
     // ---------- asset writing ----------

@@ -1,0 +1,33 @@
+Third-party assets used in Drone Strike
+=========================================
+
+Kenney Particle Pack
+---------------------
+Source:  https://kenney.nl/assets/particle-pack
+Author:  Kenney (www.kenney.nl)
+License: Creative Commons CC0 1.0 Universal (public domain)
+         https://creativecommons.org/publicdomain/zero/1.0/
+
+Files used (Assets/Resources/Textures/Particles/):
+  fire_01.png    — fire particle sprite
+  flame_05.png   — spare, currently unused
+  smoke_01.png   — spare, currently unused
+  smoke_04.png   — smoke particle sprite
+  spark_01.png   — spare, currently unused
+  circle_05.png  — spare, currently unused
+  scorch_01.png  — ground scorch decal
+
+CC0 requires no attribution, but Kenney's work is worth crediting anyway.
+
+
+Downloaded models (already in the project before this file was written)
+--------------------------------------------------------------------------
+Assets/Resources/Models/Tank.glb, SupplyTent.glb, Drone.glb — sourced from
+Kenney.nl / public CC0 model sites, per the setup steps in
+DroneStrike/README.md. Scale is unverified per-model and corrected at build
+time by TargetProps.NormalizeModelSize.
+
+
+Everything else — every other texture, material, sound and 3D shape in the
+game — is generated procedurally at build or run time from code, and carries
+no external licence.

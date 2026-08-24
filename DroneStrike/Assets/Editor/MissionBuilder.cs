@@ -41,6 +41,18 @@ public static class MissionBuilder
         /// <summary>A straight road across the middle, turning the loop into a crossroads.</summary>
         public bool crossroads;
 
+        /// <summary>Ground material name, so three maps built by one generator do not share one look.</summary>
+        public string groundMaterial;
+
+        /// <summary>Road surface material name.</summary>
+        public string roadMaterial;
+
+        /// <summary>False for a graded dirt track through the trees — a real forest road has no paint on it.</summary>
+        public bool paintedLines;
+
+        /// <summary>A pond, the one map that gets a water feature.</summary>
+        public bool hasPond;
+
         public int armour;
         public int trucks;
         public int tents;
@@ -66,9 +78,13 @@ public static class MissionBuilder
             seed = 20260824,
             mapSize = 700f,
             hillAmplitude = 30f,
-            roadHalfX = 95f,
-            roadHalfZ = 75f,
+            roadHalfX = 62f,
+            roadHalfZ = 50f,
             crossroads = false,
+            groundMaterial = "Mat_Ground",
+            roadMaterial = "Mat_Asphalt",
+            paintedLines = true,
+            hasPond = false,
             armour = 3, trucks = 3, tents = 3, antennas = 2, patrols = 2,
             treeAttempts = 520,
             sunColour = new Color(1f, 0.96f, 0.88f),
@@ -88,9 +104,13 @@ public static class MissionBuilder
             seed = 20260825,
             mapSize = 720f,
             hillAmplitude = 46f,          // properly rolling, not a table
-            roadHalfX = 72f,
-            roadHalfZ = 100f,             // a long road rather than a square
+            roadHalfX = 48f,
+            roadHalfZ = 68f,               // a long road rather than a square
             crossroads = false,
+            groundMaterial = "Mat_GroundForest",
+            roadMaterial = "Mat_Dirt",     // a graded track, not a painted road
+            paintedLines = false,
+            hasPond = true,
             armour = 4, trucks = 4, tents = 3, antennas = 1, patrols = 2,
             treeAttempts = 1100,          // the woods are the point of this one
             sunColour = new Color(0.96f, 0.94f, 0.86f),
@@ -110,10 +130,14 @@ public static class MissionBuilder
             seed = 20260826,
             mapSize = 780f,
             hillAmplitude = 34f,
-            roadHalfX = 115f,
-            roadHalfZ = 85f,
+            roadHalfX = 68f,
+            roadHalfZ = 50f,
             crossroads = true,
-            armour = 5, trucks = 5, tents = 4, antennas = 2, patrols = 3,
+            groundMaterial = "Mat_GroundDusk",
+            roadMaterial = "Mat_AsphaltWorn",
+            paintedLines = true,
+            hasPond = false,
+            armour = 5, trucks = 3, tents = 3, antennas = 2, patrols = 3,
             treeAttempts = 620,
             sunColour = new Color(1f, 0.78f, 0.58f),   // low sun, long shadows
             sunIntensity = 1.05f,
@@ -229,8 +253,36 @@ public static class MissionBuilder
                                       profile.seed, FlatRadius);
 
         ground.AddComponent<MeshFilter>().sharedMesh = mesh;
-        ground.AddComponent<MeshRenderer>().sharedMaterial = DroneMaterials.Load("Mat_Ground");
+        ground.AddComponent<MeshRenderer>().sharedMaterial = DroneMaterials.Load(profile.groundMaterial);
         ground.AddComponent<MeshCollider>().sharedMesh = mesh;
+
+        if (profile.hasPond) BuildPond();
+    }
+
+    /// <summary>
+    /// A still pond just off the road — the one landmark that tells this map
+    /// apart from the other two at a glance rather than only in the numbers.
+    /// Placed and sized by hand rather than through the claim system: there is
+    /// exactly one of it, on one map, so a whole rejection-sampling pass would
+    /// be more code than the thing is worth.
+    /// </summary>
+    static void BuildPond()
+    {
+        const float x = 10f;
+        const float z = -40f;
+        const float radius = 14f;
+
+        if (!ClearOfRoad(x, z, radius + RoadClearance))
+            Debug.LogWarning("Drone Strike: the pond overlaps the road.");
+
+        Claim(x, z, radius + 4f);
+
+        var pond = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
+        pond.name = "Pond";
+        pond.transform.position = OnGround(x, z, 0.12f);
+        pond.transform.localScale = new Vector3(radius * 2f, 0.05f, radius * 2f);
+        pond.GetComponent<Renderer>().sharedMaterial = DroneMaterials.Load("Mat_Water");
+        Object.DestroyImmediate(pond.GetComponent<Collider>());
     }
 
     static float GroundAt(float x, float z)
@@ -343,7 +395,7 @@ public static class MissionBuilder
     const float RoadHalfWidth = 5f;
 
     /// <summary>Clearance everything else keeps from the road centreline.</summary>
-    const float RoadClearance = 10f;
+    const float RoadClearance = 8.5f;
 
     /// <summary>The loop the patrol trucks drive, anticlockwise from the south-west.</summary>
     static Vector3[] patrolWaypoints;
@@ -393,15 +445,15 @@ public static class MissionBuilder
         var group = new GameObject("Road");
         group.transform.SetParent(parent, false);
 
-        Material asphalt = DroneMaterials.Load("Mat_Asphalt");
+        Material surface = DroneMaterials.Load(profile.roadMaterial);
         Material line = DroneMaterials.Load("Mat_RoadLine");
-        Material dirt = DroneMaterials.Load("Mat_Dirt");
+        Material shoulder = DroneMaterials.Load(profile.paintedLines ? "Mat_Dirt" : "Mat_Ground");
 
         foreach (Vector4 segment in roadSegments)
         {
             var from = new Vector3(segment.x, 0f, segment.y);
             var to = new Vector3(segment.z, 0f, segment.w);
-            BuildRoadSegment(group.transform, from, to, asphalt, line, dirt);
+            BuildRoadSegment(group.transform, from, to, surface, line, shoulder);
         }
 
         // Square patches where two runs meet, so the joins are paved rather than
@@ -424,12 +476,12 @@ public static class MissionBuilder
         foreach (Vector2 corner in corners)
         {
             Slab(group.transform, "Junction", corner.x, corner.y, 0f,
-                 RoadHalfWidth * 2f, RoadHalfWidth * 2f, 0.03f, 0.12f, asphalt);
+                 RoadHalfWidth * 2f, RoadHalfWidth * 2f, 0.03f, 0.12f, surface);
         }
     }
 
     static void BuildRoadSegment(Transform parent, Vector3 from, Vector3 to,
-                                 Material asphalt, Material line, Material dirt)
+                                 Material surface, Material line, Material shoulder)
     {
         Vector3 direction = (to - from).normalized;
         float fullLength = Vector3.Distance(from, to);
@@ -442,23 +494,38 @@ public static class MissionBuilder
 
         Vector3 midpoint = (from + to) * 0.5f;
 
-        // Gravel shoulders under the edges, a little wider than the asphalt and
-        // a little lower. Cheap, and it stops the road reading as a black
-        // rectangle dropped onto grass.
+        // Verge under the edges, a little wider than the carriageway and a
+        // little lower. Cheap, and it stops the road reading as a flat
+        // rectangle dropped onto the ground next to it.
         foreach (float side in new[] { -1f, 1f })
         {
             Vector3 offset = sideways * (side * (RoadHalfWidth + 0.9f));
 
-            // Same length as the carriageway, not the full run: shoulders that
+            // Same length as the carriageway, not the full run: verges that
             // reach into the junctions overlap each other at every corner, and
             // two coplanar slabs of the same material z-fight. A verge that
             // breaks at a junction is what a real one does anyway.
             Slab(parent, "Shoulder", midpoint.x + offset.x, midpoint.z + offset.z, yaw,
-                 2.6f, length, 0.015f, 0.09f, dirt);
+                 2.6f, length, 0.015f, 0.09f, shoulder);
         }
 
         Slab(parent, "Surface", midpoint.x, midpoint.z, yaw,
-             RoadHalfWidth * 2f, length, 0.03f, 0.12f, asphalt);
+             RoadHalfWidth * 2f, length, 0.03f, 0.12f, surface);
+
+        // A graded forest track has no paint on it — the lines are what turns
+        // it back into a highway. Ruts from repeated traffic stand in instead:
+        // two darker bands where tyres actually run.
+        if (!profile.paintedLines)
+        {
+            Material ruts = DroneMaterials.Load("Mat_AsphaltWorn");
+            foreach (float side in new[] { -1f, 1f })
+            {
+                Vector3 offset = sideways * (side * RoadHalfWidth * 0.42f);
+                Slab(parent, "Rut", midpoint.x + offset.x, midpoint.z + offset.z, yaw,
+                     0.9f, length - 1f, 0.032f, 0.02f, ruts);
+            }
+            return;
+        }
 
         // Solid edge lines, inset so they sit on the asphalt rather than on its
         // very lip.
@@ -550,9 +617,13 @@ public static class MissionBuilder
 
         targetSpots.Clear();
 
+        // Biggest footprint first. Rejection sampling packs tighter maps like
+        // this does — placing the pickiest, largest things while the ground is
+        // still empty and leaving the smallest, most forgiving one (the mast)
+        // for whatever gaps are left, rather than the other way round.
+        Scatter(group.transform, TargetProps.SupplyDepot, profile.tents, 6.5f);
         Scatter(group.transform, TargetProps.ArmouredVehicle, profile.armour, 6f);
         Scatter(group.transform, TargetProps.Truck, profile.trucks, 5f);
-        Scatter(group.transform, TargetProps.SupplyDepot, profile.tents, 6.5f);
         Scatter(group.transform, TargetProps.Antenna, profile.antennas, 4.5f);
 
         for (int i = 0; i < profile.patrols; i++)
@@ -572,7 +643,12 @@ public static class MissionBuilder
             // A wide margin between targets: two of them close enough to be
             // caught by one blast turns a mission into a much shorter one, and
             // the map is meant to be flown rather than orbited.
-            if (!TryFindSpot(radius, 9f, out spot)) continue;
+            if (!TryFindSpot(radius, 7f, out spot))
+            {
+                Debug.LogWarning("Drone Strike: " + profile.sceneName + " ran out of room for a "
+                                 + builder.Method.Name + " (" + (i + 1) + "/" + count + ").");
+                continue;
+            }
 
             Claim(spot.x, spot.y, radius);
             targetSpots.Add(new Vector3(spot.x, spot.y, radius));
@@ -650,14 +726,64 @@ public static class MissionBuilder
             }
         }
 
-        // Netting over a couple of the vehicle parks. Only the poles claim
-        // ground: the sheet is five metres up, so whatever is parked underneath
-        // is exactly what is supposed to be there.
-        int nets = Mathf.Min(2, targetSpots.Count);
-        for (int i = 0; i < nets; i++)
+        // Netting over one or two of the vehicle parks — armour or trucks only,
+        // never a tent (a canvas roof draped over a tent reads as one shape
+        // wearing another), and never picked without checking what else is
+        // nearby first.
+        //
+        // The net's own claim only ever covered its four poles, not the sheet
+        // strung between them — the sheet is a sixteen-plus-metre span that was
+        // being centred directly on a randomly chosen target with no check
+        // against its neighbours at all. Two targets placed nine or so metres
+        // apart (perfectly legal on their own claims) could end up with that
+        // sheet draped across both of them, which is exactly what read as a
+        // tent standing on top of another tent. This checks the sheet's actual
+        // reach against every other claimed target before it is ever built.
+        const float netSize = 16f;
+        // Half the sheet's own diagonal (it is not square — see CamoNet's
+        // localScale), with a little headroom rather than the exact figure.
+        const float netFootprint = 11f;
+
+        var netCandidates = new List<int>();
+        for (int i = 0; i < targetSpots.Count; i++)
         {
-            Vector3 spot = targetSpots[Random.Range(0, targetSpots.Count)];
-            CamoNet(group.transform, net, spot.x, spot.y, 20f, Random.Range(0f, 360f));
+            // z holds the target's own radius: 6.0 for armour, 5.0 for trucks —
+            // this is how the loop above already tells armour from sandbagged
+            // targets, so the same field picks "something vehicle-shaped".
+            float targetRadius = targetSpots[i].z;
+            if (targetRadius >= 4.9f && targetRadius <= 6.05f) netCandidates.Add(i);
+        }
+
+        int nets = Mathf.Min(2, netCandidates.Count);
+        for (int n = 0; n < nets && netCandidates.Count > 0; n++)
+        {
+            int pick = Random.Range(0, netCandidates.Count);
+            int index = netCandidates[pick];
+            netCandidates.RemoveAt(pick);
+
+            Vector3 spot = targetSpots[index];
+            var centre = new Vector2(spot.x, spot.y);
+
+            // The sheet's own reach (11 m) is bigger than the clearance a
+            // target was placed with (8.5 m), so it can overhang the road even
+            // when the vehicle underneath it legally could not.
+            if (!ClearOfRoad(centre.x, centre.y, netFootprint)) continue;
+
+            bool clearOfNeighbours = true;
+            for (int i = 0; i < targetSpots.Count; i++)
+            {
+                if (i == index) continue;
+
+                var other = new Vector2(targetSpots[i].x, targetSpots[i].y);
+                if (Vector2.Distance(centre, other) < netFootprint + targetSpots[i].z + 2f)
+                {
+                    clearOfNeighbours = false;
+                    break;
+                }
+            }
+            if (!clearOfNeighbours) continue;
+
+            CamoNet(group.transform, net, spot.x, spot.y, netSize, Random.Range(0f, 360f));
         }
     }
 
@@ -730,13 +856,22 @@ public static class MissionBuilder
 
                 Claim(world.x, world.z, 0.9f);
 
-                var pole = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
-                pole.name = "Pole";
+                // Tapered rather than a uniform cylinder, and leaning a couple
+                // of degrees off true — a driven post is never perfectly
+                // upright, and a uniform column read as moulded plastic rather
+                // than something hammered into the ground.
+                var pole = new GameObject("Pole");
                 pole.transform.SetParent(group.transform, false);
-                pole.transform.localPosition = new Vector3(px, poleHeight * 0.5f, pz);
-                pole.transform.localScale = new Vector3(0.22f, poleHeight * 0.5f, 0.22f);
-                pole.GetComponent<Renderer>().sharedMaterial = metal;
-                Object.DestroyImmediate(pole.GetComponent<Collider>());
+                pole.transform.localPosition = new Vector3(px, 0f, pz);
+                pole.transform.localRotation =
+                    Quaternion.Euler(Random.Range(-3f, 3f), Random.Range(0f, 360f), Random.Range(-3f, 3f));
+
+                var poleMesh = pole.AddComponent<MeshFilter>();
+                poleMesh.sharedMesh = PrimitiveMesh.Frustum(0.14f, 0.08f, poleHeight);
+                var poleRenderer = pole.AddComponent<MeshRenderer>();
+                poleRenderer.sharedMaterial = metal;
+                poleRenderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+                pole.transform.localPosition += Vector3.up * (poleHeight * 0.5f);
             }
         }
 
@@ -885,16 +1020,22 @@ public static class MissionBuilder
         var group = new GameObject("LaunchPads");
 
         const int count = 6;
-        float radius = Mathf.Max(profile.roadHalfX, profile.roadHalfZ) + 55f;
+
+        // Hugs the position rather than orbiting it from far out — the ring
+        // used to sit fifty-plus metres past the road, which meant the
+        // farthest pad on the largest map could be well past the point where
+        // the signal degrades before the drone had even reached a target.
+        float radius = new Vector2(profile.roadHalfX, profile.roadHalfZ).magnitude + 16f;
         float offset = Random.Range(0f, 360f);
 
         var pads = new Transform[count];
-        Material asphalt = DroneMaterials.Load("Mat_Asphalt");
+        Material tarp = DroneMaterials.Load("Mat_CamoNet");
+        Material caseColour = DroneMaterials.Load("Mat_VehicleDark");
 
         for (int i = 0; i < count; i++)
         {
-            float bearing = offset + i * (360f / count) + Random.Range(-12f, 12f);
-            float distance = radius + Random.Range(-12f, 18f);
+            float bearing = offset + i * (360f / count) + Random.Range(-10f, 10f);
+            float distance = radius + Random.Range(-4f, 4f);
 
             float x = Mathf.Sin(bearing * Mathf.Deg2Rad) * distance;
             float z = Mathf.Cos(bearing * Mathf.Deg2Rad) * distance;
@@ -905,18 +1046,56 @@ public static class MissionBuilder
             pad.transform.rotation = Quaternion.LookRotation(
                 new Vector3(-x, 0f, -z).normalized, Vector3.up);
 
-            var deck = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
-            deck.name = "Deck";
-            deck.transform.SetParent(pad.transform, false);
-            deck.transform.localPosition = new Vector3(0f, -1.9f, 0f);
-            deck.transform.localScale = new Vector3(6f, 0.06f, 6f);
-            deck.GetComponent<Renderer>().sharedMaterial = asphalt;
-            Object.DestroyImmediate(deck.GetComponent<Collider>());
+            BuildPadDeck(pad.transform, tarp, caseColour);
 
             pads[i] = pad.transform;
         }
 
         return pads;
+    }
+
+    /// <summary>
+    /// The ground marker under a launch pad: a camouflage groundsheet with a
+    /// transport case sitting on it, not a paved disc.
+    ///
+    /// Whoever launches a kamikaze drone from open ground is trying not to be
+    /// seen doing it — a bright circular slab is the opposite of that, and it
+    /// reads as a manhole cover rather than a hide. A dark tarp roughly the
+    /// shape something was unrolled onto, thrown down at a slight angle rather
+    /// than perfectly axis-aligned, sells "someone knelt here a minute ago"
+    /// far better than a geometric shape ever will.
+    /// </summary>
+    static void BuildPadDeck(Transform pad, Material tarp, Material caseColour)
+    {
+        var sheet = GameObject.CreatePrimitive(PrimitiveType.Cube);
+        sheet.name = "Groundsheet";
+        sheet.transform.SetParent(pad, false);
+        sheet.transform.localPosition = new Vector3(0f, -1.94f, 0f);
+        sheet.transform.localRotation = Quaternion.Euler(0f, Random.Range(0f, 360f), 0f);
+        sheet.transform.localScale = new Vector3(3.6f, 0.03f, 2.6f);
+        sheet.GetComponent<Renderer>().sharedMaterial = tarp;
+        Object.DestroyImmediate(sheet.GetComponent<Collider>());
+
+        // The open transport case the drone rides in on — waist-height, one
+        // flipped-open lid, sitting at the edge of the sheet rather than dead
+        // centre.
+        var caseBody = GameObject.CreatePrimitive(PrimitiveType.Cube);
+        caseBody.name = "Case";
+        caseBody.transform.SetParent(pad, false);
+        caseBody.transform.localPosition = new Vector3(-1.1f, -1.75f, -0.7f);
+        caseBody.transform.localRotation = Quaternion.Euler(0f, 25f, 0f);
+        caseBody.transform.localScale = new Vector3(0.7f, 0.32f, 0.9f);
+        caseBody.GetComponent<Renderer>().sharedMaterial = caseColour;
+        Object.DestroyImmediate(caseBody.GetComponent<Collider>());
+
+        var lid = GameObject.CreatePrimitive(PrimitiveType.Cube);
+        lid.name = "CaseLid";
+        lid.transform.SetParent(caseBody.transform, false);
+        lid.transform.localPosition = new Vector3(0f, 0.55f, -0.5f);
+        lid.transform.localRotation = Quaternion.Euler(-80f, 0f, 0f);
+        lid.transform.localScale = new Vector3(1f, 0.12f, 1f);
+        lid.GetComponent<Renderer>().sharedMaterial = caseColour;
+        Object.DestroyImmediate(lid.GetComponent<Collider>());
     }
 
     static void BuildManagers(Transform[] pads)
