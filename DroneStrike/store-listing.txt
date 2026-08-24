@@ -10,6 +10,20 @@ RU: Drone Strike — Удар с воздуха
 EN: Drone Strike
 
 
+SEO-ОПИСАНИЕ (мета-описание для консоли Яндекс Игр, ~150–160 символов,
+для поиска — не показывается в карточке каталога)
+------------------------------------------------------------------------
+RU:
+Drone Strike — симулятор ударного FPV-дрона. Управляй камерой, целься точным
+ударом, уничтожай технику. Три карты, три дрона, играй бесплатно без доната.
+(157 символов)
+
+EN:
+Drone Strike is an FPV kamikaze-drone simulator. Aim with the camera, land a
+precise hit, take out enemy vehicles. Three maps, three drones, free to play.
+(155 characters)
+
+
 КОРОТКОЕ ОПИСАНИЕ (карточка в каталоге, ~150–200 символов)
 ------------------------------------------------------------
 RU:
@@ -21,8 +35,8 @@ Fly a kamikaze FPV drone and take out enemy vehicles from the air. Three
 distinct maps, three drones, upgrades earned by watching ads — no paywall.
 
 
-ПОЛНОЕ ОПИСАНИЕ
-----------------
+ПОЛНОЕ ОПИСАНИЕ / «ОБ ИГРЕ» (страница игры в консоли Яндекс Игр)
+------------------------------------------------------------------
 RU:
 
 Drone Strike — симулятор ударного FPV-дрона. Управляешь камерой, дрон летит
