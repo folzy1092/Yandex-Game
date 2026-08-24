@@ -30,7 +30,17 @@ public class Warhead : MonoBehaviour
 
     public bool HasDetonated { get; private set; }
 
-    public WarheadProfile Profile { get; private set; }
+    /// <summary>
+    /// Read from <see cref="type"/> every time rather than cached in Awake.
+    ///
+    /// Caching it there was a real bug: AddComponent runs Awake synchronously,
+    /// so the profile was resolved before the factory had assigned the type on
+    /// the next line, and every drone flew with the compact charge whatever the
+    /// player picked. It cost exactly the damage that made the standard charge
+    /// worth fitting — the heavy airframe with the heavy charge came out at
+    /// 132 against a tank's 140 and could not kill one in a single run.
+    /// </summary>
+    public WarheadProfile Profile { get { return WarheadProfile.For(type); } }
 
     Rigidbody body;
     DroneController drone;
@@ -39,16 +49,26 @@ public class Warhead : MonoBehaviour
     {
         body = GetComponent<Rigidbody>();
         drone = GetComponent<DroneController>();
+    }
 
-        Profile = WarheadProfile.For(type);
+    /// <summary>
+    /// Fits a charge and applies what it does to the airframe's handling.
+    ///
+    /// Called by the factory once the drone is assembled, because the handling
+    /// change depends on which charge was chosen and Awake cannot know that
+    /// yet. A lighter charge means a livelier drone, so the two multiply with
+    /// the airframe's own figures.
+    /// </summary>
+    public void Fit(WarheadType charge, float damageScale)
+    {
+        type = charge;
+        damageMultiplier = damageScale;
 
-        // A lighter charge means a livelier drone. Applied here rather than in
-        // the factory so the handling always matches whatever is actually fitted.
-        if (drone != null)
-        {
-            drone.thrust *= Profile.thrustFactor;
-            drone.maxSpeed *= Profile.speedFactor;
-        }
+        if (drone == null) drone = GetComponent<DroneController>();
+        if (drone == null) return;
+
+        drone.thrust *= Profile.thrustFactor;
+        drone.maxSpeed *= Profile.speedFactor;
     }
 
     // No manual trigger: the mouse aims the camera, and losing the drone every

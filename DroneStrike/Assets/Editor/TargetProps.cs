@@ -186,16 +186,20 @@ public static class TargetProps
     const float TentModelScale = 1f;
     const float TentModelYawOffset = 0f;
 
-    /// <summary>Width a field supply tent comes out at, in metres.</summary>
-    const float TentFootprint = 5.4f;
+    /// <summary>
+    /// Width a field supply tent comes out at, in metres. A real one is big
+    /// enough to drive a truck into, and at 5.4 m it read as a garden gazebo
+    /// next to the armour parked beside it.
+    /// </summary>
+    const float TentFootprint = 8.5f;
 
     public static Target SupplyDepot(Transform parent, Vector3 position, float yaw, Palette palette)
     {
-        const float postHeight = 2.6f;
+        const float postHeight = 3.6f;
 
         GameObject root = CreateRoot(parent, "SupplyDepot", position, yaw,
                                      Target.Kind.SupplyDepot,
-                                     new Vector3(4.6f, postHeight + 0.2f, 4.6f),
+                                     new Vector3(TentFootprint, postHeight + 0.2f, TentFootprint),
                                      new Vector3(0f, (postHeight + 0.2f) * 0.5f, 0f));
 
         GameObject tentModel = ModelLibrary.Instantiate("SupplyTent", root.transform,
@@ -213,37 +217,38 @@ public static class TargetProps
 
     static void BuildSupplyDepotPrimitives(GameObject root, Palette palette, float postHeight)
     {
-        const float crateHeight = 0.9f;
+        const float crateHeight = 1.2f;
 
         // Two rows of crates, the back row stacked two high.
         for (int column = 0; column < 3; column++)
         {
-            float x = -1.3f + column * 1.3f;
+            float x = -2.4f + column * 2.4f;
 
-            AddPart(root, "Crate", new Vector3(x, crateHeight * 0.5f, 0.85f),
-                    new Vector3(1.15f, crateHeight, 1.5f), palette.crate);
+            AddPart(root, "Crate", new Vector3(x, crateHeight * 0.5f, 1.6f),
+                    new Vector3(2.1f, crateHeight, 2.8f), palette.crate);
 
-            AddPart(root, "Crate", new Vector3(x, crateHeight * 0.5f, -0.85f),
-                    new Vector3(1.15f, crateHeight, 1.5f), palette.crate);
+            AddPart(root, "Crate", new Vector3(x, crateHeight * 0.5f, -1.6f),
+                    new Vector3(2.1f, crateHeight, 2.8f), palette.crate);
 
             // Second layer on the back row only, so the stack has a profile.
             if (column == 1) continue;
-            AddPart(root, "Crate", new Vector3(x, crateHeight * 1.5f, -0.85f),
-                    new Vector3(1.1f, crateHeight, 1.4f), palette.crate);
+            AddPart(root, "Crate", new Vector3(x, crateHeight * 1.5f, -1.6f),
+                    new Vector3(2.0f, crateHeight, 2.6f), palette.crate);
         }
 
         // Four posts holding the tarp up, with the tarp resting on top of them.
-        foreach (float x in new[] { -2.0f, 2.0f })
+        float half = TentFootprint * 0.5f - 0.4f;
+        foreach (float x in new[] { -half, half })
         {
-            foreach (float z in new[] { -2.0f, 2.0f })
+            foreach (float z in new[] { -half, half })
             {
                 AddPart(root, "Post", new Vector3(x, postHeight * 0.5f, z),
-                        new Vector3(0.16f, postHeight, 0.16f), palette.metal);
+                        new Vector3(0.22f, postHeight, 0.22f), palette.metal);
             }
         }
 
         AddPart(root, "Tarp", new Vector3(0f, postHeight + 0.06f, 0f),
-                new Vector3(4.6f, 0.12f, 4.6f), palette.vehicleDark);
+                new Vector3(TentFootprint, 0.14f, TentFootprint), palette.vehicleDark);
     }
 
     // ---------- antenna ----------

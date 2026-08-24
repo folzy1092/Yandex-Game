@@ -59,9 +59,10 @@ public static class DroneFactory
         controller.maxSpeed *= model.speedFactor;
         controller.climbThrust *= model.thrustFactor;
 
+        // Fit() rather than assigning the fields: the charge changes how the
+        // drone handles, and that has to happen after the type is known.
         var warheadComponent = drone.AddComponent<Warhead>();
-        warheadComponent.type = warhead;
-        warheadComponent.damageMultiplier = model.damageFactor;
+        warheadComponent.Fit(warhead, model.damageFactor);
 
         var battery = drone.AddComponent<DroneBattery>();
         battery.hoverEndurance *= model.enduranceFactor;

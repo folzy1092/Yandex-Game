@@ -259,28 +259,34 @@ public class MainMenuUI : MonoBehaviour
 
             DroneModel model = DroneLoadout.Models[i];
             bool unlocked = DroneLoadout.IsUnlocked(model);
+            bool available = DroneLoadout.IsAvailable(model);
             bool active = unlocked && i == selected;
 
             cardFrames[i].color = active
                 ? new Color(0.16f, 0.24f, 0.20f)
-                : new Color(0.11f, 0.14f, 0.13f);
+                : !available ? new Color(0.09f, 0.10f, 0.10f) : new Color(0.11f, 0.14f, 0.13f);
 
             if (cardActions[i] != null)
             {
-                cardActions[i].text = !unlocked
-                    ? "ОТКРЫТЬ ЗА РЕКЛАМУ"
-                    : active ? "ВЫБРАН" : "ВЫБРАТЬ";
+                cardActions[i].text = unlocked
+                    ? (active ? "ВЫБРАН" : "ВЫБРАТЬ")
+                    : available
+                        ? "ОТКРЫТЬ ЗА РЕКЛАМУ"
+                        : "СНАЧАЛА «" + DroneLoadout.PrerequisiteName(model) + "»";
             }
 
             Image background = cardButtons[i].targetGraphic as Image;
             if (background != null)
             {
-                background.color = !unlocked
-                    ? new Color(0.72f, 0.48f, 0.12f)
-                    : active ? new Color(0.24f, 0.52f, 0.36f) : new Color(0.16f, 0.45f, 0.75f);
+                background.color = unlocked
+                    ? (active ? new Color(0.24f, 0.52f, 0.36f) : new Color(0.16f, 0.45f, 0.75f))
+                    : available ? new Color(0.72f, 0.48f, 0.12f) : new Color(0.20f, 0.21f, 0.22f);
             }
 
-            cardButtons[i].interactable = !waitingForAd && !(active && unlocked);
+            // Locked behind another airframe: the button says what is missing
+            // rather than going dead with no explanation.
+            cardButtons[i].interactable =
+                !waitingForAd && available && !(active && unlocked);
         }
 
         WarheadType warhead = DroneLoadout.SelectedWarhead;
@@ -308,6 +314,12 @@ public class MainMenuUI : MonoBehaviour
         {
             DroneLoadout.SelectedIndex = index;
             SetStatus("");
+            return;
+        }
+
+        if (!DroneLoadout.IsAvailable(model))
+        {
+            SetStatus("Сначала откройте борт «" + DroneLoadout.PrerequisiteName(model) + "».");
             return;
         }
 

@@ -31,6 +31,12 @@ public struct DroneModel
 
     /// <summary>False for the starter airframe, true for anything behind an ad.</summary>
     public bool needsUnlock;
+
+    /// <summary>
+    /// Id of the airframe that has to be unlocked before this one is even
+    /// offered, or null for one that can be unlocked straight away.
+    /// </summary>
+    public string requiresId;
 }
 
 /// <summary>
@@ -76,7 +82,8 @@ public static class DroneLoadout
             enduranceFactor = 0.85f,
             damageFactor = 1f,
             accent = new Color(0.85f, 0.55f, 0.12f),
-            needsUnlock = true
+            needsUnlock = true,
+            requiresId = null
         },
         new DroneModel
         {
@@ -88,7 +95,14 @@ public static class DroneLoadout
             enduranceFactor = 1.15f,
             damageFactor = 1.55f,
             accent = new Color(0.72f, 0.22f, 0.20f),
-            needsUnlock = true
+            needsUnlock = true,
+
+            // The heavy airframe is the last one on the ladder rather than a
+            // second thing to buy on day one. Offering both at once means a
+            // player picks whichever sounds better and never sees the other
+            // ad, and a roster with no order to it reads as a shop rather than
+            // as progress.
+            requiresId = "hornet"
         }
     };
 
@@ -101,8 +115,37 @@ public static class DroneLoadout
         return PlayerPrefs.GetInt(UnlockKeyPrefix + model.id, 0) == 1;
     }
 
+    /// <summary>
+    /// Whether this airframe's unlock can even be offered yet. False while the
+    /// one it is gated behind is still locked.
+    /// </summary>
+    public static bool IsAvailable(DroneModel model)
+    {
+        if (string.IsNullOrEmpty(model.requiresId)) return true;
+
+        foreach (DroneModel other in Models)
+            if (other.id == model.requiresId) return IsUnlocked(other);
+
+        // Gated behind an airframe that is not in the roster any more: treat it
+        // as open rather than permanently unreachable.
+        return true;
+    }
+
+    /// <summary>Display name of what has to be unlocked first, or an empty string.</summary>
+    public static string PrerequisiteName(DroneModel model)
+    {
+        if (string.IsNullOrEmpty(model.requiresId)) return string.Empty;
+
+        foreach (DroneModel other in Models)
+            if (other.id == model.requiresId) return other.displayName;
+
+        return string.Empty;
+    }
+
     public static void Unlock(DroneModel model)
     {
+        if (!IsAvailable(model)) return;
+
         PlayerPrefs.SetInt(UnlockKeyPrefix + model.id, 1);
         PlayerPrefs.Save();
         Notify();

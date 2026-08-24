@@ -61,17 +61,72 @@ public class Target : MonoBehaviour
         health = MaxHealth;
     }
 
+    /// <summary>True once this target has taken a hit it did not die to.</summary>
+    public bool IsDamaged { get; private set; }
+
     public void TakeDamage(float amount)
     {
         if (IsDestroyed || amount <= 0f) return;
 
         health -= amount;
-        if (health > 0f) return;
+
+        if (health > 0f)
+        {
+            // A tank that survives a hit has to look like it survived a hit.
+            // Without this the second run in looks identical to the first, and
+            // a player who put a drone dead on target has no way to tell
+            // whether it did anything at all — which reads as the hit not
+            // registering rather than as armour doing its job.
+            if (!IsDamaged) ApplyBattleDamage();
+            return;
+        }
 
         IsDestroyed = true;
         Explode();
 
         if (OnDestroyed != null) OnDestroyed(this, Points);
+    }
+
+    /// <summary>
+    /// The wounded state: scorched paint, a smoke plume and a shunt off level.
+    /// Deliberately smaller than <see cref="SpawnFire"/> — smoke without flame,
+    /// so "hurt" and "dead" never get confused at a distance.
+    /// </summary>
+    void ApplyBattleDamage()
+    {
+        IsDamaged = true;
+
+        if (GameEffects.Instance != null)
+            GameEffects.Instance.HardImpact(transform.position + Vector3.up, Vector3.up);
+
+        // Darkened through a property block rather than by swapping materials:
+        // it keeps the model's own textures and leaves no material instances
+        // behind, which swapping in a scorched material would do to every
+        // renderer on every damaged target.
+        var block = new MaterialPropertyBlock();
+        foreach (Renderer renderer in GetComponentsInChildren<Renderer>())
+        {
+            renderer.GetPropertyBlock(block);
+            block.SetColor("_Color", new Color(0.52f, 0.48f, 0.44f));
+            renderer.SetPropertyBlock(block);
+        }
+
+        var box = GetComponent<BoxCollider>();
+        float radius = box != null
+            ? Mathf.Max(0.6f, Mathf.Max(box.size.x, box.size.z) * 0.2f)
+            : 1f;
+        Vector3 centre = box != null ? box.center : Vector3.up;
+
+        var holder = new GameObject("BattleDamage");
+        holder.transform.SetParent(transform, false);
+        holder.transform.localPosition = centre;
+
+        BuildSmoke(holder.transform, Resources.Load<Material>("Materials/Mat_Spark"), radius);
+
+        // Knocked off level, but only slightly — the wreck tilt is far harder,
+        // so the two states stay distinguishable.
+        transform.rotation *= Quaternion.Euler(
+            UnityEngine.Random.Range(-3f, 3f), 0f, UnityEngine.Random.Range(-3f, 3f));
     }
 
     /// <summary>

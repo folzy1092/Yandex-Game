@@ -30,6 +30,12 @@ public class DroneHUD : MonoBehaviour
     Text signalLostBanner;
     float signalLostUntil;
 
+    /// <summary>Pixels of tape per degree of heading.</summary>
+    const float CompassScale = 4f;
+
+    /// <summary>Width of one full 360 degree lap of the tape, in pixels.</summary>
+    const float CompassLap = 360f * CompassScale;
+
     void Start()
     {
         UIFactory.EnsureEventSystem();
@@ -90,7 +96,8 @@ public class DroneHUD : MonoBehaviour
         // The compass strip slides opposite the heading, so the marks pass the
         // fixed centre index the way a real HSI tape does.
         if (compassStrip != null)
-            compassStrip.anchoredPosition = new Vector2(-heading * 4f, compassStrip.anchoredPosition.y);
+            compassStrip.anchoredPosition =
+                new Vector2(-heading * CompassScale, compassStrip.anchoredPosition.y);
     }
 
     void UpdateSignal(DroneRig drone)
@@ -242,31 +249,53 @@ public class DroneHUD : MonoBehaviour
 
         var strip = new GameObject("Strip");
         strip.transform.SetParent(window.transform, false);
+
+        // Three copies of the tape end to end, and every mark measured from the
+        // strip's own centre.
+        //
+        // One copy anchored to the strip's left edge is what made the compass
+        // break at both ends: the marks were offset half a tape's width from
+        // where the scroll expected them, so the window showed the heading
+        // opposite the one being flown, and past either end of the single copy
+        // there was simply nothing left to show — the tape went blank rather
+        // than wrapping. A compass has no ends, so it needs the copies either
+        // side to roll onto.
         compassStrip = UIFactory.Place(strip, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f),
-                                       Vector2.zero, new Vector2(1440f, 46f));
+                                       Vector2.zero, new Vector2(CompassLap * 3f, 46f));
 
-        // A tick every 15 degrees, lettered at the cardinals.
         string[] cardinals = { "N", "E", "S", "W" };
-        for (int degrees = 0; degrees < 360; degrees += 15)
+
+        for (int copy = -1; copy <= 1; copy++)
         {
-            bool cardinal = degrees % 90 == 0;
-            float x = degrees * 4f;
-
-            if (cardinal)
+            for (int degrees = 0; degrees < 360; degrees += 15)
             {
-                UIFactory.CreateText(strip.transform, "C" + degrees, cardinals[degrees / 90], 22,
-                                     TextAnchor.MiddleCenter, Color.white,
-                                     new Vector2(0f, 0.5f), new Vector2(0.5f, 0.5f),
-                                     new Vector2(x, 0f), new Vector2(30f, 30f));
-                continue;
-            }
+                bool cardinal = degrees % 90 == 0;
+                float x = (degrees + copy * 360) * CompassScale;
+                string id = degrees + "_" + copy;
 
-            var tick = UIFactory.CreateImage(strip.transform, "T" + degrees,
-                                             new Color(1f, 1f, 1f, 0.6f),
-                                             new Vector2(0f, 0.5f), new Vector2(0.5f, 0.5f),
-                                             new Vector2(x, 6f), new Vector2(2f, 12f));
-            tick.raycastTarget = false;
+                if (cardinal)
+                {
+                    UIFactory.CreateText(strip.transform, "C" + id, cardinals[degrees / 90], 22,
+                                         TextAnchor.MiddleCenter, Color.white,
+                                         new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f),
+                                         new Vector2(x, 0f), new Vector2(30f, 30f));
+                    continue;
+                }
+
+                var tick = UIFactory.CreateImage(strip.transform, "T" + id,
+                                                 new Color(1f, 1f, 1f, 0.6f),
+                                                 new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f),
+                                                 new Vector2(x, 6f), new Vector2(2f, 12f));
+                tick.raycastTarget = false;
+            }
         }
+
+        // The index the tape reads against. Without it the numbers slide past
+        // nothing in particular.
+        var index = UIFactory.CreateImage(root, "CompassIndex", new Color(1f, 0.85f, 0.35f),
+                                          topCentre, topCentre, new Vector2(0f, -30f),
+                                          new Vector2(2f, 46f));
+        index.raycastTarget = false;
 
         headingText = UIFactory.CreateText(root, "Heading", "000", 24, TextAnchor.MiddleCenter,
                                            Color.white, topCentre, topCentre,

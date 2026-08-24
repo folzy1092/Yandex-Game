@@ -552,9 +552,9 @@ public static class IndustrialZoneBuilder
         PlaceTarget("Truck", group.transform, TargetProps.Truck, -72f, -18f, 96f, 5f);
 
         // Tents: the supply end of the position.
-        PlaceTarget("Tent", group.transform, TargetProps.SupplyDepot, 8f, 20f, 28f, 5f);
-        PlaceTarget("Tent", group.transform, TargetProps.SupplyDepot, -40f, -34f, -18f, 5f);
-        PlaceTarget("Tent", group.transform, TargetProps.SupplyDepot, 74f, 22f, 8f, 5f);
+        PlaceTarget("Tent", group.transform, TargetProps.SupplyDepot, 8f, 20f, 28f, 6.5f);
+        PlaceTarget("Tent", group.transform, TargetProps.SupplyDepot, -40f, -34f, -18f, 6.5f);
+        PlaceTarget("Tent", group.transform, TargetProps.SupplyDepot, 74f, 22f, 8f, 6.5f);
 
         // Masts, the two landmarks visible from anywhere on the map.
         PlaceTarget("Antenna", group.transform, TargetProps.Antenna, 0f, 62f, 0f, 4f);
