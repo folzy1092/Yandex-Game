@@ -20,6 +20,22 @@ Files used (Assets/Resources/Textures/Particles/):
 CC0 requires no attribution, but Kenney's work is worth crediting anyway.
 
 
+PT Sans
+--------
+Source:  https://fonts.google.com/specimen/PT+Sans
+Author:  ParaType (Alexandra Korolkova, Olga Umpeleva, Vladimir Yefimov)
+License: SIL Open Font License 1.1
+         https://openfontlicense.org/
+
+File used (Assets/Resources/Fonts/):
+  PTSans.ttf  — the font every label in the game is drawn with
+
+Unity's built-in font ships without Cyrillic glyphs in a WebGL build, so the
+entire Russian interface rendered as blank space on the first Yandex draft
+upload. PT Sans was designed for Cyrillic and covers every character this
+UI uses; the coverage was verified by parsing the file's own cmap table.
+
+
 Downloaded models
 ------------------
 Assets/Resources/Models/Tank.glb, SupplyTent.glb, Drone.glb — sourced from

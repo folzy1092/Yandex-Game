@@ -36,10 +36,30 @@ public static class UIFactory
         }
     }
 
+    /// <summary>
+    /// The font every label in the game is drawn with.
+    ///
+    /// It has to be a real font asset shipped in the project, not one of
+    /// Unity's built-in ones. The built-in font renders every Cyrillic
+    /// character as nothing at all in a WebGL build — the whole interface
+    /// came back from the first Yandex draft upload with the Latin text and
+    /// the digits intact and every Russian word simply gone, so a menu button
+    /// reading "КАРТА: ОПОРНЫЙ ПУНКТ" drew as ":". It looks like a text
+    /// encoding bug and is not one: the built-in font's WebGL copy carries
+    /// Latin glyphs only, and a glyph that is not in the font cannot be drawn.
+    ///
+    /// PT Sans is bundled instead (Assets/Resources/Fonts, OFL, credited in
+    /// CREDITS.txt) — verified offline to cover the full Cyrillic block plus
+    /// the « » · — characters this UI uses. The built-in font stays as a
+    /// fallback so the interface still renders, in Latin, if the asset is
+    /// ever missing rather than disappearing entirely.
+    /// </summary>
     public static Font DefaultFont
     {
         get
         {
+            if (cachedFont == null)
+                cachedFont = Resources.Load<Font>("Fonts/PTSans");
             if (cachedFont == null)
                 cachedFont = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
             if (cachedFont == null)

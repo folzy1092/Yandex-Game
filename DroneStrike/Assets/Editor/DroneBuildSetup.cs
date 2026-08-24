@@ -62,7 +62,15 @@ public static class DroneBuildSetup
         PlayerSettings.WebGL.compressionFormat = WebGLCompressionFormat.Disabled;
         PlayerSettings.runInBackground = true;
 
+        // Unity's stock template centres a fixed-size canvas and draws a logo
+        // footer under it. Yandex requirement 1.6.2.1 wants the play area to
+        // reach the edge of the space the platform gives it, and the first
+        // draft upload came back framed in white with a Unity bar along the
+        // bottom. Assets/WebGLTemplates/YandexGames is the same markup Unity
+        // generates, with the canvas stretched and the footer dropped.
+        PlayerSettings.WebGL.template = "PROJECT:YandexGames";
+
         Debug.Log("Drone Strike: build settings applied — " + scenes.Count
-                  + " scenes, WebGL, compression off.");
+                  + " scenes, WebGL, compression off, Yandex template.");
     }
 }

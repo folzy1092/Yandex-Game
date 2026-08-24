@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="ru">
+  <head>
+    <meta charset="utf-8">
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+    <meta name="viewport" content="width=device-width, height=device-height, initial-scale=1.0, user-scalable=no, shrink-to-fit=yes">
+    <title>{{{ PRODUCT_NAME }}}</title>
+
+    <!--
+      The Yandex Games SDK, loaded the way Yandex's own instructions ask for
+      it: from the site root, before the player boots. YandexGames.jslib also
+      injects this script itself if it is missing, which is what keeps the
+      build runnable from a plain local web server where /sdk.js 404s — it
+      checks for an already-defined YaGames first, so having both is safe.
+    -->
+    <script src="/sdk.js"></script>
+
+    <style>
+      html, body {
+        width: 100%;
+        height: 100%;
+        padding: 0;
+        border: 0;
+        margin: 0;
+        overflow: hidden;
+        background: #0d0f0f;
+      }
+
+      /*
+        Requirement 1.6.2.1: the play area has to reach the edge of the space
+        the platform gives it. Unity's stock template centres a fixed-size
+        canvas and puts a logo footer under it, which is what showed up on the
+        first draft upload as a white frame around the game with a "Unity /
+        DroneStrike" bar along the bottom.
+
+        Requirement 1.6.2.7: interacting with the play area must not select it
+        or open a context menu — hence the user-select and the contextmenu
+        handler below.
+      */
+      #unity-canvas {
+        display: block;
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: {{{ BACKGROUND_FILENAME ? 'url(\'Build/' + BACKGROUND_FILENAME.replace(/'/g, '%27') + '\') center / cover' : BACKGROUND_COLOR }}};
+        outline: none;
+        -webkit-user-select: none;
+        user-select: none;
+        -webkit-tap-highlight-color: transparent;
+      }
+    </style>
+  </head>
+
+  <body>
+    <canvas id="unity-canvas" width={{{ WIDTH }}} height={{{ HEIGHT }}} tabindex="-1"></canvas>
+
+    <script src="Build/{{{ LOADER_FILENAME }}}"></script>
+    <script>
+      var canvas = document.querySelector("#unity-canvas");
+
+      canvas.addEventListener("contextmenu", function (event) { event.preventDefault(); });
+      canvas.addEventListener("selectstart", function (event) { event.preventDefault(); });
+
+      createUnityInstance(canvas, {
+        arguments: [],
+        dataUrl: "Build/{{{ DATA_FILENAME }}}",
+        frameworkUrl: "Build/{{{ FRAMEWORK_FILENAME }}}",
+#if USE_THREADS
+        workerUrl: "Build/{{{ WORKER_FILENAME }}}",
+#endif
+#if USE_WASM
+        codeUrl: "Build/{{{ CODE_FILENAME }}}",
+#endif
+#if SYMBOLS_FILENAME
+        symbolsUrl: "Build/{{{ SYMBOLS_FILENAME }}}",
+#endif
+        streamingAssetsUrl: "StreamingAssets",
+        companyName: {{{ JSON.stringify(COMPANY_NAME) }}},
+        productName: {{{ JSON.stringify(PRODUCT_NAME) }}},
+        productVersion: {{{ JSON.stringify(PRODUCT_VERSION) }}},
+      }).then(function (unityInstance) {
+        // YandexGames.jslib falls back to this handle when the global
+        // SendMessage is not exposed, so the ad callbacks can always reach C#.
+        window.unityInstance = unityInstance;
+      }).catch(function (message) {
+        // Deliberately not alert(): requirement 1.6.1.7 forbids a WebGL
+        // notice popping up over the game, and a browser dialog the player
+        // cannot act on is worse than a console line either way.
+        console.error(message);
+      });
+    </script>
+  </body>
+</html>

@@ -34,6 +34,14 @@ public class YandexAds : MonoBehaviour
     bool rewardGranted;
     float savedTimeScale = 1f;
 
+    /// <summary>
+    /// True while an ad is on screen. Showing an ad takes focus away from the
+    /// game, so without this the focus handler below would fight the ad
+    /// handler over the same audio state and un-mute the game underneath a
+    /// playing ad.
+    /// </summary>
+    bool adShowing;
+
     [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.BeforeSceneLoad)]
     static void Bootstrap()
     {
@@ -135,11 +143,13 @@ public class YandexAds : MonoBehaviour
 
     public void OnAdOpened(string _)
     {
+        adShowing = true;
         PauseGame(true);
     }
 
     public void OnFullscreenClosed(string wasShown)
     {
+        adShowing = false;
         PauseGame(false);
 
         Action<bool> callback = fullscreenCallback;
@@ -154,11 +164,46 @@ public class YandexAds : MonoBehaviour
 
     public void OnRewardedClosed(string wasShown)
     {
+        adShowing = false;
         PauseGame(false);
 
         Action<bool> callback = rewardedCallback;
         rewardedCallback = null;
         if (callback != null) callback(rewardGranted || wasShown == "true");
+    }
+
+    // ---------- focus ----------
+
+    /// <summary>
+    /// Requirement 1.3: the game has to go silent the moment it loses focus.
+    ///
+    /// This is checked at moderation by switching to another tab and
+    /// listening, and it is not covered by the ad pause above — a player
+    /// alt-tabbing mid-flight is the ordinary case, no ad involved. The
+    /// build also runs with runInBackground on, which Yandex needs so the
+    /// game does not freeze behind an ad frame, so nothing stops the rotors
+    /// from being audible in a background tab unless it is stopped here.
+    /// </summary>
+    void OnApplicationFocus(bool hasFocus)
+    {
+        ApplyFocus(hasFocus);
+    }
+
+    /// <summary>Mobile browsers report a hidden tab as a pause rather than as lost focus.</summary>
+    void OnApplicationPause(bool isPaused)
+    {
+        ApplyFocus(!isPaused);
+    }
+
+    void ApplyFocus(bool hasFocus)
+    {
+        // An ad owns the audio while it is on screen: the game is already
+        // silent, and un-muting here when the ad frame takes focus would put
+        // the game's sound back underneath it.
+        if (adShowing) return;
+
+        AudioListener.pause = !hasFocus;
+        AudioListener.volume = hasFocus ? 1f : 0f;
     }
 
     void PauseGame(bool paused)
