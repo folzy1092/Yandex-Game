@@ -20,12 +20,20 @@ Files used (Assets/Resources/Textures/Particles/):
 CC0 requires no attribution, but Kenney's work is worth crediting anyway.
 
 
-Downloaded models (already in the project before this file was written)
---------------------------------------------------------------------------
+Downloaded models
+------------------
 Assets/Resources/Models/Tank.glb, SupplyTent.glb, Drone.glb — sourced from
 Kenney.nl / public CC0 model sites, per the setup steps in
 DroneStrike/README.md. Scale is unverified per-model and corrected at build
 time by TargetProps.NormalizeModelSize.
+
+Assets/Resources/Models/Warhead.glb — "Missile" by Poly by Google
+Source:  https://poly.pizza/m/dPVCvXP-S58
+License: Creative Commons Attribution 3.0 (CC-BY)
+         https://creativecommons.org/licenses/by/3.0/
+Attribution: "Missile" by Poly by Google, via poly.pizza, CC-BY 3.0.
+Orientation is unverified — see the comment on WarheadModelPitch/Yaw/Roll in
+DroneFactory.cs if it comes in facing the wrong way.
 
 
 Everything else — every other texture, material, sound and 3D shape in the

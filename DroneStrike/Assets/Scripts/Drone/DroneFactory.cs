@@ -203,6 +203,23 @@ public static class DroneFactory
     /// player has already left does not sell an upgrade — the charge sitting in
     /// front of them all mission does.
     /// </summary>
+    /// <summary>
+    /// Assets/Resources/Models/Warhead.glb — "Missile" by Poly by Google
+    /// (poly.pizza/m/dPVCvXP-S58, CC-BY, credited in CREDITS.txt).
+    ///
+    /// Its own rest orientation has never been seen in an editor, the same
+    /// situation every downloaded model in this project started in. These
+    /// three are the numbers to change if the next screenshot shows it lying
+    /// on its side, nose backwards, or upside down — nothing else about the
+    /// mount needs to move.
+    /// </summary>
+    const float WarheadModelPitch = 0f;
+    const float WarheadModelYaw = 0f;
+    const float WarheadModelRoll = 0f;
+
+    /// <summary>Nose-to-tail length the model is rescaled to, in metres, before the loadout scale is applied.</summary>
+    const float WarheadModelLength = 0.42f;
+
     static void BuildWarheadView(Transform cameraTransform, WarheadType warhead, int tier,
                                  Color accent)
     {
@@ -219,6 +236,21 @@ public static class DroneFactory
         // to the airframe the way the real thing is, not held out in empty air.
         root.transform.localPosition = new Vector3(0f, -0.22f, 0.40f);
         root.transform.localRotation = Quaternion.Euler(70f, 0f, 0f);
+
+        GameObject downloaded = ModelLibrary.Instantiate("Warhead", root.transform);
+        if (downloaded != null)
+        {
+            // Pitch and yaw are unverified against the actual mesh — the same
+            // situation Tank.glb and SupplyTent.glb started in, and the same
+            // fix: these are the two numbers to turn once it is visible in a
+            // build, rather than anything to do with the model itself.
+            downloaded.transform.localRotation =
+                Quaternion.Euler(WarheadModelPitch, WarheadModelYaw, WarheadModelRoll);
+            FitWarheadModelLength(downloaded, WarheadModelLength);
+
+            root.transform.localScale = Vector3.one * scale;
+            return;
+        }
         root.transform.localScale = Vector3.one * scale;
 
         const float tubeRadius = 0.072f;
@@ -282,6 +314,39 @@ public static class DroneFactory
                              new Vector3(0.008f, 0.085f, 0.075f), body);
             fin.transform.localRotation = spin;
         }
+    }
+
+    /// <summary>
+    /// Rescales a downloaded model uniformly so its longest dimension comes
+    /// out at <paramref name="desiredLength"/> metres, whatever units the
+    /// source file was authored in — the same reasoning TargetProps.
+    /// NormalizeModelSize uses for the tank and the tent, just runnable at
+    /// play time rather than only from an Editor script.
+    ///
+    /// Measured at identity rotation and restored afterwards: Renderer.bounds
+    /// is a world-space axis-aligned box, which only reports the model's true
+    /// size — rather than an inflated one — when nothing above it is rotated
+    /// at the moment of measuring.
+    /// </summary>
+    static void FitWarheadModelLength(GameObject model, float desiredLength)
+    {
+        Renderer[] renderers = model.GetComponentsInChildren<Renderer>();
+        if (renderers.Length == 0) return;
+
+        Transform t = model.transform;
+        Vector3 originalPosition = t.position;
+        Quaternion originalRotation = t.rotation;
+        t.SetPositionAndRotation(Vector3.zero, Quaternion.identity);
+
+        Bounds bounds = renderers[0].bounds;
+        for (int i = 1; i < renderers.Length; i++) bounds.Encapsulate(renderers[i].bounds);
+
+        t.SetPositionAndRotation(originalPosition, originalRotation);
+
+        float longest = Mathf.Max(bounds.size.x, Mathf.Max(bounds.size.y, bounds.size.z));
+        if (longest < 0.0001f) return;
+
+        t.localScale *= desiredLength / longest;
     }
 
     // ---------- helpers ----------

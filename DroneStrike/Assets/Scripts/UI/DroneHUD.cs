@@ -279,9 +279,15 @@ public class DroneHUD : MonoBehaviour
         batteryFill.type = Image.Type.Filled;
         batteryFill.fillMethod = Image.FillMethod.Horizontal;
 
-        batteryText = UIFactory.CreateText(root, "Battery", "100%", 30, TextAnchor.UpperLeft,
+        // Right-aligned rather than left-aligned, and its box sits entirely
+        // left of the fill pill instead of straddling it — a left-aligned box
+        // that overlapped the pill only worked by coincidence for short
+        // values ("9%"); "100%" is wide enough to draw straight across the
+        // green fill it is meant to sit beside. Right-aligning means the text
+        // grows further left as it gets wider, never any closer to the pill.
+        batteryText = UIFactory.CreateText(root, "Battery", "100%", 30, TextAnchor.UpperRight,
                                            Color.white, topRight, topRight,
-                                           new Vector2(-196f, -220f), new Vector2(140f, 40f));
+                                           new Vector2(-322f, -220f), new Vector2(140f, 40f));
 
         altitudeText = UIFactory.CreateText(root, "Altitude", "0М", 30, TextAnchor.UpperRight,
                                             Color.white, topRight, topRight,

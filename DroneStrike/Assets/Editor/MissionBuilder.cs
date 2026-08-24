@@ -183,6 +183,7 @@ public static class MissionBuilder
         targetCount = BuildTargets(position.transform);
         BuildFieldWorks(position.transform);
         BuildClutter(position.transform);
+        BuildGrass(position.transform);
 
         BuildWoodland();
 
@@ -627,7 +628,7 @@ public static class MissionBuilder
         Scatter(group.transform, TargetProps.Antenna, profile.antennas, 4.5f);
 
         for (int i = 0; i < profile.patrols; i++)
-            BuildPatrolTruck(group.transform, i * (patrolWaypoints.Length / Mathf.Max(1, profile.patrols)));
+            BuildPatrolTruck(group.transform, (float)i / profile.patrols);
 
         return group.transform.childCount;
     }
@@ -657,21 +658,58 @@ public static class MissionBuilder
         }
     }
 
-    static void BuildPatrolTruck(Transform parent, int startCorner)
+    /// <summary>
+    /// Places a patrol truck at a fraction of the way around the loop by
+    /// actual distance, not by corner index.
+    ///
+    /// Corner indices only give as many even starting points as there are
+    /// corners — spacing three trucks across a four-corner loop by index
+    /// (`4 / 3` in integer arithmetic) put them at corners 0, 1 and 2: three
+    /// adjacent corners out of four, bunched onto one side of the loop rather
+    /// than spread around it. Walking a fraction of the loop's actual
+    /// perimeter instead means the spacing is even for any number of trucks,
+    /// independent of how many corners the loop happens to have.
+    /// </summary>
+    static void BuildPatrolTruck(Transform parent, float loopFraction)
     {
         Vector3[] waypoints = GroundedPatrolWaypoints();
-        Vector3 start = waypoints[startCorner % waypoints.Length];
+
+        var lengths = new float[waypoints.Length];
+        float totalLength = 0f;
+        for (int i = 0; i < waypoints.Length; i++)
+        {
+            lengths[i] = Vector3.Distance(waypoints[i], waypoints[(i + 1) % waypoints.Length]);
+            totalLength += lengths[i];
+        }
+
+        float targetDistance = Mathf.Repeat(loopFraction, 1f) * totalLength;
+        float walked = 0f;
+        Vector3 start = waypoints[0];
+        int startWaypoint = 0;
+
+        for (int i = 0; i < waypoints.Length; i++)
+        {
+            if (walked + lengths[i] >= targetDistance)
+            {
+                float t = lengths[i] > 0.0001f ? (targetDistance - walked) / lengths[i] : 0f;
+                start = Vector3.Lerp(waypoints[i], waypoints[(i + 1) % waypoints.Length], t);
+                startWaypoint = (i + 1) % waypoints.Length;
+                break;
+            }
+
+            walked += lengths[i];
+        }
 
         // Faced along the leg it is about to drive, so it does not spend its
         // first seconds pivoting on the spot.
-        Vector3 next = waypoints[(startCorner + 1) % waypoints.Length];
-        Vector3 heading = next - start;
+        Vector3 heading = waypoints[startWaypoint] - start;
         float yaw = Mathf.Atan2(heading.x, heading.z) * Mathf.Rad2Deg;
 
         Target target = TargetProps.Truck(parent, start, yaw, palette);
 
         var mover = target.gameObject.AddComponent<PatrolMover>();
         mover.waypoints = waypoints;
+        mover.startWaypoint = startWaypoint;
         mover.speed = 6f;
 
         // Not claimed: it moves, so the ground it occupies is the whole road,
@@ -898,6 +936,68 @@ public static class MissionBuilder
     /// so the ground has something on it between the targets, which is most of
     /// what makes a place look occupied.
     /// </summary>
+    /// <summary>
+    /// Cross-billboard grass clumps scattered across the open ground of the
+    /// position. A flat-shaded procedural ground texture read as bare dirt
+    /// from altitude with nothing breaking up the surface; even without a
+    /// blade texture, a few hundred small green cards crossed at right angles
+    /// throws real shadow and silhouette variation across the terrain, which
+    /// is most of what makes ground read as grass rather than paint.
+    ///
+    /// Kept off the road and out of anything already claimed rather than run
+    /// through the full rejection-sampling loop every other prop uses — grass
+    /// overlapping itself is what grass actually does, so there is nothing to
+    /// protect it from except driving through the middle of a target.
+    /// </summary>
+    static void BuildGrass(Transform parent)
+    {
+        var group = new GameObject("Grass");
+        group.transform.SetParent(parent, false);
+
+        Material foliage = DroneMaterials.Load("Mat_Foliage");
+
+        float halfX = profile.roadHalfX + 24f;
+        float halfZ = profile.roadHalfZ + 24f;
+
+        const int attempts = 340;
+        for (int i = 0; i < attempts; i++)
+        {
+            float x = Random.Range(-halfX, halfX);
+            float z = Random.Range(-halfZ, halfZ);
+
+            if (!ClearOfRoad(x, z, RoadClearance * 0.55f)) continue;
+            if (!IsFree(x, z, 1.4f)) continue;
+
+            BuildGrassTuft(group.transform, foliage, x, z);
+        }
+    }
+
+    static void BuildGrassTuft(Transform parent, Material foliage, float x, float z)
+    {
+        Vector3 groundPos = OnGround(x, z);
+        float height = Random.Range(0.5f, 0.9f);
+        float width = Random.Range(0.6f, 0.95f);
+        float yaw = Random.Range(0f, 360f);
+
+        for (int i = 0; i < 2; i++)
+        {
+            // A Quad's own plane is already vertical (XY, facing Z) at
+            // identity rotation, so a bare yaw is enough to stand it upright
+            // and spin it to face any direction — no extra tilt needed.
+            var blade = GameObject.CreatePrimitive(PrimitiveType.Quad);
+            blade.name = "Blade";
+            blade.transform.SetParent(parent, false);
+            blade.transform.position = groundPos + Vector3.up * (height * 0.5f);
+            blade.transform.rotation = Quaternion.Euler(0f, yaw + i * 90f, 0f);
+            blade.transform.localScale = new Vector3(width, height, 1f);
+
+            var renderer = blade.GetComponent<Renderer>();
+            renderer.sharedMaterial = foliage;
+            renderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+            Object.DestroyImmediate(blade.GetComponent<Collider>());
+        }
+    }
+
     static void BuildClutter(Transform parent)
     {
         var group = new GameObject("Clutter");
