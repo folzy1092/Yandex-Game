@@ -167,7 +167,6 @@ public static class DroneMaterials
     {
         SaveAdditiveFromFile("Mat_FireReal", "fire_01", new Color(1f, 0.55f, 0.2f));
         SaveTransparentFromFile("Mat_SmokeReal", "smoke_04", new Color(0.30f, 0.29f, 0.28f));
-        SaveTransparentFromFile("Mat_ScorchGround", "scorch_01", new Color(0.05f, 0.05f, 0.05f));
     }
 
     static void SaveAdditiveFromFile(string materialName, string fileName, Color tint)

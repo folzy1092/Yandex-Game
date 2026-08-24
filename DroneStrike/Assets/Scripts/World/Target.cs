@@ -159,7 +159,6 @@ public class Target : MonoBehaviour
         transform.rotation *= Quaternion.Euler(
             UnityEngine.Random.Range(-8f, 8f), 0f, UnityEngine.Random.Range(-8f, 8f));
 
-        SpawnGroundScorch();
         SpawnFire();
     }
 
@@ -181,32 +180,6 @@ public class Target : MonoBehaviour
             var box = GetComponent<BoxCollider>();
             return box != null ? box.center : Vector3.up;
         }
-    }
-
-    /// <summary>
-    /// A scorch mark burned into the ground under the wreck. Cheap, and it is
-    /// the one cue that still reads after the flame has burned out — the ground
-    /// itself stays marked as long as the wreck does.
-    /// </summary>
-    void SpawnGroundScorch()
-    {
-        Material scorch = Resources.Load<Material>("Materials/Mat_ScorchGround");
-        if (scorch == null) return;
-
-        float radius = FootprintRadius;
-
-        var quad = GameObject.CreatePrimitive(PrimitiveType.Quad);
-        quad.name = "GroundScorch";
-        quad.transform.SetParent(transform, false);
-        quad.transform.localPosition = FootprintCentre + Vector3.down * (FootprintCentre.y - 0.02f);
-        quad.transform.localRotation = Quaternion.Euler(90f, UnityEngine.Random.Range(0f, 360f), 0f);
-        quad.transform.localScale = Vector3.one * radius * 2.6f;
-
-        UnityEngine.Object.Destroy(quad.GetComponent<Collider>());
-        var renderer = quad.GetComponent<Renderer>();
-        renderer.sharedMaterial = scorch;
-        renderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
-        renderer.receiveShadows = false;
     }
 
     /// <summary>
