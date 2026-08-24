@@ -26,7 +26,15 @@ public class MainMenuUI : MonoBehaviour
     readonly Image[] cardFrames = new Image[DroneCount];
     readonly Text[] cardActions = new Text[DroneCount];
 
+    /// <summary>
+    /// How many cards the screen has room for. The arrays above are sized from
+    /// it, so it has to be a compile-time constant — <see cref="CardCount"/> is
+    /// what the loops actually walk, so adding a fourth airframe to the roster
+    /// without widening the screen shows the first three rather than throwing.
+    /// </summary>
     const int DroneCount = 3;
+
+    static int CardCount { get { return Mathf.Min(DroneCount, DroneLoadout.Models.Length); } }
 
     Button compactButton;
     Button standardButton;
@@ -142,10 +150,11 @@ public class MainMenuUI : MonoBehaviour
         const float cardHeight = 340f;
         const float gap = 30f;
 
-        float span = DroneCount * cardWidth + (DroneCount - 1) * gap;
+        int count = CardCount;
+        float span = count * cardWidth + (count - 1) * gap;
         float startX = -span * 0.5f + cardWidth * 0.5f;
 
-        for (int i = 0; i < DroneCount; i++)
+        for (int i = 0; i < count; i++)
         {
             DroneModel model = DroneLoadout.Models[i];
             int index = i;                     // captured per iteration, not shared
@@ -244,8 +253,10 @@ public class MainMenuUI : MonoBehaviour
     {
         int selected = DroneLoadout.SelectedIndex;
 
-        for (int i = 0; i < DroneCount; i++)
+        for (int i = 0; i < CardCount; i++)
         {
+            if (cardFrames[i] == null || cardButtons[i] == null) continue;
+
             DroneModel model = DroneLoadout.Models[i];
             bool unlocked = DroneLoadout.IsUnlocked(model);
             bool active = unlocked && i == selected;
