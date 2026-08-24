@@ -477,7 +477,7 @@ public static class MissionBuilder
         foreach (Vector2 corner in corners)
         {
             Slab(group.transform, "Junction", corner.x, corner.y, 0f,
-                 RoadHalfWidth * 2f, RoadHalfWidth * 2f, 0.03f, 0.12f, surface);
+                 RoadHalfWidth * 2f, RoadHalfWidth * 2f, 0.03f, 0.12f, surface, 4f);
         }
     }
 
@@ -507,11 +507,11 @@ public static class MissionBuilder
             // two coplanar slabs of the same material z-fight. A verge that
             // breaks at a junction is what a real one does anyway.
             Slab(parent, "Shoulder", midpoint.x + offset.x, midpoint.z + offset.z, yaw,
-                 2.6f, length, 0.015f, 0.09f, shoulder);
+                 2.6f, length, 0.015f, 0.09f, shoulder, 3f);
         }
 
         Slab(parent, "Surface", midpoint.x, midpoint.z, yaw,
-             RoadHalfWidth * 2f, length, 0.03f, 0.12f, surface);
+             RoadHalfWidth * 2f, length, 0.03f, 0.12f, surface, 4f);
 
         // A graded forest track has no paint on it — the lines are what turns
         // it back into a highway. Ruts from repeated traffic stand in instead:
@@ -523,7 +523,7 @@ public static class MissionBuilder
             {
                 Vector3 offset = sideways * (side * RoadHalfWidth * 0.42f);
                 Slab(parent, "Rut", midpoint.x + offset.x, midpoint.z + offset.z, yaw,
-                     0.9f, length - 1f, 0.032f, 0.02f, ruts);
+                     0.9f, length - 1f, 0.032f, 0.02f, ruts, 2.5f);
             }
             return;
         }
@@ -559,7 +559,8 @@ public static class MissionBuilder
 
     /// <summary>A flat slab laid on the ground: road surface, marking or shoulder.</summary>
     static void Slab(Transform parent, string name, float x, float z, float yaw,
-                     float width, float length, float lift, float thickness, Material material)
+                     float width, float length, float lift, float thickness, Material material,
+                     float metresPerTile = 0f)
     {
         var slab = GameObject.CreatePrimitive(PrimitiveType.Cube);
         slab.name = name;
@@ -568,8 +569,27 @@ public static class MissionBuilder
         slab.transform.rotation = Quaternion.Euler(0f, yaw, 0f);
         slab.transform.localScale = new Vector3(width, thickness, length);
 
-        if (material != null) slab.GetComponent<Renderer>().sharedMaterial = material;
+        var renderer = slab.GetComponent<Renderer>();
+        if (material != null) renderer.sharedMaterial = material;
         Object.DestroyImmediate(slab.GetComponent<Collider>());
+
+        // A Cube's top face always maps 0..1 in UV regardless of how the cube
+        // is scaled, and the material's own tiling is one fixed number shared
+        // by every slab in the scene. Left alone, a short road segment and a
+        // long one stretch the same texture tile across completely different
+        // real-world spans — one comes out coarse, the other compressed, and
+        // the seam between every segment is visible because neither one lines
+        // up with its neighbour. Overriding the tiling per-instance with the
+        // slab's own real dimensions is what makes it read as one continuous
+        // surface instead of a row of individually stretched boards.
+        if (metresPerTile > 0f)
+        {
+            var block = new MaterialPropertyBlock();
+            renderer.GetPropertyBlock(block);
+            block.SetVector("_MainTex_ST",
+                new Vector4(width / metresPerTile, length / metresPerTile, 0f, 0f));
+            renderer.SetPropertyBlock(block);
+        }
     }
 
     /// <summary>
@@ -826,8 +846,45 @@ public static class MissionBuilder
     }
 
     /// <summary>A long low mound of earth. Solid: the drone has to fly over it.</summary>
+    /// <summary>
+    /// Its own real-world length has never been seen in an editor — the same
+    /// situation every other downloaded model in this project started in.
+    /// This is the number to change if the segments come in overlapping or
+    /// leaving visible gaps once the trench is actually visible in a build.
+    /// </summary>
+    const float TrenchSegmentSpan = 4.5f;
+    const float TrenchModelYawOffset = 0f;
+
+    /// <summary>
+    /// A dug-in sandbag line: a row of the same trench-wall model repeated
+    /// along the claimed span, the way a real one is built from sections
+    /// rather than a single stretched piece. Falls back to a plain earth
+    /// mound if the model was never imported, so a project without it still
+    /// builds a playable map.
+    /// </summary>
     static void Berm(Transform parent, Material dirt, float x, float z, float length, float yaw)
     {
+        Vector3 direction = Quaternion.Euler(0f, yaw, 0f) * Vector3.forward;
+        int segments = Mathf.Max(1, Mathf.RoundToInt(length / TrenchSegmentSpan));
+
+        bool anyPlaced = false;
+
+        for (int i = 0; i < segments; i++)
+        {
+            float along = -length * 0.5f + (i + 0.5f) * (length / segments);
+            Vector3 segmentPos = OnGround(x + direction.x * along, z + direction.z * along, 0f);
+
+            GameObject trench = ModelLibrary.Instantiate("Trench", parent, 1f,
+                                                          yaw + TrenchModelYawOffset);
+            if (trench == null) break;
+
+            NormalizeTrenchSegment(trench, TrenchSegmentSpan);
+            trench.transform.position = segmentPos;
+            anyPlaced = true;
+        }
+
+        if (anyPlaced) return;
+
         var berm = GameObject.CreatePrimitive(PrimitiveType.Cube);
         berm.name = "Berm";
         berm.transform.SetParent(parent, false);
@@ -835,6 +892,33 @@ public static class MissionBuilder
         berm.transform.rotation = Quaternion.Euler(0f, yaw, 0f);
         berm.transform.localScale = new Vector3(4.5f, 2.2f, length);
         berm.GetComponent<Renderer>().sharedMaterial = dirt;
+    }
+
+    /// <summary>
+    /// Rescales a single trench segment so its longest horizontal side comes
+    /// out at <paramref name="desiredSpan"/> — the same reasoning
+    /// TargetProps.NormalizeModelSize uses for the tank and the tent, kept as
+    /// its own small copy here rather than reaching into that class, since
+    /// this is the only place outside it that needs it.
+    /// </summary>
+    static void NormalizeTrenchSegment(GameObject model, float desiredSpan)
+    {
+        Renderer[] renderers = model.GetComponentsInChildren<Renderer>();
+        if (renderers.Length == 0) return;
+
+        Vector3 originalPosition = model.transform.position;
+        Quaternion originalRotation = model.transform.rotation;
+        model.transform.SetPositionAndRotation(Vector3.zero, Quaternion.identity);
+
+        Bounds bounds = renderers[0].bounds;
+        for (int i = 1; i < renderers.Length; i++) bounds.Encapsulate(renderers[i].bounds);
+
+        model.transform.SetPositionAndRotation(originalPosition, originalRotation);
+
+        float longest = Mathf.Max(bounds.size.x, bounds.size.z);
+        if (longest < 0.0001f) return;
+
+        model.transform.localScale *= desiredSpan / longest;
     }
 
     static void SandbagWall(Transform parent, Material sandbag, float x, float z,
@@ -972,29 +1056,40 @@ public static class MissionBuilder
         }
     }
 
+    /// <summary>
+    /// A small clump of tapered blades rather than a crossed pair of flat
+    /// quads. A flat quad has no volume: seen close to edge-on it is a razor
+    /// and seen face-on it is a solid rectangle with nothing shaping it, and
+    /// with no grass texture to cut its silhouette it just read as a small
+    /// black card — a lit, tapered cone has real surface curvature to catch
+    /// light from any angle, which is what actually reads as a blade rather
+    /// than a sheet of paper stuck in the ground.
+    /// </summary>
     static void BuildGrassTuft(Transform parent, Material foliage, float x, float z)
     {
         Vector3 groundPos = OnGround(x, z);
-        float height = Random.Range(0.5f, 0.9f);
-        float width = Random.Range(0.6f, 0.95f);
-        float yaw = Random.Range(0f, 360f);
+        int bladeCount = Random.Range(3, 6);
 
-        for (int i = 0; i < 2; i++)
+        for (int i = 0; i < bladeCount; i++)
         {
-            // A Quad's own plane is already vertical (XY, facing Z) at
-            // identity rotation, so a bare yaw is enough to stand it upright
-            // and spin it to face any direction — no extra tilt needed.
-            var blade = GameObject.CreatePrimitive(PrimitiveType.Quad);
-            blade.name = "Blade";
-            blade.transform.SetParent(parent, false);
-            blade.transform.position = groundPos + Vector3.up * (height * 0.5f);
-            blade.transform.rotation = Quaternion.Euler(0f, yaw + i * 90f, 0f);
-            blade.transform.localScale = new Vector3(width, height, 1f);
+            float height = Random.Range(0.32f, 0.62f);
+            float radius = Random.Range(0.05f, 0.09f);
 
-            var renderer = blade.GetComponent<Renderer>();
+            Vector3 offset = new Vector3(Random.Range(-0.3f, 0.3f), 0f, Random.Range(-0.3f, 0.3f));
+            Quaternion lean = Quaternion.Euler(Random.Range(-16f, 16f), Random.Range(0f, 360f),
+                                               Random.Range(-16f, 16f));
+
+            var blade = new GameObject("Blade");
+            blade.transform.SetParent(parent, false);
+            blade.transform.position = groundPos + offset + lean * Vector3.up * (height * 0.5f);
+            blade.transform.rotation = lean;
+
+            var filter = blade.AddComponent<MeshFilter>();
+            filter.sharedMesh = PrimitiveMesh.Frustum(radius, 0f, height);
+
+            var renderer = blade.AddComponent<MeshRenderer>();
             renderer.sharedMaterial = foliage;
             renderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
-            Object.DestroyImmediate(blade.GetComponent<Collider>());
         }
     }
 

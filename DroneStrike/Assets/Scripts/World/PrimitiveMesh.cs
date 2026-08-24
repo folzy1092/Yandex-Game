@@ -193,10 +193,9 @@ public static class PrimitiveMesh
     public static Mesh Drape(float width, float depth, float sag, int resolution, int seed)
     {
         resolution = Mathf.Max(2, resolution);
+        int stride = resolution + 1;
 
-        var vertices = new List<Vector3>();
-        var uvs = new List<Vector2>();
-        var triangles = new List<int>();
+        var grid = new Vector3[stride, stride];
 
         for (int z = 0; z <= resolution; z++)
         {
@@ -216,35 +215,82 @@ public static class PrimitiveMesh
                 float jitter = (Mathf.PerlinNoise(seed + x * 0.6f, seed + z * 0.6f) - 0.5f) * sag * 0.3f;
                 float py = -bowl * sag + jitter;
 
-                vertices.Add(new Vector3(px, py, pz));
-                uvs.Add(new Vector2(u, v));
+                grid[x, z] = new Vector3(px, py, pz);
             }
         }
 
-        int stride = resolution + 1;
-        for (int z = 0; z < resolution; z++)
+        var vertices = new List<Vector3>();
+        var normals = new List<Vector3>();
+        var uvs = new List<Vector2>();
+        var triangles = new List<int>();
+
+        // Two complete, separate copies of the grid — one wound and normalled
+        // for the top, one for the underside — rather than one set of shared
+        // vertices carrying triangles in both directions.
+        //
+        // The first version did exactly that: every vertex belonged to both
+        // an "up" triangle and a "down" one, and RecalculateNormals averages
+        // every triangle a vertex touches into one normal. Averaging two
+        // near-opposite contributions collapses towards zero, and a
+        // near-zero normal lights as though it is facing away from every
+        // light in the scene — which is why a net sagging gently in full
+        // daylight rendered as a flat black silhouette. Separate vertices per
+        // side means there is nothing to average away.
+        for (int side = 0; side < 2; side++)
         {
-            for (int x = 0; x < resolution; x++)
+            int baseIndex = vertices.Count;
+
+            for (int z = 0; z <= resolution; z++)
             {
-                int a = z * stride + x;
-                int b = a + 1;
-                int c = a + stride;
-                int d = c + 1;
+                for (int x = 0; x <= resolution; x++)
+                {
+                    vertices.Add(grid[x, z]);
+                    uvs.Add(new Vector2((float)x / resolution, (float)z / resolution));
 
-                triangles.Add(a); triangles.Add(c); triangles.Add(b);
-                triangles.Add(b); triangles.Add(c); triangles.Add(d);
+                    // A proper slope normal from the grid's own neighbours,
+                    // not a flat "up" guess — the bowl's sides need to shade
+                    // differently from its centre to read as curved at all.
+                    Vector3 left = grid[Mathf.Max(x - 1, 0), z];
+                    Vector3 right = grid[Mathf.Min(x + 1, resolution), z];
+                    Vector3 back = grid[x, Mathf.Max(z - 1, 0)];
+                    Vector3 forward = grid[x, Mathf.Min(z + 1, resolution)];
 
-                triangles.Add(a); triangles.Add(b); triangles.Add(c);
-                triangles.Add(b); triangles.Add(d); triangles.Add(c);
+                    Vector3 normal = Vector3.Cross(forward - back, right - left).normalized;
+                    if (normal.y < 0f) normal = -normal;   // "up" for side 0, regardless of winding above
+
+                    normals.Add(side == 0 ? normal : -normal);
+                }
+            }
+
+            for (int z = 0; z < resolution; z++)
+            {
+                for (int x = 0; x < resolution; x++)
+                {
+                    int a = baseIndex + z * stride + x;
+                    int b = a + 1;
+                    int c = a + stride;
+                    int d = c + 1;
+
+                    if (side == 0)
+                    {
+                        triangles.Add(a); triangles.Add(c); triangles.Add(b);
+                        triangles.Add(b); triangles.Add(c); triangles.Add(d);
+                    }
+                    else
+                    {
+                        triangles.Add(a); triangles.Add(b); triangles.Add(c);
+                        triangles.Add(b); triangles.Add(d); triangles.Add(c);
+                    }
+                }
             }
         }
 
         var mesh = new Mesh();
         mesh.name = "Drape";
         mesh.SetVertices(vertices);
+        mesh.SetNormals(normals);
         mesh.SetUVs(0, uvs);
         mesh.SetTriangles(triangles, 0);
-        mesh.RecalculateNormals();
         mesh.RecalculateBounds();
         return mesh;
     }

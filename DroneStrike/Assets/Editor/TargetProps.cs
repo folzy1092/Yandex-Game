@@ -58,6 +58,7 @@ public static class TargetProps
         if (tankModel != null)
         {
             NormalizeModelSize(root, tankModel, TankFootprint);
+            RecentreModelOnGround(root, tankModel);
             FitColliderToModel(root, tankModel);
             return root.GetComponent<Target>();
         }
@@ -238,6 +239,7 @@ public static class TargetProps
         if (tentModel != null)
         {
             NormalizeModelSize(root, tentModel, TentFootprint);
+            RecentreModelOnGround(root, tentModel);
             FitColliderToModel(root, tentModel);
             return root.GetComponent<Target>();
         }
@@ -501,6 +503,34 @@ public static class TargetProps
         if (correction > 0.75f && correction < 1.33f) return;
 
         modelInstance.transform.localScale *= correction;
+    }
+
+    /// <summary>
+    /// Shifts the model so its footprint is centred on the root's own origin
+    /// horizontally, with its lowest point sitting exactly at the root — not
+    /// wherever the source file's own pivot happened to leave it.
+    ///
+    /// A downloaded mesh is rarely authored with its geometry centred on
+    /// (0,0,0); some exporters put the origin at a corner, a tie-down point, a
+    /// tent peg. Everything else about a target — the highlight marker under
+    /// it, the radius other props are kept clear of during scattering — is
+    /// measured from the root's position, which is exactly where the object
+    /// was placed on the map. Leaving the visible mesh sitting off at whatever
+    /// offset the file happened to use is what let a tent's highlight glow sit
+    /// in open ground next to it while the tent itself leaned into a berm or a
+    /// tank's footprint a few metres away — the two were never actually at the
+    /// same point to begin with.
+    /// </summary>
+    static void RecentreModelOnGround(GameObject root, GameObject modelInstance)
+    {
+        Bounds bounds;
+        if (!MeasureLocalBounds(root, modelInstance, out bounds)) return;
+
+        // Horizontal centre, but the vertical offset takes the model down to
+        // its own lowest point rather than its centre — recentring vertically
+        // too would sink half of it through the ground.
+        Vector3 offset = new Vector3(bounds.center.x, bounds.min.y, bounds.center.z);
+        modelInstance.transform.localPosition -= offset;
     }
 
     /// <summary>

@@ -35,6 +35,13 @@ Attribution: "Missile" by Poly by Google, via poly.pizza, CC-BY 3.0.
 Orientation is unverified — see the comment on WarheadModelPitch/Yaw/Roll in
 DroneFactory.cs if it comes in facing the wrong way.
 
+Assets/Resources/Models/Trench.glb — "Sack Trench" by Quaternius
+Source:  https://poly.pizza/m/LW3jwpPfiN
+License: Creative Commons CC0 1.0 Universal (public domain)
+         https://creativecommons.org/publicdomain/zero/1.0/
+Scale and segment length are unverified — see TrenchSegmentSpan and
+TrenchModelYawOffset at the top of MissionBuilder's Berm() method.
+
 
 Everything else — every other texture, material, sound and 3D shape in the
 game — is generated procedurally at build or run time from code, and carries

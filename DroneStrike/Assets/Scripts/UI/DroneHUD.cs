@@ -273,6 +273,18 @@ public class DroneHUD : MonoBehaviour
                                          Color.white, topRight, topRight,
                                          new Vector2(-60f, -150f), new Vector2(400f, 60f));
 
+        // An outline and a dark track behind the fill — without them there was
+        // nothing marking how much bar there used to be, so a half-empty
+        // battery and a nearly-full one both just looked like "a green bar",
+        // legible only by reading the percentage next to it.
+        UIFactory.CreateImage(root, "BatteryOutline", new Color(1f, 1f, 1f, 0.55f),
+                             topRight, topRight, new Vector2(-258f, -230f),
+                             new Vector2(56f, 28f));
+
+        UIFactory.CreateImage(root, "BatteryTrack", new Color(0.05f, 0.06f, 0.05f, 0.9f),
+                             topRight, topRight, new Vector2(-260f, -232f),
+                             new Vector2(52f, 24f));
+
         batteryFill = UIFactory.CreateImage(root, "BatteryFill", Color.green,
                                             topRight, topRight, new Vector2(-260f, -232f),
                                             new Vector2(52f, 24f));
