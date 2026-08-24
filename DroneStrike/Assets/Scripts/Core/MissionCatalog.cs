@@ -57,7 +57,7 @@ public static class MissionCatalog
             sceneName = "Mission3",
             displayName = "ПЕРЕКРЁСТОК",
             tagline = "Сумерки, широкая развязка, самая насыщенная карта.",
-            targetCount = 19,
+            targetCount = 16,
             accent = new Color(0.62f, 0.38f, 0.28f)
         }
     };

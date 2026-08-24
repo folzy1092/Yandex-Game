@@ -179,6 +179,77 @@ public static class PrimitiveMesh
     }
 
     /// <summary>
+    /// A sagging sheet: a grid that hangs low in the middle and high at its
+    /// edges, the way netting strung between corner poles actually sits,
+    /// rather than a rigid flat plane. A flat quad the size of a camouflage
+    /// net reads as a solid painted rhombus floating over whatever it is
+    /// meant to be draped across — nothing about a taut, perfectly planar
+    /// surface says "fabric".
+    ///
+    /// Built double-sided (both triangle windings at every quad) so it still
+    /// reads correctly seen from underneath, which a drone flying beneath one
+    /// of these will do.
+    /// </summary>
+    public static Mesh Drape(float width, float depth, float sag, int resolution, int seed)
+    {
+        resolution = Mathf.Max(2, resolution);
+
+        var vertices = new List<Vector3>();
+        var uvs = new List<Vector2>();
+        var triangles = new List<int>();
+
+        for (int z = 0; z <= resolution; z++)
+        {
+            for (int x = 0; x <= resolution; x++)
+            {
+                float u = (float)x / resolution;
+                float v = (float)z / resolution;
+
+                float px = (u - 0.5f) * width;
+                float pz = (v - 0.5f) * depth;
+
+                // 0 at the edge, 1 in the middle — the sheet is pinned at its
+                // corners and sags furthest from them.
+                float edgeFactor = Mathf.Min(Mathf.Min(u, 1f - u), Mathf.Min(v, 1f - v)) * 2f;
+                float bowl = edgeFactor * edgeFactor;
+
+                float jitter = (Mathf.PerlinNoise(seed + x * 0.6f, seed + z * 0.6f) - 0.5f) * sag * 0.3f;
+                float py = -bowl * sag + jitter;
+
+                vertices.Add(new Vector3(px, py, pz));
+                uvs.Add(new Vector2(u, v));
+            }
+        }
+
+        int stride = resolution + 1;
+        for (int z = 0; z < resolution; z++)
+        {
+            for (int x = 0; x < resolution; x++)
+            {
+                int a = z * stride + x;
+                int b = a + 1;
+                int c = a + stride;
+                int d = c + 1;
+
+                triangles.Add(a); triangles.Add(c); triangles.Add(b);
+                triangles.Add(b); triangles.Add(c); triangles.Add(d);
+
+                triangles.Add(a); triangles.Add(b); triangles.Add(c);
+                triangles.Add(b); triangles.Add(d); triangles.Add(c);
+            }
+        }
+
+        var mesh = new Mesh();
+        mesh.name = "Drape";
+        mesh.SetVertices(vertices);
+        mesh.SetUVs(0, uvs);
+        mesh.SetTriangles(triangles, 0);
+        mesh.RecalculateNormals();
+        mesh.RecalculateBounds();
+        return mesh;
+    }
+
+    /// <summary>
     /// A propeller blade: a thin aerofoil that tapers towards the tip and twists
     /// along its length.
     ///

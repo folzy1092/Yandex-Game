@@ -328,17 +328,21 @@ public class MainMenuUI : MonoBehaviour
                                  new Vector2(0.5f, 1f), new Vector2(0.5f, 1f),
                                  new Vector2(0f, -28f), new Vector2(MapCardWidth - 40f, 40f));
 
+            // Tagline was tall enough (96) to push "ЦЕЛЕЙ" down behind the
+            // button's own top edge — two lines of 20pt text never needed
+            // that much room, it just left nothing between them and the
+            // button below.
             Text tagline = UIFactory.CreateText(frame.transform, "Tagline", map.tagline, 20,
                                                 TextAnchor.UpperCenter, InkDim,
                                                 new Vector2(0.5f, 1f), new Vector2(0.5f, 1f),
-                                                new Vector2(0f, -84f),
-                                                new Vector2(MapCardWidth - 56f, 96f));
+                                                new Vector2(0f, -80f),
+                                                new Vector2(MapCardWidth - 56f, 62f));
             tagline.horizontalOverflow = HorizontalWrapMode.Wrap;
 
             UIFactory.CreateText(frame.transform, "Targets", "ЦЕЛЕЙ:  " + map.targetCount, 21,
                                  TextAnchor.MiddleCenter, new Color(0.55f, 0.62f, 0.60f),
                                  new Vector2(0.5f, 1f), new Vector2(0.5f, 1f),
-                                 new Vector2(0f, -196f), new Vector2(MapCardWidth - 40f, 28f));
+                                 new Vector2(0f, -156f), new Vector2(MapCardWidth - 40f, 26f));
 
             Button button = CardButton(frame.transform, MapCardWidth, () => OnMapPressed(index));
             mapButtons[i] = button;
@@ -523,10 +527,16 @@ public class MainMenuUI : MonoBehaviour
 
     Button CardButton(Transform parent, float cardWidth, UnityEngine.Events.UnityAction onClick)
     {
-        return UIFactory.CreateButton(parent, "Action", "", 24,
+        // A bigger point size here, not a cosmetic choice: Unity's dynamic
+        // font renders each requested size into its own slot in the font
+        // atlas, and a small size next to the much larger card titles was
+        // the blurriest, most aliased text on the whole screen. Sizing it
+        // closer to the rest of the UI is what actually fixes that, more
+        // reliably than fighting the atlas.
+        return UIFactory.CreateButton(parent, "Action", "", 28,
                                       new Vector2(0.5f, 0f), new Vector2(0.5f, 0f),
-                                      new Vector2(0f, 28f),
-                                      new Vector2(cardWidth - 56f, 64f), onClick);
+                                      new Vector2(0f, 26f),
+                                      new Vector2(cardWidth - 56f, 66f), onClick);
     }
 
     void BackButton(Transform parent)

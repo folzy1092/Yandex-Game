@@ -238,19 +238,34 @@ public static class ProceduralAudio
 
         float noiseState = 0f;
 
+        // A quad's motors are a high whine, not a low drone — the low,
+        // barely-detuned tones this used to mix were closer to a piston
+        // engine than a set of tiny brushless motors, which is what read as
+        // "an aeroplane flying over" instead of an FPV rig. Doubling each
+        // tone up an octave adds the buzzy upper harmonic that whine actually
+        // has, and the amplitude wobble at a blade-pass-like rate is what
+        // turns a pure tone into the characteristic "mosquito" buzz.
+        const float bladePassHz = 68f;   // a multiple of 1/duration, so it stays seamless too
+
         for (int i = 0; i < sampleCount; i++)
         {
             float t = (float)i / SampleRate;
 
             float tone = 0f;
             for (int f = 0; f < toneFrequencies.Length; f++)
-                tone += Mathf.Sin(2f * Mathf.PI * toneFrequencies[f] * t);
+            {
+                tone += Mathf.Sin(2f * Mathf.PI * toneFrequencies[f] * t) * 0.6f;
+                tone += Mathf.Sin(2f * Mathf.PI * toneFrequencies[f] * 2f * t) * 0.4f;
+            }
             tone /= toneFrequencies.Length;
 
-            float noise = Random.value * 2f - 1f;
-            noiseState += (noise - noiseState) * 0.2f;
+            float buzz = 0.7f + 0.3f * Mathf.Sin(2f * Mathf.PI * bladePassHz * t);
+            tone *= buzz;
 
-            samples[i] = Clip(tone * 0.55f + noiseState * 0.14f);
+            float noise = Random.value * 2f - 1f;
+            noiseState += (noise - noiseState) * 0.3f;
+
+            samples[i] = Clip(tone * 0.42f + noiseState * 0.06f);
         }
 
         Random.state = previous;

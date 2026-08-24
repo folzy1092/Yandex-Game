@@ -248,6 +248,12 @@ public class Target : MonoBehaviour
 
         var system = go.AddComponent<ParticleSystem>();
 
+        // AddComponent starts the system playing immediately (playOnAwake
+        // defaults true), and ParticleSystemMainModule.duration refuses to be
+        // set on a system that is already playing — Stop() first, configure
+        // everything, then Play() once it is actually ready.
+        system.Stop(true, ParticleSystemStopBehavior.StopEmittingAndClear);
+
         var main = system.main;
         main.loop = true;
         main.duration = 2f;
@@ -290,6 +296,8 @@ public class Target : MonoBehaviour
         rotationOverLifetime.z = new ParticleSystem.MinMaxCurve(-40f, 40f);
 
         ApplyParticleMaterial(go, "Mat_FireReal", "Mat_Spark");
+
+        system.Play();
     }
 
     /// <summary>

@@ -74,7 +74,7 @@ public class GameAudio : MonoBehaviour
         // Three lightly detuned tones for the "whirr" beat, the way four props
         // spinning at very slightly different speeds actually sound.
         rotorLoop = ProceduralAudio.CreateRotorLoop("RotorLoop", 0.25f,
-            new[] { 176f, 184f, 192f }, 1011);
+            new[] { 280f, 292f, 304f }, 1011);
 
         explosion = ProceduralAudio.CreateExplosion("Explosion", 1.1f, 1012);
     }

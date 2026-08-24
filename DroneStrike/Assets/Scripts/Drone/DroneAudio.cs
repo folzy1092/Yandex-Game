@@ -8,10 +8,10 @@ using UnityEngine;
 [RequireComponent(typeof(DroneController))]
 public class DroneAudio : MonoBehaviour
 {
-    public float minPitch = 0.78f;
-    public float maxPitch = 1.30f;
-    public float minVolume = 0.16f;
-    public float maxVolume = 0.48f;
+    public float minPitch = 0.85f;
+    public float maxPitch = 1.35f;
+    public float minVolume = 0.07f;
+    public float maxVolume = 0.22f;
 
     /// <summary>How quickly volume fades once the motors cut, in units/second.</summary>
     public float fadeOutRate = 1.4f;

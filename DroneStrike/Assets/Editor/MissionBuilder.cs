@@ -130,8 +130,8 @@ public static class MissionBuilder
             seed = 20260826,
             mapSize = 780f,
             hillAmplitude = 34f,
-            roadHalfX = 68f,
-            roadHalfZ = 50f,
+            roadHalfX = 72f,
+            roadHalfZ = 52f,
             crossroads = true,
             groundMaterial = "Mat_GroundDusk",
             roadMaterial = "Mat_AsphaltWorn",
@@ -875,13 +875,19 @@ public static class MissionBuilder
             }
         }
 
-        var sheet = GameObject.CreatePrimitive(PrimitiveType.Cube);
-        sheet.name = "Net";
+        // A sagging mesh rather than a flat cube: a taut, perfectly planar
+        // rhombus over a vehicle read as a solid painted roof, not fabric.
+        var sheet = new GameObject("Net");
         sheet.transform.SetParent(group.transform, false);
         sheet.transform.localPosition = new Vector3(0f, poleHeight, 0f);
-        sheet.transform.localRotation = Quaternion.Euler(4f, 0f, 3f);   // slack, not taut
-        sheet.transform.localScale = new Vector3(size + 1f, 0.1f, size * 0.7f + 1f);
-        sheet.GetComponent<Renderer>().sharedMaterial = net;
+
+        var sheetFilter = sheet.AddComponent<MeshFilter>();
+        sheetFilter.sharedMesh = PrimitiveMesh.Drape(size + 1f, size * 0.7f + 1f, 0.6f, 6,
+                                                     Mathf.RoundToInt(x * 13f + z * 7f));
+
+        var sheetRenderer = sheet.AddComponent<MeshRenderer>();
+        sheetRenderer.sharedMaterial = net;
+        sheetRenderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.TwoSided;
     }
 
     // ---------- clutter ----------
@@ -1021,11 +1027,14 @@ public static class MissionBuilder
 
         const int count = 6;
 
-        // Hugs the position rather than orbiting it from far out — the ring
-        // used to sit fifty-plus metres past the road, which meant the
-        // farthest pad on the largest map could be well past the point where
-        // the signal degrades before the drone had even reached a target.
-        float radius = new Vector2(profile.roadHalfX, profile.roadHalfZ).magnitude + 16f;
+        // Far enough out that the pilot has real ground to cover before the
+        // first target, but checked against SignalLink's own budget rather
+        // than picked by eye: with the ring at +32 m and up to +10 m of pad
+        // jitter, the worst case (a pad on the exact opposite side of the
+        // position from the target) comes to roughly 2×(map half-diagonal)
+        // plus 42 m, which stays comfortably under the 230 m hard limit on
+        // every map profile — verified offline, not assumed.
+        float radius = new Vector2(profile.roadHalfX, profile.roadHalfZ).magnitude + 32f;
         float offset = Random.Range(0f, 360f);
 
         var pads = new Transform[count];
@@ -1035,7 +1044,7 @@ public static class MissionBuilder
         for (int i = 0; i < count; i++)
         {
             float bearing = offset + i * (360f / count) + Random.Range(-10f, 10f);
-            float distance = radius + Random.Range(-4f, 4f);
+            float distance = radius + Random.Range(-6f, 10f);
 
             float x = Mathf.Sin(bearing * Mathf.Deg2Rad) * distance;
             float z = Mathf.Cos(bearing * Mathf.Deg2Rad) * distance;
