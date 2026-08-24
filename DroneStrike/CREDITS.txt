@@ -27,14 +27,6 @@ Kenney.nl / public CC0 model sites, per the setup steps in
 DroneStrike/README.md. Scale is unverified per-model and corrected at build
 time by TargetProps.NormalizeModelSize.
 
-Assets/Resources/Models/Warhead.glb — "Missile" by Poly by Google
-Source:  https://poly.pizza/m/dPVCvXP-S58
-License: Creative Commons Attribution 3.0 (CC-BY)
-         https://creativecommons.org/licenses/by/3.0/
-Attribution: "Missile" by Poly by Google, via poly.pizza, CC-BY 3.0.
-Orientation is unverified — see the comment on WarheadModelPitch/Yaw/Roll in
-DroneFactory.cs if it comes in facing the wrong way.
-
 Assets/Resources/Models/Trench.glb — "Sack Trench" by Quaternius
 Source:  https://poly.pizza/m/LW3jwpPfiN
 License: Creative Commons CC0 1.0 Universal (public domain)

@@ -187,47 +187,25 @@ public static class DroneFactory
     /// airframe: it has to stay framed the same way no matter how the drone is
     /// tilted, exactly like DroneCameraGimbal keeps the horizon steady.
     ///
-    /// The nose is one continuous curved profile — cylindrical tube, a shoulder
-    /// that flares out wider than the tube, then an ogive taper to a point —
-    /// built as a single lofted mesh with PrimitiveMesh.Revolve rather than a
-    /// stack of separate frustums. Separate pieces meeting at mismatched radii
-    /// is exactly what read as a stepped, pancake-like shape; one continuous
-    /// profile is what an actual shaped-charge round looks like.
+    /// Built as a short, thick pod rather than an elongated tapered dart —
+    /// both the original procedural cone and a downloaded missile model were
+    /// reported as reading wrong the same way regardless of how either was
+    /// oriented, and length-to-width ratio is the one lever that actually
+    /// changes that: a long thin taper to a rounded point is what read wrong,
+    /// and neither is true of a stubby cylinder with a flat, chamfered nose
+    /// and a visible sensor block on its face. No downloaded model is used
+    /// here any more; guessing its rest orientation blind cost two rounds and
+    /// still did not land.
     ///
-    /// A short mounting strap ties the tube to the camera housing above it, so
+    /// A short mounting strap ties the body to the camera housing above it, so
     /// it reads as slung underneath the airframe rather than floating loose in
     /// front of the lens.
     ///
     /// It also grows with the airframe: a second band on the second drone, a
-    /// tandem precursor and more fins on the third. A number on a menu the
+    /// second charge block and more fins on the third. A number on a menu the
     /// player has already left does not sell an upgrade — the charge sitting in
     /// front of them all mission does.
     /// </summary>
-    /// <summary>
-    /// Assets/Resources/Models/Warhead.glb — "Missile" by Poly by Google
-    /// (poly.pizza/m/dPVCvXP-S58, CC-BY, credited in CREDITS.txt).
-    ///
-    /// Its own rest orientation has never been seen in an editor, the same
-    /// situation every downloaded model in this project started in. These
-    /// three are the numbers to change if the next screenshot shows it lying
-    /// on its side, nose backwards, or upside down — nothing else about the
-    /// mount needs to move.
-    /// </summary>
-    // Derived from the actual glTF accessor bounds, not guessed: the raw mesh
-    // spans X -11.92..1.0 (a 12.9-unit span), against Y ±2.66 and Z ±2.35 —
-    // X is unambiguously the nose-to-tail axis, and the file's own origin
-    // sits within one unit of the tail end (a sensible "mount it from here"
-    // pivot). A -90 degree roll maps local -X (the nose, since most of the
-    // body extends in -X from the tail-side origin) onto this root's +Y,
-    // which is the axis the procedural nose used to point along — nothing
-    // else needs correcting.
-    const float WarheadModelPitch = 0f;
-    const float WarheadModelYaw = 0f;
-    const float WarheadModelRoll = -90f;
-
-    /// <summary>Nose-to-tail length the model is rescaled to, in metres, before the loadout scale is applied.</summary>
-    const float WarheadModelLength = 0.42f;
-
     static void BuildWarheadView(Transform cameraTransform, WarheadType warhead, int tier,
                                  Color accent)
     {
@@ -242,126 +220,74 @@ public static class DroneFactory
         root.transform.SetParent(cameraTransform, false);
         // Slung close under the housing, nose tipped forward and down — mounted
         // to the airframe the way the real thing is, not held out in empty air.
-        root.transform.localPosition = new Vector3(0f, -0.22f, 0.40f);
-        root.transform.localRotation = Quaternion.Euler(70f, 0f, 0f);
-
-        GameObject downloaded = ModelLibrary.Instantiate("Warhead", root.transform);
-        if (downloaded != null)
-        {
-            // Pitch and yaw are unverified against the actual mesh — the same
-            // situation Tank.glb and SupplyTent.glb started in, and the same
-            // fix: these are the two numbers to turn once it is visible in a
-            // build, rather than anything to do with the model itself.
-            downloaded.transform.localRotation =
-                Quaternion.Euler(WarheadModelPitch, WarheadModelYaw, WarheadModelRoll);
-            FitWarheadModelLength(downloaded, WarheadModelLength);
-            // Deliberately not recentred: the file's own pivot already sits at
-            // the tail, which after the roll above lands within a few
-            // centimetres of the mount point on its own. Recentring to the
-            // model's geometric middle was tried and made it worse — it
-            // pulled the pivot away from the tail into open space along the
-            // body, which is what read as the whole thing floating loose
-            // rather than mounted to anything.
-
-            root.transform.localScale = Vector3.one * scale;
-            return;
-        }
+        root.transform.localPosition = new Vector3(0f, -0.20f, 0.36f);
+        root.transform.localRotation = Quaternion.Euler(68f, 0f, 0f);
         root.transform.localScale = Vector3.one * scale;
 
-        const float tubeRadius = 0.072f;
-        const float tubeBottom = -0.17f;
-        const float tubeTop = 0.05f;
+        const float bodyRadius = 0.10f;
+        const float bodyBottom = -0.10f;
+        const float bodyTop = 0.09f;
 
-        var profile = new[]
-        {
-            new Vector2(tubeRadius, tubeBottom),          // tail end of the tube
-            new Vector2(tubeRadius, tubeTop),              // tube meets the shoulder
-            new Vector2(0.100f, tubeTop + 0.045f),          // the flare — wider than the tube,
-                                                             // the silhouette that reads as "warhead"
-            new Vector2(0.086f, tubeTop + 0.095f),
-            new Vector2(0.058f, tubeTop + 0.150f),
-            new Vector2(0.026f, tubeTop + 0.195f),
-            new Vector2(0f, tubeTop + 0.225f)               // the point
-        };
+        // The body: short and thick, not long and tapered.
+        AddCylinder(root.transform, "Body", new Vector3(0f, (bodyBottom + bodyTop) * 0.5f, 0f),
+                    new Vector3(bodyRadius * 2f, (bodyTop - bodyBottom) * 0.5f, bodyRadius * 2f), body);
 
-        AddMesh(root.transform, "Nose", Vector3.zero, PrimitiveMesh.Revolve(profile), body);
+        // The nose: a shallow chamfer that stops at a real flat face, the way
+        // a guidance section actually terminates, rather than tapering all
+        // the way to a rounded point.
+        const float noseHeight = 0.065f;
+        const float noseTopRadius = 0.05f;
+        AddMesh(root.transform, "Nose", new Vector3(0f, bodyTop + noseHeight * 0.5f, 0f),
+                PrimitiveMesh.Frustum(bodyRadius, noseTopRadius, noseHeight), body);
 
-        // A strap linking the tube to the underside of the camera housing —
+        AddCylinder(root.transform, "NoseCap", new Vector3(0f, bodyTop + noseHeight + 0.006f, 0f),
+                    new Vector3(noseTopRadius * 1.9f, 0.012f, noseTopRadius * 1.9f), trim);
+
+        // The sensor block on the nose face — the detail that reads as
+        // guidance hardware rather than a smooth tip.
+        AddBox(root.transform, "Sensor", new Vector3(0f, bodyTop + noseHeight + 0.03f, 0f),
+              new Vector3(0.035f, 0.03f, 0.035f), trim);
+
+        // A strap linking the body to the underside of the camera housing —
         // the detail that reads as "attached" rather than "hovering nearby".
-        var strap = AddBox(root.transform, "MountStrap", new Vector3(0f, tubeTop - 0.03f, -0.055f),
-                           new Vector3(0.03f, 0.10f, 0.03f), trim);
-        strap.transform.localRotation = Quaternion.Euler(-24f, 0f, 0f);
+        var strap = AddBox(root.transform, "MountStrap", new Vector3(0f, bodyTop - 0.02f, -0.07f),
+                           new Vector3(0.03f, 0.09f, 0.03f), trim);
+        strap.transform.localRotation = Quaternion.Euler(-22f, 0f, 0f);
 
         // The warning band. A second one on the better charges is the cheapest
         // possible "this is the stronger one" cue, and it reads at a glance
         // because it is the only bright ring on an otherwise olive body.
-        AddCylinder(root.transform, "Band", new Vector3(0f, tubeTop - 0.01f, 0f),
-                    new Vector3(tubeRadius * 1.18f, 0.011f, tubeRadius * 1.18f), band);
+        AddCylinder(root.transform, "Band", new Vector3(0f, bodyBottom + 0.03f, 0f),
+                    new Vector3(bodyRadius * 2.15f, 0.011f, bodyRadius * 2.15f), band);
 
         if (tier >= 1)
-            AddCylinder(root.transform, "BandLower", new Vector3(0f, tubeTop - 0.06f, 0f),
-                        new Vector3(tubeRadius * 1.1f, 0.008f, tubeRadius * 1.1f), trim);
+            AddCylinder(root.transform, "BandLower", new Vector3(0f, bodyBottom - 0.015f, 0f),
+                        new Vector3(bodyRadius * 2.05f, 0.008f, bodyRadius * 2.05f), trim);
 
-        // The top airframe carries a tandem precursor on a standoff probe, which
-        // is what a real one looks like and is unmistakable in silhouette.
+        // The top airframe carries a second charge block riding piggy-back —
+        // visibly bigger hardware, not just a bigger number in a menu.
         if (tier >= 2)
         {
-            float tipY = profile[profile.Length - 1].y;
-
-            AddCylinder(root.transform, "Probe", new Vector3(0f, tipY + 0.05f, 0f),
-                        new Vector3(0.012f, 0.05f, 0.012f), body);
-
-            AddMesh(root.transform, "Precursor", new Vector3(0f, tipY + 0.125f, 0f),
-                    PrimitiveMesh.Frustum(0.03f, 0f, 0.07f), trim);
+            AddBox(root.transform, "SecondaryCharge",
+                  new Vector3(0f, bodyTop + noseHeight + 0.075f, 0f),
+                  new Vector3(0.05f, 0.045f, 0.05f), trim);
         }
 
-        // Tail fins, fanned around the tube's rear. The better airframes carry
+        // Tail fins, fanned around the body's rear. The better airframes carry
         // more of them, so the tail reads differently too.
         int fins = tier >= 2 ? 6 : 4;
-        float finY = tubeBottom + 0.06f;
+        float finY = bodyBottom + 0.02f;
+        float finSpan = bodyRadius + 0.05f;
 
         for (int i = 0; i < fins; i++)
         {
             Quaternion spin = Quaternion.Euler(0f, i * (360f / fins), 0f);
-            Vector3 offset = spin * new Vector3(0f, 0f, tubeRadius * 0.72f);
+            Vector3 offset = spin * new Vector3(0f, 0f, finSpan * 0.7f);
 
             var fin = AddBox(root.transform, "Fin" + i, new Vector3(0f, finY, 0f) + offset,
-                             new Vector3(0.008f, 0.085f, 0.075f), body);
+                             new Vector3(0.01f, 0.075f, 0.09f), body);
             fin.transform.localRotation = spin;
         }
-    }
-
-    /// <summary>
-    /// Rescales a downloaded model uniformly so its longest dimension comes
-    /// out at <paramref name="desiredLength"/> metres, whatever units the
-    /// source file was authored in — the same reasoning TargetProps.
-    /// NormalizeModelSize uses for the tank and the tent, just runnable at
-    /// play time rather than only from an Editor script.
-    ///
-    /// Measured at identity rotation and restored afterwards: Renderer.bounds
-    /// is a world-space axis-aligned box, which only reports the model's true
-    /// size — rather than an inflated one — when nothing above it is rotated
-    /// at the moment of measuring.
-    /// </summary>
-    static void FitWarheadModelLength(GameObject model, float desiredLength)
-    {
-        Renderer[] renderers = model.GetComponentsInChildren<Renderer>();
-        if (renderers.Length == 0) return;
-
-        Transform t = model.transform;
-        Vector3 originalPosition = t.position;
-        Quaternion originalRotation = t.rotation;
-        t.SetPositionAndRotation(Vector3.zero, Quaternion.identity);
-
-        Bounds bounds = renderers[0].bounds;
-        for (int i = 1; i < renderers.Length; i++) bounds.Encapsulate(renderers[i].bounds);
-
-        t.SetPositionAndRotation(originalPosition, originalRotation);
-
-        float longest = Mathf.Max(bounds.size.x, Mathf.Max(bounds.size.y, bounds.size.z));
-        if (longest < 0.0001f) return;
-
-        t.localScale *= desiredLength / longest;
     }
 
     // ---------- helpers ----------

@@ -70,7 +70,8 @@ public static class DroneLoadout
         {
             id = "scout",
             displayName = "РАЗВЕДЧИК",
-            tagline = "Базовый дрон. Лёгкий, послушный, живучая батарея.",
+            tagline = "Базовый дрон. Лёгкий, послушный, живучая батарея. С малым "
+                     + "зарядом бронетехнику может понадобиться подбить дважды.",
             thrustFactor = 1f,
             speedFactor = 1f,
             enduranceFactor = 1f,
