@@ -1,0 +1,132 @@
+DRONE STRIKE — карточка игры для Яндекс Игр
+=============================================
+
+
+НАЗВАНИЕ
+--------
+RU: Drone Strike — Удар с воздуха
+EN: Drone Strike
+
+
+КОРОТКОЕ ОПИСАНИЕ (карточка в каталоге, ~150–200 символов)
+------------------------------------------------------------
+RU:
+Пилотируй ударный FPV-дрон и уничтожай технику противника с воздуха. Три
+карты, три борта, честная прокачка без доната — только за рекламу.
+
+EN:
+Fly a kamikaze FPV drone and take out enemy vehicles from the air. Three
+maps, three airframes, upgrades earned by watching ads — no paywall.
+
+
+ПОЛНОЕ ОПИСАНИЕ
+----------------
+RU:
+
+Drone Strike — симулятор ударного FPV-дрона. Управляешь камерой, дрон летит
+туда, куда смотришь: наклонил взгляд вниз — пикируешь и разгоняешься,
+выровнял — летишь ровно. Прицеливание и пилотирование — одно и то же
+действие.
+
+Задача — долететь до целей и подорвать боевую часть точным ударом. Никаких
+людей на поле: только техника, палатки снабжения и антенны связи. Дроны
+одноразовые — не долетел или промазал, запускаешь следующий с рации.
+
+ЧТО В ИГРЕ
+
+— Камера-полёт от первого лица со стабилизированным подвесом и честной
+  физикой: инерция, снос, разгон в пикировании.
+— Три карты, каждая построена процедурно: опорный пункт на ровном поле,
+  лесная дорога с холмами и низким подлётом, ночной перекрёсток с
+  разветвлённой сетью дорог. Карты открываются прохождением предыдущей —
+  либо рекламой, для тех, кто спешит.
+— Три борта с честной прогрессией: каждый следующий быстрее и бьёт сильнее
+  предыдущего. Стартовый борт проходит всю игру сам — реклама даёт
+  преимущество, а не пропуск.
+— Два боеприпаса: лёгкий заряд ради резвости борта или тяжёлый — для брони с
+  одного захода.
+— Связь с дроном ограничена дальностью и высотой: удаляешься или лезешь
+  слишком высоко — картинка рябит, потом отказывает мотор, и через
+  пару секунд боевая часть самоликвидируется. Настоящая граница карты вместо
+  невидимой стены.
+— Патрульная техника ездит по размеченной дороге, поражённые цели горят.
+— Каждый новый дрон стартует с новой площадки — заучить один заход не
+  получится.
+
+Всё снаряжение и все карты открыты без единого платежа — рекламой или
+собственным навыком.
+
+EN:
+
+Drone Strike is an FPV kamikaze-drone strike simulator. The camera is the
+stick — look down and push forward and the drone dives and accelerates,
+level the camera and it flies level. Aiming and piloting are the same act.
+
+Fly to the target and detonate on impact. No infantry on the map — only
+vehicles, supply tents and radio masts. Drones are one-shot: miss, and you
+launch the next one from the rack.
+
+FEATURES
+
+— First-person flight on a stabilised gimbal with real momentum: inertia,
+  drift, a dive that actually gains speed.
+— Three procedurally built maps — an open outpost, a hilly wooded supply
+  road, a night crossroads — unlocked by clearing the last one or by a
+  rewarded ad.
+— Three airframes on an honest ladder: every unlock is both faster and
+  harder-hitting than the last. The starter drone clears the whole game on
+  its own.
+— Two warheads: a light charge for a livelier drone, or a heavy one that
+  drops armour in a single run.
+— The radio link is the real map boundary — range and altitude both degrade
+  the picture, then cut the motor, before the payload self-destructs.
+— Patrol trucks run a marked road; every kill burns.
+— A fresh launch pad every life, so no run is a memorised line.
+
+Every airframe and every map opens for free — by ad or by skill, no paywall.
+
+
+КЛЮЧЕВЫЕ СЛОВА / ТЕГИ
+----------------------
+дрон, дроны, FPV, симулятор дрона, авиасимулятор, экшн, 3D, стратегия,
+военная техника, аркада, вид от первого лица, полёт
+drone, FPV, drone simulator, flight sim, action, 3D, military vehicles,
+arcade, first-person, single player
+
+
+ЖАНР
+----
+Экшн / Симулятор (Action / Simulation)
+
+
+ВОЗРАСТНОЙ РЕЙТИНГ (рекомендация)
+-----------------------------------
+6+ / 12+. В игре нет людей-целей, крови и реалистичного насилия — только
+техника и постройки. Сеттинг абстрактный, без привязки к реальному
+конфликту или стране — это осознанное решение при разработке: снижает
+возрастной рейтинг и риск отказа на модерации.
+
+
+УПРАВЛЕНИЕ
+----------
+W / S       — вперёд / назад по направлению взгляда
+A / D       — снос влево / вправо
+Space / Ctrl — высота вверх / вниз
+Мышь        — управление камерой (= направлением полёта)
+Esc         — освободить курсор
+
+Детонация — при ударе о цель, без ручного нажатия.
+
+
+МОНЕТИЗАЦИЯ (для справки, не для карточки)
+---------------------------------------------
+Rewarded-реклама: открыть борт, открыть тяжёлый заряд, открыть карту,
++1 дрон после провала миссии (максимум 3 за миссию).
+Fullscreen-реклама: между попытками (кнопка «Заново»).
+Всё содержимое проходится и без единой рекламы — стартовый борт и лёгкий
+заряд достаточны для победы на любой карте.
+
+
+ПЛАТФОРМА
+---------
+WebGL, Яндекс Игры. Мышь + клавиатура.
