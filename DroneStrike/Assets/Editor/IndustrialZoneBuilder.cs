@@ -196,18 +196,28 @@ public static class IndustrialZoneBuilder
         Vector3 direction = Quaternion.Euler(0f, yaw, 0f) * Vector3.forward;
         int steps = Mathf.Max(2, Mathf.CeilToInt(length / halfWidth));
 
+        // Every point is checked against what was already on the map before any
+        // of them is registered. Checking and claiming in one pass would have
+        // each circle in the chain report an overlap with the circle behind it
+        // — the chain is deliberately continuous, so consecutive circles always
+        // touch — and bury the real warnings under dozens of false ones.
+        var points = new List<Vector2>(steps + 1);
+        bool clash = false;
+
         for (int i = 0; i <= steps; i++)
         {
             float along = -length * 0.5f + length * i / steps;
-            float px = x + direction.x * along;
-            float pz = z + direction.z * along;
+            var point = new Vector2(x + direction.x * along, z + direction.z * along);
 
-            if (!IsFree(px, pz, halfWidth))
-                Debug.LogWarning("Drone Strike: " + what + " at (" + x + ", " + z
-                                 + ") overlaps something already placed.");
-
-            Claim(px, pz, halfWidth);
+            if (!IsFree(point.x, point.y, halfWidth)) clash = true;
+            points.Add(point);
         }
+
+        if (clash)
+            Debug.LogWarning("Drone Strike: " + what + " at (" + x + ", " + z
+                             + ") overlaps something already placed.");
+
+        foreach (Vector2 point in points) Claim(point.x, point.y, halfWidth);
     }
 
     // ---------- the position ----------
