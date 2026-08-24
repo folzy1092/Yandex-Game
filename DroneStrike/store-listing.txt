@@ -24,19 +24,69 @@ precise hit, take out enemy vehicles. Three maps, three drones, free to play.
 (155 characters)
 
 
-КОРОТКОЕ ОПИСАНИЕ (карточка в каталоге, ~150–200 символов)
-------------------------------------------------------------
-RU:
-Пилотируй ударный FPV-дрон и уничтожай технику противника с воздуха. Три
-разные карты, три дрона, честная прокачка без доната — только за рекламу.
+КОРОТКОЕ ОПИСАНИЕ (поле консоли «Короткое описание», лимит 70 символов)
+--------------------------------------------------------------------------
+RU (60/70):
+Пилотируй FPV-дрон и уничтожай технику противника с воздуха.
 
-EN:
-Fly a kamikaze FPV drone and take out enemy vehicles from the air. Three
-distinct maps, three drones, upgrades earned by watching ads — no paywall.
+EN (53/70):
+Fly a kamikaze FPV drone and take out enemy vehicles.
 
 
-ПОЛНОЕ ОПИСАНИЕ / «ОБ ИГРЕ» (страница игры в консоли Яндекс Игр)
-------------------------------------------------------------------
+ОБ ИГРЕ (поле консоли «Об игре», обязательное, лимит 1000 символов)
+------------------------------------------------------------------------
+RU (977/1000):
+
+Drone Strike — симулятор ударного FPV-дрона: дрон летит туда, куда смотришь,
+разгоняется в пике и держит высоту сам. Прицел и пилотирование — одно
+действие: точный удар наносит больше урона.
+
+Долети до цели и подорви боевую часть точным ударом. Только техника и
+постройки, без людей. Дрон одноразовый: промазал — запускаешь следующий с
+новой площадки.
+
+ЧТО В ИГРЕ
+— Три карты с разным лицом: асфальтовый опорный пункт, лесная грунтовка с
+  прудом, ночной перекрёсток с тенями. Открываются прохождением или рекламой.
+— Три дрона на честной лесенке: каждый быстрее и бьёт сильнее предыдущего.
+  Стартовый проходит игру сам.
+— Три заряда с той же лесенкой: лёгкий, стандартный и тяжёлый — следующий за
+  рекламу.
+— Связь ограничена дальностью и высотой: сигнал рвётся, мотор глохнет, заряд
+  самоликвидируется — граница карты вместо стены.
+— Патрули объезжают препятствия, подбитая цель дымит и темнеет, каждый
+  вылет — с новой площадки.
+
+Всё открывается рекламой или навыком — без доната.
+
+EN (982/1000):
+
+Drone Strike is an FPV kamikaze-drone simulator: the drone flies where you
+look, dives and accelerates, and holds its own altitude. Aiming and piloting
+are the same act — a fast hit does more damage.
+
+Fly to the target and detonate on impact. Only vehicles and structures, no
+infantry. Drones are one-shot: miss, and you launch the next from a fresh pad.
+
+FEATURES
+— Three maps with real character: a paved outpost, a forest dirt track with
+  a pond, a dusk crossroads with shadows. Unlocked by clearing the last one
+  or by ad.
+— Three drones on an honest ladder: each one faster and harder-hitting. The
+  starter drone clears the game alone.
+— Three warheads on the same ladder: light, standard, heavy — each unlocked
+  by ad.
+— The radio link is the real boundary: signal glitches, the motor cuts, the
+  payload self-destructs.
+— Patrols swerve around obstacles, a damaged target smokes and darkens,
+  every life launches from a fresh pad.
+
+Everything unlocks by ad or by skill — no paywall.
+
+
+РАСШИРЕННОЕ ОПИСАНИЕ (сверх лимита консоли Яндекса — для других площадок,
+соцсетей, пресс-релиза)
+------------------------------------------------------------------------
 RU:
 
 Drone Strike — симулятор ударного FPV-дрона. Управляешь камерой, дрон летит
@@ -145,8 +195,9 @@ arcade, first-person, single player
 возрастной рейтинг и риск отказа на модерации.
 
 
-УПРАВЛЕНИЕ
-----------
+УПРАВЛЕНИЕ / «КАК ИГРАТЬ» (поле консоли «Как играть», обязательное, лимит
+1000 символов; ниже текст под RU-поле, для EN — та же структура на английском)
+--------------------------------------------------------------------------------
 W / S        — вперёд / назад по направлению взгляда
 A / D        — снос влево / вправо
 Space / Shift — высота вверх
