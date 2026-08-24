@@ -19,6 +19,16 @@ public class MissionManager : MonoBehaviour
 
     [Header("Setup")]
     public Transform launchPoint;
+
+    /// <summary>
+    /// Every pad the next drone might launch from. Filled by the scene builder.
+    ///
+    /// A fixed launch point means every run starts with the same approach flown
+    /// from the same angle, and by the fourth drone the player is repeating a
+    /// memorised line rather than flying. Rotating the pad around the position
+    /// makes each life a fresh problem without touching the map itself.
+    /// </summary>
+    public Transform[] launchPoints = new Transform[0];
     public GameObject dronePrefabRoot;
     public int droneCount = 3;
 
@@ -140,12 +150,32 @@ public class MissionManager : MonoBehaviour
 
     // ---------- drones ----------
 
+    /// <summary>Index of the pad used last, so the next one is never the same.</summary>
+    int lastLaunchPad = -1;
+
+    Transform PickLaunchPad()
+    {
+        if (launchPoints == null || launchPoints.Length == 0) return launchPoint;
+
+        // One pad is not a choice; two or more must not repeat.
+        if (launchPoints.Length == 1) return launchPoints[0];
+
+        int index = lastLaunchPad;
+        for (int attempt = 0; attempt < 8 && index == lastLaunchPad; attempt++)
+            index = UnityEngine.Random.Range(0, launchPoints.Length);
+
+        lastLaunchPad = index;
+        return launchPoints[index] != null ? launchPoints[index] : launchPoint;
+    }
+
     void LaunchDrone()
     {
         if (ActiveDrone != null) Destroy(ActiveDrone.gameObject);
 
-        Vector3 position = launchPoint != null ? launchPoint.position : Vector3.up * 2f;
-        Quaternion rotation = launchPoint != null ? launchPoint.rotation : Quaternion.identity;
+        Transform pad = PickLaunchPad();
+
+        Vector3 position = pad != null ? pad.position : Vector3.up * 2f;
+        Quaternion rotation = pad != null ? pad.rotation : Quaternion.identity;
 
         ActiveDrone = DroneFactory.Create(position, rotation, warhead);
         ActiveDrone.SignalLink.SetLaunchPoint(position);
@@ -268,6 +298,9 @@ public class MissionManager : MonoBehaviour
 
         // The results screen has buttons, so the mouse has to come back.
         LockCursor(false);
+
+        // Clearing a map is what opens the next one without an ad.
+        if (won) MissionCatalog.MarkCleared(SceneManager.GetActiveScene().name);
 
         if (OnMissionEnded != null) OnMissionEnded(won);
     }

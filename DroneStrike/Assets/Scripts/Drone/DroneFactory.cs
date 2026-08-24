@@ -33,6 +33,7 @@ public static class DroneFactory
         collider.size = new Vector3(0.62f, 0.16f, 0.62f);
 
         DroneModel model = DroneLoadout.Selected;
+        int tier = DroneLoadout.SelectedIndex;
 
         Material frameMaterial = Resources.Load<Material>("Materials/Mat_DroneFrame");
         Material propMaterial = Resources.Load<Material>("Materials/Mat_Propeller");
@@ -45,16 +46,16 @@ public static class DroneFactory
         BuildFrame(drone.transform, frameMaterial, accentMaterial);
         BuildArmsAndRotors(drone.transform, frameMaterial, propMaterial);
         Transform view = BuildCamera(drone.transform, accentMaterial);
-        BuildWarheadView(view, warhead);
+        BuildWarheadView(view, warhead, tier, model.accent);
 
         var controller = drone.AddComponent<DroneController>();
         // Forward is measured from the camera, so the controller needs it before
         // its first FixedUpdate.
         controller.aimReference = view;
 
-        // The airframe's own handling, applied before Warhead.Awake stacks the
-        // charge's factors on top — the two multiply, so a light drone with a
-        // light charge really is the nimblest thing on the map.
+        // The airframe's own handling, applied before the charge's factors are
+        // stacked on top — the two multiply, so a light drone with a light
+        // charge really is the nimblest thing on the map.
         controller.thrust *= model.thrustFactor;
         controller.maxSpeed *= model.speedFactor;
         controller.climbThrust *= model.thrustFactor;
@@ -66,6 +67,7 @@ public static class DroneFactory
 
         var battery = drone.AddComponent<DroneBattery>();
         battery.hoverEndurance *= model.enduranceFactor;
+
         drone.AddComponent<SignalLink>();
         drone.AddComponent<DroneImpact>();
         drone.AddComponent<RotorSpin>();
@@ -97,10 +99,20 @@ public static class DroneFactory
                new Vector3(0.10f, 0.09f, 0.14f), frame);
     }
 
+    /// <summary>
+    /// Four arms in the classic X, each carrying a motor and a two-bladed rotor.
+    ///
+    /// The rotors are real blades rather than flat discs. A disc is what a prop
+    /// blurs into once it is spinning, so it seems like a fair shortcut — but a
+    /// drone sitting still, or seen the instant before it hits, wears four
+    /// solid circles and reads as running on wheels. Two tapered, twisted
+    /// blades cost almost nothing and fix that outright.
+    /// </summary>
     static void BuildArmsAndRotors(Transform parent, Material frame, Material prop)
     {
-        // Four arms at the corners, the classic X layout.
         float[] angles = { 45f, 135f, 225f, 315f };
+
+        Mesh blade = PrimitiveMesh.Blade(PropRadius, 0.042f, 0.022f, 0.006f, 22f);
 
         for (int i = 0; i < angles.Length; i++)
         {
@@ -115,10 +127,27 @@ public static class DroneFactory
             AddCylinder(parent, "Motor" + i, motorPosition + Vector3.up * 0.03f,
                         new Vector3(0.075f, 0.035f, 0.075f), frame);
 
-            var propeller = AddCylinder(parent, "Prop" + i,
-                                        motorPosition + Vector3.up * 0.07f,
-                                        new Vector3(PropRadius * 2f, 0.004f, PropRadius * 2f), prop);
-            propeller.name = "Prop" + i;
+            // RotorSpin finds these by name among the drone's direct children
+            // and turns the whole assembly, so the blades hang off this rather
+            // than off the airframe.
+            var rotor = new GameObject("Prop" + i);
+            rotor.transform.SetParent(parent, false);
+            rotor.transform.localPosition = motorPosition + Vector3.up * 0.07f;
+
+            AddCylinder(rotor.transform, "Hub", Vector3.zero,
+                        new Vector3(0.03f, 0.008f, 0.03f), frame);
+
+            for (int b = 0; b < 2; b++)
+            {
+                var go = new GameObject("Blade" + b);
+                go.transform.SetParent(rotor.transform, false);
+                go.transform.localRotation = Quaternion.Euler(0f, b * 180f, 0f);
+
+                go.AddComponent<MeshFilter>().sharedMesh = blade;
+                var renderer = go.AddComponent<MeshRenderer>();
+                if (prop != null) renderer.sharedMaterial = prop;
+                renderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+            }
         }
     }
 
@@ -149,52 +178,95 @@ public static class DroneFactory
     }
 
     /// <summary>
-    /// The payload itself, in view. FPV kamikaze footage always shows the
-    /// warhead's own nose poking into the bottom of frame — it is mounted
-    /// ahead of and below the camera, not out of sight — so it is built here
-    /// as a fixture of the camera rather than of the airframe: it has to stay
-    /// framed the same way no matter how the drone is tilted, exactly like
-    /// DroneCameraGimbal keeps the horizon steady.
+    /// The payload itself, in view.
     ///
-    /// Modelled on a PG-7-style rocket rather than a plain cone: a bulbous
-    /// ogive nose wider than the tube behind it, which is the actual shape a
-    /// warhead like this has and reads as "ordnance" rather than "party hat".
-    /// The compact charge is visibly smaller than the standard one, so the
-    /// loadout is legible before a single HUD number is read.
+    /// FPV strike footage always shows the warhead's own nose poking into the
+    /// bottom of frame — it is mounted ahead of and below the camera, not out
+    /// of sight — so it is built as a fixture of the camera rather than of the
+    /// airframe: it has to stay framed the same way no matter how the drone is
+    /// tilted, exactly like DroneCameraGimbal keeps the horizon steady.
+    ///
+    /// Shaped as a shaped-charge warhead: a sharp conical tip, a wide shoulder
+    /// behind it, then a narrow tube. The earlier version used a capsule for
+    /// the nose, which is round at both ends and wider than the tube behind it,
+    /// and the silhouette that produces is not the one anybody wants on screen.
+    /// A cone has a point, and a point reads as ordnance.
+    ///
+    /// It also grows with the airframe. Each unlock is meant to feel like
+    /// better kit, and a number on a menu the player has already left does not
+    /// do that — the charge in front of them all mission does.
     /// </summary>
-    static void BuildWarheadView(Transform cameraTransform, WarheadType warhead)
+    static void BuildWarheadView(Transform cameraTransform, WarheadType warhead, int tier,
+                                 Color accent)
     {
         Material body = Resources.Load<Material>("Materials/Mat_Warhead");
         Material band = Resources.Load<Material>("Materials/Mat_WarheadBand");
+        Material trim = TintedAccent(accent);
 
-        float scale = warhead == WarheadType.Compact ? 0.75f : 1f;
+        float scale = warhead == WarheadType.Compact ? 0.78f : 1f;
+        scale *= 1f + tier * 0.09f;
 
         var root = new GameObject("WarheadView");
         root.transform.SetParent(cameraTransform, false);
         // Slung low and forward, nose tipped down and away — mounted under the
         // drone's belly the way the real thing is, not held up in front of the lens.
-        root.transform.localPosition = new Vector3(0f, -0.30f, 0.5f);
-        root.transform.localRotation = Quaternion.Euler(70f, 0f, 0f);
+        root.transform.localPosition = new Vector3(0f, -0.31f, 0.52f);
+        root.transform.localRotation = Quaternion.Euler(72f, 0f, 0f);
         root.transform.localScale = Vector3.one * scale;
 
-        AddCapsule(root.transform, "Nose", new Vector3(0f, 0.16f, 0f),
-                  new Vector3(0.17f, 0.11f, 0.17f), body);
+        // Tip, shoulder, tube. Heights are chained off each other so the three
+        // always meet however the numbers are tuned.
+        const float tipHeight = 0.20f;
+        const float shoulderHeight = 0.10f;
+        const float tubeHeight = 0.26f;
 
-        AddCylinder(root.transform, "Band", new Vector3(0f, 0.02f, 0f),
-                   new Vector3(0.135f, 0.012f, 0.135f), band);
+        float tubeTop = -0.06f + tubeHeight * 0.5f;
+        float shoulderCentre = tubeTop + shoulderHeight * 0.5f;
+        float tipCentre = tubeTop + shoulderHeight + tipHeight * 0.5f;
 
-        AddCylinder(root.transform, "Tube", new Vector3(0f, -0.08f, 0f),
-                   new Vector3(0.075f, 0.22f, 0.075f), body);
+        AddMesh(root.transform, "Tip", new Vector3(0f, tipCentre, 0f),
+                PrimitiveMesh.Frustum(0.062f, 0f, tipHeight), body);
 
-        // Tail fins: four thin fins fanned out around the tube's rear, the
-        // last detail that sells the silhouette at a glance.
-        for (int i = 0; i < 4; i++)
+        AddMesh(root.transform, "Shoulder", new Vector3(0f, shoulderCentre, 0f),
+                PrimitiveMesh.Frustum(0.115f, 0.062f, shoulderHeight), body);
+
+        AddCylinder(root.transform, "Tube", new Vector3(0f, -0.06f, 0f),
+                    new Vector3(0.072f, tubeHeight * 0.5f, 0.072f), body);
+
+        // Warning bands. A second one is the cheapest possible "this is the
+        // better charge" cue, and it is read at a glance because it is the only
+        // bright thing on an olive body.
+        AddCylinder(root.transform, "Band", new Vector3(0f, tubeTop - 0.012f, 0f),
+                    new Vector3(0.086f, 0.011f, 0.086f), band);
+
+        if (tier >= 1)
+            AddCylinder(root.transform, "BandLower", new Vector3(0f, tubeTop - 0.056f, 0f),
+                        new Vector3(0.082f, 0.008f, 0.082f), trim);
+
+        // The top airframe carries a tandem precursor on a standoff probe, which
+        // is what a real one looks like and is unmistakable in silhouette.
+        if (tier >= 2)
         {
-            Quaternion spin = Quaternion.Euler(0f, i * 90f, 0f);
-            Vector3 offset = spin * new Vector3(0f, 0f, 0.045f);
+            AddCylinder(root.transform, "Probe", new Vector3(0f, tipCentre + tipHeight * 0.5f + 0.05f, 0f),
+                        new Vector3(0.012f, 0.05f, 0.012f), body);
 
-            var fin = AddBox(root.transform, "Fin" + i, new Vector3(0f, -0.26f, 0f) + offset,
-                             new Vector3(0.01f, 0.09f, 0.09f), body);
+            AddMesh(root.transform, "Precursor",
+                    new Vector3(0f, tipCentre + tipHeight * 0.5f + 0.125f, 0f),
+                    PrimitiveMesh.Frustum(0.03f, 0f, 0.07f), trim);
+        }
+
+        // Tail fins, fanned around the tube's rear. The better airframes carry
+        // more of them, so the tail reads differently too.
+        int fins = tier >= 2 ? 6 : 4;
+        float finY = -0.06f - tubeHeight * 0.5f + 0.055f;
+
+        for (int i = 0; i < fins; i++)
+        {
+            Quaternion spin = Quaternion.Euler(0f, i * (360f / fins), 0f);
+            Vector3 offset = spin * new Vector3(0f, 0f, 0.052f);
+
+            var fin = AddBox(root.transform, "Fin" + i, new Vector3(0f, finY, 0f) + offset,
+                             new Vector3(0.008f, 0.085f, 0.075f), body);
             fin.transform.localRotation = spin;
         }
     }
@@ -215,17 +287,20 @@ public static class DroneFactory
         return instance;
     }
 
-    static GameObject AddCapsule(Transform parent, string name, Vector3 localPosition,
-                                 Vector3 size, Material material)
+    static GameObject AddMesh(Transform parent, string name, Vector3 localPosition,
+                              Mesh mesh, Material material)
     {
-        var capsule = GameObject.CreatePrimitive(PrimitiveType.Capsule);
-        capsule.name = name;
-        capsule.transform.SetParent(parent, false);
-        capsule.transform.localPosition = localPosition;
-        capsule.transform.localScale = size;
+        var go = new GameObject(name);
+        go.transform.SetParent(parent, false);
+        go.transform.localPosition = localPosition;
 
-        Strip(capsule, material);
-        return capsule;
+        go.AddComponent<MeshFilter>().sharedMesh = mesh;
+
+        var renderer = go.AddComponent<MeshRenderer>();
+        if (material != null) renderer.sharedMaterial = material;
+        renderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+
+        return go;
     }
 
     static GameObject AddBox(Transform parent, string name, Vector3 localPosition,

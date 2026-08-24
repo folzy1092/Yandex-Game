@@ -20,6 +20,13 @@ using UnityEngine;
 ///
 /// Momentum is still real: the drone carries speed, has to be flown out of a
 /// dive, and cannot stop dead.
+///
+/// There is deliberately no altitude ceiling. An invisible roof the drone
+/// bounces off is the worst kind of boundary — it stops the player without
+/// telling them anything. Height is bounded by the same thing distance is:
+/// SignalLink measures the full 3D range back to the launch point, so climbing
+/// far enough degrades the picture and eventually drops the link, exactly as
+/// flying too far out does.
 /// </summary>
 [RequireComponent(typeof(Rigidbody))]
 public class DroneController : MonoBehaviour
@@ -47,7 +54,6 @@ public class DroneController : MonoBehaviour
 
     [Header("Speed")]
     public float maxSpeed = 34f;
-    public float maxAltitude = 140f;
 
     /// <summary>
     /// How quickly unwanted motion bleeds off. Higher means tighter, more arcade
@@ -121,7 +127,6 @@ public class DroneController : MonoBehaviour
         ApplyThrust(command);
         ApplyDrag(command);
         ClampSpeed();
-        EnforceCeiling();
         ApplyOrientation(command);
     }
 
@@ -164,10 +169,6 @@ public class DroneController : MonoBehaviour
         // Hold altitude: the drone hovers on its own, so the throttle keys are
         // for climbing and descending rather than for not falling.
         body.AddForce(-Physics.gravity, ForceMode.Acceleration);
-
-        if (AltitudeMetres > maxAltitude && command.y > 0f)
-            command.y = 0f;   // ceiling
-
         body.AddForce(command, ForceMode.Acceleration);
     }
 
@@ -189,31 +190,6 @@ public class DroneController : MonoBehaviour
     {
         if (body.linearVelocity.magnitude <= maxSpeed) return;
         body.linearVelocity = body.linearVelocity.normalized * maxSpeed;
-    }
-
-    /// <summary>
-    /// A real ceiling rather than just refusing new upward thrust: that alone
-    /// only stops the drone from climbing further, it does not stop the climb
-    /// already in progress, so the drone would sail well past maxAltitude
-    /// before drag finally caught up with it. This clamps position directly and
-    /// zeroes any remaining upward velocity, the way hitting a low glass roof
-    /// would.
-    /// </summary>
-    void EnforceCeiling()
-    {
-        float excess = AltitudeMetres - maxAltitude;
-        if (excess <= 0f) return;
-
-        Vector3 position = body.position;
-        position.y -= excess;
-        body.position = position;
-
-        if (body.linearVelocity.y > 0f)
-        {
-            Vector3 velocity = body.linearVelocity;
-            velocity.y = 0f;
-            body.linearVelocity = velocity;
-        }
     }
 
     /// <summary>

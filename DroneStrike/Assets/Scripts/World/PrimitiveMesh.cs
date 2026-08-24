@@ -1,0 +1,171 @@
+using System.Collections.Generic;
+using UnityEngine;
+
+/// <summary>
+/// Meshes Unity does not ship as primitives.
+///
+/// Unity gives you a cube, a sphere, a capsule and a cylinder, and every one of
+/// those has parallel sides or is round at both ends. Anything that tapers — a
+/// warhead's nose, a propeller blade — has to be built, and faking it by
+/// squashing a capsule is what makes ordnance read as something else entirely.
+/// </summary>
+public static class PrimitiveMesh
+{
+    /// <summary>
+    /// A frustum: a cylinder whose two ends have different radii. A top radius
+    /// of zero gives a true cone with a sharp point.
+    ///
+    /// Built around the origin along Y, the same axis Unity's own cylinder uses,
+    /// so the two can be stacked without thinking about it.
+    /// </summary>
+    public static Mesh Frustum(float bottomRadius, float topRadius, float height, int segments = 16)
+    {
+        segments = Mathf.Max(3, segments);
+
+        var vertices = new List<Vector3>();
+        var normals = new List<Vector3>();
+        var triangles = new List<int>();
+
+        float half = height * 0.5f;
+        bool pointed = topRadius <= 0.0001f;
+
+        // Side wall. The normal leans by the taper angle, or a cone lights like
+        // a cylinder and the point disappears into the body.
+        float slope = Mathf.Atan2(bottomRadius - topRadius, height);
+        float normalY = Mathf.Sin(slope);
+        float normalXZ = Mathf.Cos(slope);
+
+        for (int i = 0; i <= segments; i++)
+        {
+            float angle = (float)i / segments * Mathf.PI * 2f;
+            float cos = Mathf.Cos(angle);
+            float sin = Mathf.Sin(angle);
+
+            var normal = new Vector3(cos * normalXZ, normalY, sin * normalXZ).normalized;
+
+            vertices.Add(new Vector3(cos * bottomRadius, -half, sin * bottomRadius));
+            normals.Add(normal);
+
+            vertices.Add(new Vector3(cos * topRadius, half, sin * topRadius));
+            normals.Add(normal);
+        }
+
+        for (int i = 0; i < segments; i++)
+        {
+            int bottom = i * 2;
+            int top = bottom + 1;
+            int nextBottom = bottom + 2;
+            int nextTop = bottom + 3;
+
+            triangles.Add(bottom); triangles.Add(top); triangles.Add(nextTop);
+            triangles.Add(bottom); triangles.Add(nextTop); triangles.Add(nextBottom);
+        }
+
+        AddCap(vertices, normals, triangles, bottomRadius, -half, Vector3.down, segments);
+        if (!pointed) AddCap(vertices, normals, triangles, topRadius, half, Vector3.up, segments);
+
+        var mesh = new Mesh();
+        mesh.name = pointed ? "Cone" : "Frustum";
+        mesh.SetVertices(vertices);
+        mesh.SetNormals(normals);
+        mesh.SetTriangles(triangles, 0);
+        mesh.RecalculateBounds();
+        return mesh;
+    }
+
+    static void AddCap(List<Vector3> vertices, List<Vector3> normals, List<int> triangles,
+                       float radius, float y, Vector3 normal, int segments)
+    {
+        int centre = vertices.Count;
+        vertices.Add(new Vector3(0f, y, 0f));
+        normals.Add(normal);
+
+        for (int i = 0; i <= segments; i++)
+        {
+            float angle = (float)i / segments * Mathf.PI * 2f;
+            vertices.Add(new Vector3(Mathf.Cos(angle) * radius, y, Mathf.Sin(angle) * radius));
+            normals.Add(normal);
+        }
+
+        bool upward = normal.y > 0f;
+        for (int i = 0; i < segments; i++)
+        {
+            int a = centre + 1 + i;
+            int b = centre + 2 + i;
+
+            if (upward) { triangles.Add(centre); triangles.Add(b); triangles.Add(a); }
+            else { triangles.Add(centre); triangles.Add(a); triangles.Add(b); }
+        }
+    }
+
+    /// <summary>
+    /// A propeller blade: a thin aerofoil that tapers towards the tip and twists
+    /// along its length.
+    ///
+    /// Built lying along +X from the hub, so a rotor is this mesh repeated at
+    /// even angles about Y. A flat disc is what a spinning prop blurs into, but
+    /// a stationary drone wearing four discs looks like it runs on wheels.
+    /// </summary>
+    public static Mesh Blade(float length, float rootChord, float tipChord,
+                             float thickness, float twist)
+    {
+        var vertices = new List<Vector3>();
+        var triangles = new List<int>();
+
+        const int spans = 5;
+
+        for (int i = 0; i <= spans; i++)
+        {
+            float t = (float)i / spans;
+            float x = Mathf.Lerp(length * 0.12f, length, t);
+            float chord = Mathf.Lerp(rootChord, tipChord, t);
+            float halfThickness = Mathf.Lerp(thickness, thickness * 0.35f, t) * 0.5f;
+
+            // Pitch washes out towards the tip, the way a real blade is twisted.
+            float pitch = Mathf.Lerp(twist, twist * 0.35f, t) * Mathf.Deg2Rad;
+            float cos = Mathf.Cos(pitch);
+            float sin = Mathf.Sin(pitch);
+
+            // Four corners of the section, rotated about the blade's own axis.
+            AddSectionCorner(vertices, x, -chord * 0.5f, halfThickness, cos, sin);
+            AddSectionCorner(vertices, x, chord * 0.5f, halfThickness, cos, sin);
+            AddSectionCorner(vertices, x, chord * 0.5f, -halfThickness, cos, sin);
+            AddSectionCorner(vertices, x, -chord * 0.5f, -halfThickness, cos, sin);
+        }
+
+        for (int i = 0; i < spans; i++)
+        {
+            int a = i * 4;
+            int b = a + 4;
+
+            for (int side = 0; side < 4; side++)
+            {
+                int next = (side + 1) % 4;
+
+                triangles.Add(a + side); triangles.Add(b + side); triangles.Add(b + next);
+                triangles.Add(a + side); triangles.Add(b + next); triangles.Add(a + next);
+            }
+        }
+
+        // Cap the tip so the blade is not an open tube.
+        int last = spans * 4;
+        triangles.Add(last); triangles.Add(last + 1); triangles.Add(last + 2);
+        triangles.Add(last); triangles.Add(last + 2); triangles.Add(last + 3);
+
+        var mesh = new Mesh();
+        mesh.name = "Blade";
+        mesh.SetVertices(vertices);
+        mesh.SetTriangles(triangles, 0);
+        mesh.RecalculateNormals();
+        mesh.RecalculateBounds();
+        return mesh;
+    }
+
+    static void AddSectionCorner(List<Vector3> vertices, float x, float chord, float thickness,
+                                 float cos, float sin)
+    {
+        vertices.Add(new Vector3(x,
+                                 chord * sin + thickness * cos,
+                                 chord * cos - thickness * sin));
+    }
+}

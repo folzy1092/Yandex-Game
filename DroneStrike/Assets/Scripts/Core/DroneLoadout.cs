@@ -49,6 +49,12 @@ public struct DroneModel
 /// the unlocks are faster and harder-hitting rather than the only way to win.
 /// A paywall the player cannot pay is worse than no paywall at all.
 ///
+/// The roster is a ladder rather than a set of side-grades: each airframe is
+/// faster AND harder-hitting than the one before it. A trade-off between two
+/// unlocks reads as a choice, which is right for a shop and wrong for
+/// progression — the player watching a second ad wants the next rung, not a
+/// different flavour of the same rung.
+///
 /// State lives in PlayerPrefs, which on a WebGL build is browser storage, so an
 /// unlock survives a reload the way the player expects it to.
 /// </summary>
@@ -76,11 +82,11 @@ public static class DroneLoadout
         {
             id = "hornet",
             displayName = "ШЕРШЕНЬ",
-            tagline = "Разгон и скорость выше на треть. Батарея садится быстрее.",
-            thrustFactor = 1.35f,
-            speedFactor = 1.3f,
-            enduranceFactor = 0.85f,
-            damageFactor = 1f,
+            tagline = "Резче на разгоне, быстрее в пикировании, заряд плотнее.",
+            thrustFactor = 1.28f,
+            speedFactor = 1.22f,
+            enduranceFactor = 1.05f,
+            damageFactor = 1.25f,
             accent = new Color(0.85f, 0.55f, 0.12f),
             needsUnlock = true,
             requiresId = null
@@ -89,11 +95,11 @@ public static class DroneLoadout
         {
             id = "hammer",
             displayName = "МОЛОТ",
-            tagline = "Тяжёлый борт: заряд мощнее в полтора раза, но разгон вялый.",
-            thrustFactor = 0.85f,
-            speedFactor = 0.9f,
+            tagline = "Топовый борт: быстрее всех и бьёт сильнее всех.",
+            thrustFactor = 1.55f,
+            speedFactor = 1.42f,
             enduranceFactor = 1.15f,
-            damageFactor = 1.55f,
+            damageFactor = 1.6f,
             accent = new Color(0.72f, 0.22f, 0.20f),
             needsUnlock = true,
 
@@ -177,17 +183,44 @@ public static class DroneLoadout
 
     public static DroneModel Selected { get { return Models[SelectedIndex]; } }
 
+    // ---------- charges ----------
+
+    const string WarheadUnlockKey = "warhead_unlocked_standard";
+
+    /// <summary>The compact charge is always fitted; the standard one is earned.</summary>
+    public static bool IsWarheadUnlocked(WarheadType charge)
+    {
+        if (charge != WarheadType.Standard) return true;
+        return PlayerPrefs.GetInt(WarheadUnlockKey, 0) == 1;
+    }
+
+    public static void UnlockWarhead(WarheadType charge)
+    {
+        if (charge != WarheadType.Standard) return;
+
+        PlayerPrefs.SetInt(WarheadUnlockKey, 1);
+        PlayerPrefs.Save();
+        Notify();
+    }
+
     /// <summary>The charge fitted to the drone, remembered between missions.</summary>
     public static WarheadType SelectedWarhead
     {
         get
         {
-            return PlayerPrefs.GetInt(WarheadKey, (int)WarheadType.Compact) == (int)WarheadType.Standard
+            bool standard =
+                PlayerPrefs.GetInt(WarheadKey, (int)WarheadType.Compact) == (int)WarheadType.Standard;
+
+            // Same guard as the airframe: a selection can outlive its unlock if
+            // browser storage is wiped between sessions.
+            return standard && IsWarheadUnlocked(WarheadType.Standard)
                 ? WarheadType.Standard
                 : WarheadType.Compact;
         }
         set
         {
+            if (!IsWarheadUnlocked(value)) return;
+
             PlayerPrefs.SetInt(WarheadKey, (int)value);
             PlayerPrefs.Save();
             Notify();

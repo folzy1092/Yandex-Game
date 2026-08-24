@@ -5,11 +5,16 @@ using UnityEngine;
 /// <summary>
 /// The radio link back to the launch point.
 ///
-/// This is the map boundary, and it is deliberately not a wall. Strength falls
+/// This is the map boundary — in every direction, including up. Strength falls
 /// off with distance: the picture degrades first, warning the pilot they are
 /// pushing it, and past the hard limit the link drops. A player who wanders off
 /// gets a reason they can see and feel, instead of bouncing off something
 /// invisible.
+///
+/// It is the altitude limit too. The range is measured in full 3D from the pad,
+/// so climbing far enough breaks the link exactly the way flying too far out
+/// does. That replaced a hard ceiling the drone used to bump into, which is the
+/// worst kind of boundary: it stops the player without telling them anything.
 ///
 /// Losing the link cuts the motors immediately, so the drone starts falling,
 /// and the payload self-destructs a couple of seconds later — which is what a
@@ -18,10 +23,10 @@ using UnityEngine;
 public class SignalLink : MonoBehaviour
 {
     /// <summary>Distance at which the picture is still perfectly clean.</summary>
-    public float cleanRange = 220f;
+    public float cleanRange = 230f;
 
     /// <summary>Distance at which the link drops entirely.</summary>
-    public float maximumRange = 330f;
+    public float maximumRange = 350f;
 
     /// <summary>Seconds between losing the link and the payload going off.</summary>
     public float selfDestructDelay = 2f;
