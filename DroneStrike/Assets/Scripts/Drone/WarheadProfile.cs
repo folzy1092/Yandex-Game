@@ -17,7 +17,7 @@ public enum WarheadType
 ///
 /// The trade is the point: the compact charge cannot reliably kill armour, but
 /// the lighter drone accelerates harder and turns tighter, so it is the better
-/// pick against trucks, depots and antennas. The standard charge kills anything
+/// pick against trucks and depots. The standard charge kills anything
 /// but flies like it is carrying something.
 /// </summary>
 public struct WarheadProfile

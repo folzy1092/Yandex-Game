@@ -96,8 +96,8 @@ Drone Strike — симулятор ударного FPV-дрона. Управ�
 и разгон в пике на полной скорости больше не одно и то же.
 
 Задача — долететь до целей и подорвать боевую часть точным ударом. Никаких
-людей на поле: только техника, палатки снабжения и антенны связи. Дроны
-одноразовые — не долетел или промазал, запускаешь следующий с новой площадки.
+людей на поле: только техника и палатки снабжения. Дроны одноразовые — не
+долетел или промазал, запускаешь следующий с новой площадки.
 
 ЧТО В ИГРЕ
 
@@ -140,8 +140,8 @@ level the camera and it flies level. Aiming and piloting are the same act,
 and a fast, committed hit now does noticeably more damage than a lazy tap.
 
 Fly to the target and detonate on impact. No infantry on the map — only
-vehicles, supply tents and radio masts. Drones are one-shot: miss, and you
-launch the next one from a fresh pad.
+vehicles and supply tents. Drones are one-shot: miss, and you launch the
+next one from a fresh pad.
 
 FEATURES
 

@@ -56,8 +56,10 @@ public static class MissionBuilder
         public int armour;
         public int trucks;
         public int tents;
-        public int antennas;
         public int patrols;
+
+        /// <summary>Radio masts. Scenery on the skyline, not part of the mission tally.</summary>
+        public int antennas;
 
         /// <summary>Woodland attempts. More means denser trees on the approach.</summary>
         public int treeAttempts;
@@ -640,12 +642,15 @@ public static class MissionBuilder
 
         // Biggest footprint first. Rejection sampling packs tighter maps like
         // this does — placing the pickiest, largest things while the ground is
-        // still empty and leaving the smallest, most forgiving one (the mast)
-        // for whatever gaps are left, rather than the other way round.
+        // still empty and leaving the smaller, more forgiving ones for
+        // whatever gaps are left, rather than the other way round.
+        //
+        // The count this returns is the mission total, so anything parented
+        // here is something the player is asked to destroy. Masts are built
+        // with the clutter instead, for the reason in TargetProps.Antenna.
         Scatter(group.transform, TargetProps.SupplyDepot, profile.tents, 6.5f);
         Scatter(group.transform, TargetProps.ArmouredVehicle, profile.armour, 6f);
         Scatter(group.transform, TargetProps.Truck, profile.trucks, 5f);
-        Scatter(group.transform, TargetProps.Antenna, profile.antennas, 4.5f);
 
         for (int i = 0; i < profile.patrols; i++)
             BuildPatrolTruck(group.transform, (float)i / profile.patrols);
@@ -1124,6 +1129,23 @@ public static class MissionBuilder
         Material metal = DroneMaterials.Load("Mat_RustMetal");
         Material crate = DroneMaterials.Load("Mat_Crate");
         Material concrete = DroneMaterials.Load("Mat_Concrete");
+
+        // Masts first: they are by far the largest thing in this group and the
+        // fussiest to fit, the same largest-first rule the targets follow.
+        for (int i = 0; i < profile.antennas; i++)
+        {
+            Vector2 mastSpot;
+            if (!TryFindSpot(4.5f, 7f, out mastSpot))
+            {
+                Debug.LogWarning("Drone Strike: " + profile.sceneName + " ran out of room for an "
+                                 + "Antenna (" + (i + 1) + "/" + profile.antennas + ").");
+                break;
+            }
+
+            Claim(mastSpot.x, mastSpot.y, 4.5f);
+            TargetProps.Antenna(group.transform, OnGround(mastSpot.x, mastSpot.y),
+                                Random.Range(0f, 360f), palette);
+        }
 
         int wanted = Mathf.RoundToInt(profile.roadHalfX * profile.roadHalfZ / 240f);
         int placed = 0;

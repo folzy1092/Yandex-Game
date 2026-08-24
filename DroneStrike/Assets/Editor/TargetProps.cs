@@ -287,17 +287,31 @@ public static class TargetProps
     // ---------- antenna ----------
 
     /// <summary>
-    /// A guyed mast with a dish. Tall and thin, so it stands out from every
-    /// other target on the map at any range.
+    /// A guyed mast with a dish.
+    ///
+    /// Scenery, though it was a target for most of development. A nine-metre
+    /// pole reads as infrastructure from the air whatever is bolted to it, and
+    /// its highlight ring sits on the ground at the base — far below the part
+    /// of it the player is actually looking at while lining up a dive — so
+    /// masts got cleared past without ever being recognised as objectives.
+    /// A target the player cannot tell is a target is worse than one less kind
+    /// of target, so the mast keeps its place on the skyline and stays out of
+    /// the mission tally.
     /// </summary>
-    public static Target Antenna(Transform parent, Vector3 position, float yaw, Palette palette)
+    public static GameObject Antenna(Transform parent, Vector3 position, float yaw, Palette palette)
     {
         const float mastHeight = 9f;
 
-        GameObject root = CreateRoot(parent, "Antenna", position, yaw,
-                                     Target.Kind.Antenna,
-                                     new Vector3(2.6f, mastHeight, 2.6f),
-                                     new Vector3(0f, mastHeight * 0.5f, 0f));
+        var root = new GameObject("Antenna");
+        root.transform.SetParent(parent, false);
+        root.transform.position = position;
+        root.transform.rotation = Quaternion.Euler(0f, yaw, 0f);
+
+        // Still solid: a drone flown into it is still a drone lost, the same
+        // as with a tree or a warehouse.
+        var collider = root.AddComponent<BoxCollider>();
+        collider.size = new Vector3(2.6f, mastHeight, 2.6f);
+        collider.center = new Vector3(0f, mastHeight * 0.5f, 0f);
 
         AddPart(root, "Base", new Vector3(0f, 0.3f, 0f),
                 new Vector3(2.2f, 0.6f, 2.2f), palette.concrete);
@@ -323,7 +337,7 @@ public static class TargetProps
         AddPart(root, "Crown", new Vector3(0f, mastHeight + 0.5f, 0f),
                 new Vector3(1.2f, 0.1f, 0.1f), palette.metal);
 
-        return root.GetComponent<Target>();
+        return root;
     }
 
     // ---------- scenery, not targets ----------

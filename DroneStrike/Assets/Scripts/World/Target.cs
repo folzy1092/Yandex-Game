@@ -14,8 +14,7 @@ public class Target : MonoBehaviour
     {
         LightVehicle,
         ArmouredVehicle,
-        SupplyDepot,
-        Antenna
+        SupplyDepot
     }
 
     public Kind kind = Kind.LightVehicle;
@@ -36,7 +35,6 @@ public class Target : MonoBehaviour
             {
                 case Kind.ArmouredVehicle: return 300;
                 case Kind.SupplyDepot: return 250;
-                case Kind.Antenna: return 150;
                 default: return 100;
             }
         }
@@ -53,7 +51,6 @@ public class Target : MonoBehaviour
             {
                 case Kind.ArmouredVehicle: return 140f;
                 case Kind.SupplyDepot: return 60f;
-                case Kind.Antenna: return 45f;
                 default: return 80f;
             }
         }
