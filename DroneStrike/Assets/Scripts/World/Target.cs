@@ -202,7 +202,7 @@ public class Target : MonoBehaviour
         quad.transform.localRotation = Quaternion.Euler(90f, UnityEngine.Random.Range(0f, 360f), 0f);
         quad.transform.localScale = Vector3.one * radius * 2.6f;
 
-        Object.Destroy(quad.GetComponent<Collider>());
+        UnityEngine.Object.Destroy(quad.GetComponent<Collider>());
         var renderer = quad.GetComponent<Renderer>();
         renderer.sharedMaterial = scorch;
         renderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
