@@ -44,14 +44,27 @@ mergeInto(LibraryManager.library, {
       send('OnLanguageDetected', code || '');
     };
 
+    var queryLanguage = function () {
+      try {
+        var params = new URLSearchParams(window.location.search);
+        return (params.get('lang') || '').trim();
+      } catch (e) {
+        return '';
+      }
+    };
+
     var browserLanguage = function () {
       return (navigator.language || navigator.userLanguage || 'en').slice(0, 2);
+    };
+
+    var fallbackLanguage = function () {
+      return queryLanguage() || browserLanguage();
     };
 
     var start = function () {
       if (typeof YaGames === 'undefined') {
         console.warn('Yandex SDK: YaGames is not defined, ads are disabled.');
-        reportLanguage(browserLanguage());
+        reportLanguage(fallbackLanguage());
         send('OnSdkFailed', 'YaGames missing');
         return;
       }
@@ -74,7 +87,7 @@ mergeInto(LibraryManager.library, {
         send('OnSdkReady', '');
       }).catch(function (error) {
         console.warn('Yandex SDK: init failed', error);
-        reportLanguage(browserLanguage());
+        reportLanguage(fallbackLanguage());
         send('OnSdkFailed', String(error));
       });
     };
@@ -90,7 +103,7 @@ mergeInto(LibraryManager.library, {
     script.onload = start;
     script.onerror = function () {
       console.warn('Yandex SDK: /sdk.js could not be loaded. This is expected outside Yandex Games.');
-      reportLanguage(browserLanguage());
+      reportLanguage(fallbackLanguage());
       send('OnSdkFailed', 'sdk.js not reachable');
     };
     document.head.appendChild(script);

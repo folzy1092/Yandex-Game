@@ -150,8 +150,8 @@ public class DroneHUD : MonoBehaviour
 
     void UpdateTelemetry(DroneRig drone)
     {
-        speedText.text = Mathf.RoundToInt(drone.Controller.SpeedKmh) + " КМ/Ч";
-        altitudeText.text = Mathf.RoundToInt(drone.Controller.AltitudeMetres) + "М";
+        speedText.text = Localization.F("hud.kmh", Mathf.RoundToInt(drone.Controller.SpeedKmh));
+        altitudeText.text = Localization.F("hud.alt", Mathf.RoundToInt(drone.Controller.AltitudeMetres));
 
         float charge = drone.Battery != null ? drone.Battery.Charge : 1f;
         batteryFill.fillAmount = charge;
@@ -269,7 +269,7 @@ public class DroneHUD : MonoBehaviour
         BuildCompass(root, topCentre);
         BuildCrosshair(root, centre);
 
-        speedText = UIFactory.CreateText(root, "Speed", "0 КМ/Ч", 46, TextAnchor.UpperRight,
+        speedText = UIFactory.CreateText(root, "Speed", Localization.F("hud.kmh", 0), 46, TextAnchor.UpperRight,
                                          Color.white, topRight, topRight,
                                          new Vector2(-60f, -150f), new Vector2(400f, 60f));
 
@@ -301,7 +301,7 @@ public class DroneHUD : MonoBehaviour
                                            Color.white, topRight, topRight,
                                            new Vector2(-322f, -220f), new Vector2(140f, 40f));
 
-        altitudeText = UIFactory.CreateText(root, "Altitude", "0М", 30, TextAnchor.UpperRight,
+        altitudeText = UIFactory.CreateText(root, "Altitude", Localization.F("hud.alt", 0), 30, TextAnchor.UpperRight,
                                             Color.white, topRight, topRight,
                                             new Vector2(-60f, -220f), new Vector2(140f, 40f));
 
@@ -315,7 +315,7 @@ public class DroneHUD : MonoBehaviour
                                            Color.white, topLeft, topLeft,
                                            new Vector2(50f, -50f), new Vector2(600f, 100f));
 
-        signalLostBanner = UIFactory.CreateText(root, "SignalLost", "СИГНАЛ ПОТЕРЯН", 54,
+        signalLostBanner = UIFactory.CreateText(root, "SignalLost", Localization.T("hud.signal_lost"), 54,
                                                 TextAnchor.MiddleCenter,
                                                 new Color(0.95f, 0.35f, 0.3f),
                                                 centre, centre, new Vector2(0f, 90f),
@@ -495,7 +495,7 @@ public class DroneHUD : MonoBehaviour
         // drone short of the last target is exactly the moment an extra drone is
         // worth watching something for.
         reviveButton = UIFactory.CreateButton(resultPanel.transform, "ReviveButton",
-                                              "+1 ДРОН ЗА РЕКЛАМУ", 30,
+                                              Localization.T("hud.revive"), 30,
                                               centre, centre, new Vector2(0f, -100f),
                                               new Vector2(460f, 74f), RequestExtraDrone);
 
@@ -503,14 +503,14 @@ public class DroneHUD : MonoBehaviour
         if (reviveImage != null) reviveImage.color = new Color(0.72f, 0.48f, 0.12f);
         reviveLabel = reviveButton.GetComponentInChildren<Text>();
 
-        UIFactory.CreateButton(resultPanel.transform, "RetryButton", "ЗАНОВО", 30,
+        UIFactory.CreateButton(resultPanel.transform, "RetryButton", Localization.T("hud.retry"), 30,
                                centre, centre, new Vector2(-180f, -196f), new Vector2(330f, 66f),
                                () =>
                                {
                                    if (MissionManager.Instance != null) MissionManager.Instance.Restart();
                                });
 
-        UIFactory.CreateButton(resultPanel.transform, "MenuButton", "В МЕНЮ", 30,
+        UIFactory.CreateButton(resultPanel.transform, "MenuButton", Localization.T("hud.menu"), 30,
                                centre, centre, new Vector2(180f, -196f), new Vector2(330f, 66f),
                                () =>
                                {
@@ -537,7 +537,7 @@ public class DroneHUD : MonoBehaviour
 
         Vector2 centre = new Vector2(0.5f, 0.5f);
 
-        UIFactory.CreateText(pausePanel.transform, "PauseTitle", "ПАУЗА", 60,
+        UIFactory.CreateText(pausePanel.transform, "PauseTitle", Localization.T("hud.pause"), 60,
                              TextAnchor.MiddleCenter, Color.white,
                              centre, centre, new Vector2(0f, 160f), new Vector2(900f, 90f));
 
@@ -545,11 +545,11 @@ public class DroneHUD : MonoBehaviour
                                             TextAnchor.MiddleCenter, Color.white,
                                             centre, centre, new Vector2(0f, 40f), new Vector2(900f, 160f));
 
-        UIFactory.CreateButton(pausePanel.transform, "ResumeButton", "ПРОДОЛЖИТЬ", 30,
+        UIFactory.CreateButton(pausePanel.transform, "ResumeButton", Localization.T("hud.resume"), 30,
                                centre, centre, new Vector2(-180f, -140f), new Vector2(330f, 66f),
                                ClosePause);
 
-        UIFactory.CreateButton(pausePanel.transform, "PauseMenuButton", "В МЕНЮ", 30,
+        UIFactory.CreateButton(pausePanel.transform, "PauseMenuButton", Localization.T("hud.menu"), 30,
                                centre, centre, new Vector2(180f, -140f), new Vector2(330f, 66f),
                                () =>
                                {
@@ -600,10 +600,12 @@ public class DroneHUD : MonoBehaviour
     {
         string warhead = WarheadProfile.For(mission.warhead).DisplayName;
 
-        return "ЦЕЛЕЙ: " + mission.TargetsDestroyed + " / " + mission.TargetsTotal
-              + "\nДРОНОВ: " + mission.DronesRemaining
-              + "\nДРОН: " + DroneLoadout.Selected.displayName
-              + "\nЗАРЯД: " + warhead;
+        return Localization.F("hud.summary",
+            mission.TargetsDestroyed,
+            mission.TargetsTotal,
+            mission.DronesRemaining,
+            Localization.DroneName(DroneLoadout.Selected.id),
+            warhead);
     }
 
     void RefreshMission()
@@ -633,11 +635,11 @@ public class DroneHUD : MonoBehaviour
         if (pausePanel != null) pausePanel.SetActive(false);
         Time.timeScale = 1f;
 
-        resultTitle.text = won ? "МИССИЯ ВЫПОЛНЕНА" : "МИССИЯ ПРОВАЛЕНА";
+        resultTitle.text = won ? Localization.T("hud.win") : Localization.T("hud.lose");
         resultTitle.color = won ? new Color(0.5f, 0.9f, 0.5f) : new Color(0.95f, 0.4f, 0.35f);
 
-        resultDetail.text = "Уничтожено целей: " + mission.TargetsDestroyed + " из " + mission.TargetsTotal
-                            + "\nОчки: " + mission.Score;
+        resultDetail.text = Localization.F("hud.result",
+            mission.TargetsDestroyed, mission.TargetsTotal, mission.Score);
 
         // Nothing to revive into once every target is down, and no offer left
         // once the per-mission cap is spent.
@@ -647,7 +649,7 @@ public class DroneHUD : MonoBehaviour
             reviveButton.interactable = true;
         }
 
-        if (reviveLabel != null) reviveLabel.text = "+1 ДРОН ЗА РЕКЛАМУ";
+        if (reviveLabel != null) reviveLabel.text = Localization.T("hud.revive");
 
         resultPanel.SetActive(true);
         Cursor.lockState = CursorLockMode.None;
@@ -666,7 +668,7 @@ public class DroneHUD : MonoBehaviour
         if (mission == null || reviveButton == null) return;
 
         reviveButton.interactable = false;
-        if (reviveLabel != null) reviveLabel.text = "ЗАГРУЗКА...";
+        if (reviveLabel != null) reviveLabel.text = Localization.T("hud.loading");
 
         mission.RequestExtraDrone(granted =>
         {
@@ -677,7 +679,7 @@ public class DroneHUD : MonoBehaviour
             }
 
             reviveButton.interactable = true;
-            if (reviveLabel != null) reviveLabel.text = "РЕКЛАМА НЕДОСТУПНА";
+            if (reviveLabel != null) reviveLabel.text = Localization.T("hud.ad_failed");
         });
     }
 }

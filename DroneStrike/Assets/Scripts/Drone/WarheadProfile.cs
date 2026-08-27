@@ -31,7 +31,10 @@ public struct WarheadProfile
     /// <summary>Multiplies the drone's top speed.</summary>
     public float speedFactor;
 
-    public string DisplayName;
+    public WarheadType Type;
+
+    /// <summary>Localised label for the current language.</summary>
+    public string DisplayName { get { return Localization.WarheadName(Type); } }
 
     public static WarheadProfile For(WarheadType type)
     {
@@ -39,11 +42,11 @@ public struct WarheadProfile
         {
             return new WarheadProfile
             {
+                Type = WarheadType.Compact,
                 damage = 85f,
                 blastRadius = 4.5f,
                 thrustFactor = 1.25f,
-                speedFactor = 1.2f,
-                DisplayName = "МАЛЫЙ"
+                speedFactor = 1.2f
             };
         }
 
@@ -51,21 +54,21 @@ public struct WarheadProfile
         {
             return new WarheadProfile
             {
+                Type = WarheadType.Standard,
                 damage = 165f,
                 blastRadius = 7.5f,
                 thrustFactor = 1f,
-                speedFactor = 1f,
-                DisplayName = "СТАНДАРТ"
+                speedFactor = 1f
             };
         }
 
         return new WarheadProfile
         {
+            Type = WarheadType.Heavy,
             damage = 230f,
             blastRadius = 9.5f,
             thrustFactor = 0.85f,
-            speedFactor = 0.9f,
-            DisplayName = "ТЯЖЁЛЫЙ"
+            speedFactor = 0.9f
         };
     }
 }

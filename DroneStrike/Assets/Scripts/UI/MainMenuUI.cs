@@ -1,6 +1,7 @@
 using UnityEngine;
 using UnityEngine.SceneManagement;
 using UnityEngine.UI;
+using System.Collections;
 
 /// <summary>
 /// The briefing screen.
@@ -94,6 +95,8 @@ public class MainMenuUI : MonoBehaviour
     /// <summary>True while an ad is in flight, so nothing can be pressed twice.</summary>
     bool waitingForAd;
 
+    bool opening;
+
     void Start()
     {
         UIFactory.EnsureEventSystem();
@@ -103,22 +106,74 @@ public class MainMenuUI : MonoBehaviour
         Cursor.lockState = CursorLockMode.None;
         Cursor.visible = true;
 
-        Build();
-        ShowPanel(homePanel);
-        Refresh();
-
         DroneLoadout.OnChanged += Refresh;
         MissionCatalog.OnChanged += Refresh;
-        Localization.OnLanguageChanged += Refresh;
+        Localization.OnLanguageChanged += OnLanguageChanged;
 
-        YandexAds.NotifyGameReady();
+        StartCoroutine(OpenWhenLanguageReady());
     }
 
     void OnDestroy()
     {
         DroneLoadout.OnChanged -= Refresh;
         MissionCatalog.OnChanged -= Refresh;
-        Localization.OnLanguageChanged -= Refresh;
+        Localization.OnLanguageChanged -= OnLanguageChanged;
+    }
+
+    /// <summary>
+    /// Yandex 2.14: do not draw the menu until the SDK language is in, so an
+    /// English draft never flashes Russian chrome at the moderator.
+    /// </summary>
+    IEnumerator OpenWhenLanguageReady()
+    {
+#if UNITY_EDITOR
+        // No SDK in the editor. Default Russian; F9 flips to English for screenshots.
+        if (!Localization.IsResolved)
+            Localization.SetFromCode("ru");
+        Open();
+        YandexAds.NotifyGameReady();
+        yield break;
+#else
+        float deadline = Time.realtimeSinceStartup + 2f;
+        while (!Localization.IsResolved && Time.realtimeSinceStartup < deadline)
+            yield return null;
+
+        if (!Localization.IsResolved)
+            Localization.MarkResolved();
+
+        Open();
+        YandexAds.NotifyGameReady();
+        yield break;
+#endif
+    }
+
+#if UNITY_EDITOR
+    void Update()
+    {
+        if (!Input.GetKeyDown(KeyCode.F9)) return;
+        Localization.SetFromCode(
+            Localization.Current == Localization.Language.English ? "ru" : "en");
+    }
+#endif
+
+    void OnLanguageChanged()
+    {
+        if (root == null) return;
+        Open();
+    }
+
+    void Open()
+    {
+        if (opening) return;
+        opening = true;
+
+        if (root != null)
+            Destroy(root.gameObject);
+
+        Build();
+        ShowPanel(homePanel);
+        Refresh();
+        opening = false;
     }
 
     // ---------- construction ----------
@@ -189,19 +244,19 @@ public class MainMenuUI : MonoBehaviour
 
         float y = -48f;    // the waterline: the top edge the next element starts at
 
-        y = TopText(parent, "Title", "DRONE STRIKE", 78, TitleHeight, y, Ink);
+        y = TopText(parent, "Title", Localization.GameTitle, 78, TitleHeight, y, Ink);
         y -= GapAfterTitle;
 
         // No place name in the subtitle. The game is abstract on purpose, and
         // every phrase that sounds like a real front is one more reason for a
         // moderator to look harder at it — which the subtitle buys nothing worth.
-        y = TopText(parent, "Subtitle", "СИМУЛЯТОР УДАРНОГО FPV-ДРОНА", 26, SubtitleHeight, y, InkDim);
+        y = TopText(parent, "Subtitle", Localization.T("menu.subtitle"), 26, SubtitleHeight, y, InkDim);
         y -= GapAfterSubtitle;
 
         const float navWidth = 620f;
         float navSpan = navWidth * 2f + CardGap;
 
-        y = SectionLabel(parent, "Kit", "СНАРЯЖЕНИЕ", y, navSpan);
+        y = SectionLabel(parent, "Kit", Localization.T("menu.kit"), y, navSpan);
         y -= GapAfterSection;
 
         float navCentreY = y - NavButtonHeight * 0.5f;
@@ -219,7 +274,7 @@ public class MainMenuUI : MonoBehaviour
         float mapSpan = MissionCatalog.Maps.Length * MapCardWidth
                         + (MissionCatalog.Maps.Length - 1) * CardGap;
 
-        y = SectionLabel(parent, "Mission", "ЗАДАНИЕ", y, mapSpan);
+        y = SectionLabel(parent, "Mission", Localization.T("menu.mission"), y, mapSpan);
         y -= GapAfterSection;
 
         BuildMapCards(parent, y - MapCardHeight * 0.5f, mapSpan);
@@ -237,13 +292,12 @@ public class MainMenuUI : MonoBehaviour
         // all: one bottom-pivoted edge feeds the next bottom-pivoted edge
         // directly, plus the literal gap between them.
         float controlsTop = TopTextBottom(parent, "Controls",
-            "W / S — вперёд и назад по взгляду     A / D — снос     Space / Ctrl — высота\n"
-            + "Мышь — камера     Esc — пауза     Дрон детонирует при ударе",
+            Localization.T("menu.controls"),
             22, ControlsHeight, 40f, new Color(0.50f, 0.56f, 0.58f));
 
         float launchBottom = controlsTop + GapAboveLaunch;
 
-        Button launch = UIFactory.CreateButton(parent, "Launch", "В БОЙ", 40, bottom, bottom,
+        Button launch = UIFactory.CreateButton(parent, "Launch", Localization.T("menu.launch"), 40, bottom, bottom,
                                                new Vector2(0f, launchBottom),
                                                new Vector2(600f, LaunchButtonHeight), Launch);
         launchLabel = launch.GetComponentInChildren<Text>();
@@ -324,7 +378,7 @@ public class MainMenuUI : MonoBehaviour
                                new Vector2(MapCardWidth, MapCardHeight), map.accent);
             mapFrames[i] = frame;
 
-            UIFactory.CreateText(frame.transform, "Name", map.displayName, 30,
+            UIFactory.CreateText(frame.transform, "Name", Localization.MapName(map.id), 30,
                                  TextAnchor.MiddleCenter, Ink,
                                  new Vector2(0.5f, 1f), new Vector2(0.5f, 1f),
                                  new Vector2(0f, -28f), new Vector2(MapCardWidth - 40f, 40f));
@@ -333,14 +387,14 @@ public class MainMenuUI : MonoBehaviour
             // button's own top edge — two lines of 20pt text never needed
             // that much room, it just left nothing between them and the
             // button below.
-            Text tagline = UIFactory.CreateText(frame.transform, "Tagline", map.tagline, 20,
+            Text tagline = UIFactory.CreateText(frame.transform, "Tagline", Localization.MapTagline(map.id), 20,
                                                 TextAnchor.UpperCenter, InkDim,
                                                 new Vector2(0.5f, 1f), new Vector2(0.5f, 1f),
                                                 new Vector2(0f, -80f),
                                                 new Vector2(MapCardWidth - 56f, 62f));
             tagline.horizontalOverflow = HorizontalWrapMode.Wrap;
 
-            UIFactory.CreateText(frame.transform, "Targets", "ЦЕЛЕЙ:  " + map.targetCount, 21,
+            UIFactory.CreateText(frame.transform, "Targets", Localization.F("menu.targets", map.targetCount), 21,
                                  TextAnchor.MiddleCenter, new Color(0.55f, 0.62f, 0.60f),
                                  new Vector2(0.5f, 1f), new Vector2(0.5f, 1f),
                                  new Vector2(0f, -156f), new Vector2(MapCardWidth - 40f, 26f));
@@ -355,8 +409,8 @@ public class MainMenuUI : MonoBehaviour
 
     void BuildDronePanel(Transform parent)
     {
-        float y = PanelHeader(parent, "ВЫБОР ДРОНА",
-                              "Каждый следующий дрон быстрее и бьёт сильнее предыдущего.");
+        float y = PanelHeader(parent, Localization.T("menu.pick_drone"),
+                              Localization.T("menu.pick_drone_note"));
 
         int count = DroneLoadout.Models.Length;
 
@@ -379,22 +433,22 @@ public class MainMenuUI : MonoBehaviour
                                new Vector2(DroneCardWidth, DroneCardHeight), model.accent);
             droneFrames[i] = frame;
 
-            UIFactory.CreateText(frame.transform, "Name", model.displayName, 34,
+            UIFactory.CreateText(frame.transform, "Name", Localization.DroneName(model.id), 34,
                                  TextAnchor.MiddleCenter, Ink,
                                  new Vector2(0.5f, 1f), new Vector2(0.5f, 1f),
                                  new Vector2(0f, -34f), new Vector2(DroneCardWidth - 40f, 44f));
 
-            Text tagline = UIFactory.CreateText(frame.transform, "Tagline", model.tagline, 20,
+            Text tagline = UIFactory.CreateText(frame.transform, "Tagline", Localization.DroneTagline(model.id), 20,
                                                 TextAnchor.UpperCenter, InkDim,
                                                 new Vector2(0.5f, 1f), new Vector2(0.5f, 1f),
                                                 new Vector2(0f, -92f),
                                                 new Vector2(DroneCardWidth - 56f, 96f));
             tagline.horizontalOverflow = HorizontalWrapMode.Wrap;
 
-            StatBar(frame.transform, "ТЯГА", model.thrustFactor, DroneCardWidth, -228f);
-            StatBar(frame.transform, "СКОРОСТЬ", model.speedFactor, DroneCardWidth, -276f);
-            StatBar(frame.transform, "ЗАРЯД", model.damageFactor, DroneCardWidth, -324f);
-            StatBar(frame.transform, "РЕСУРС", model.enduranceFactor, DroneCardWidth, -372f);
+            StatBar(frame.transform, Localization.T("stat.thrust"), model.thrustFactor, DroneCardWidth, -228f);
+            StatBar(frame.transform, Localization.T("stat.speed"), model.speedFactor, DroneCardWidth, -276f);
+            StatBar(frame.transform, Localization.T("stat.damage"), model.damageFactor, DroneCardWidth, -324f);
+            StatBar(frame.transform, Localization.T("stat.endurance"), model.enduranceFactor, DroneCardWidth, -372f);
 
             Button button = CardButton(frame.transform, DroneCardWidth, () => OnDronePressed(index));
             droneButtons[i] = button;
@@ -433,8 +487,8 @@ public class MainMenuUI : MonoBehaviour
 
     void BuildWarheadPanel(Transform parent)
     {
-        float y = PanelHeader(parent, "БОЕПРИПАС",
-                              "Малый заряд легче — дрон резвее. Тяжёлый бьёт больнее всех, но вязче в управлении.");
+        float y = PanelHeader(parent, Localization.T("menu.pick_charge"),
+                              Localization.T("menu.pick_charge_note"));
 
         warheadButtons = new Button[Charges.Length];
         warheadFrames = new Image[Charges.Length];
@@ -444,11 +498,11 @@ public class MainMenuUI : MonoBehaviour
         float startX = -span * 0.5f + ChargeCardWidth * 0.5f;
         float centreY = y - ChargeCardHeight * 0.5f;
 
-        string[] blurbs =
+        string[] blurbKeys =
         {
-            "Штатная боевая часть. Дрон с ней заметно легче и охотнее слушается.",
-            "Основной заряд. Снимает броню с первого захода при точном попадании.",
-            "Тяжёлая боевая часть. С запасом хватит на что угодно, но дрон вязче."
+            "warhead.compact.blurb",
+            "warhead.standard.blurb",
+            "warhead.heavy.blurb"
         };
 
         Color[] accents =
@@ -475,7 +529,7 @@ public class MainMenuUI : MonoBehaviour
                                  new Vector2(0.5f, 1f), new Vector2(0.5f, 1f),
                                  new Vector2(0f, -34f), new Vector2(ChargeCardWidth - 40f, 44f));
 
-            Text blurb = UIFactory.CreateText(frame.transform, "Blurb", blurbs[i], 21,
+            Text blurb = UIFactory.CreateText(frame.transform, "Blurb", Localization.T(blurbKeys[i]), 21,
                                               TextAnchor.UpperCenter, InkDim,
                                               new Vector2(0.5f, 1f), new Vector2(0.5f, 1f),
                                               new Vector2(0f, -94f),
@@ -483,8 +537,9 @@ public class MainMenuUI : MonoBehaviour
             blurb.horizontalOverflow = HorizontalWrapMode.Wrap;
 
             UIFactory.CreateText(frame.transform, "Figures",
-                                 "УРОН  " + Mathf.RoundToInt(profile.damage)
-                                 + "          РАДИУС  " + profile.blastRadius.ToString("0.0") + " М",
+                                 Localization.F("stat.figures",
+                                                Mathf.RoundToInt(profile.damage),
+                                                profile.blastRadius.ToString("0.0")),
                                  21, TextAnchor.MiddleCenter, new Color(0.60f, 0.68f, 0.65f),
                                  new Vector2(0.5f, 1f), new Vector2(0.5f, 1f),
                                  new Vector2(0f, -222f), new Vector2(ChargeCardWidth - 40f, 30f));
@@ -550,7 +605,7 @@ public class MainMenuUI : MonoBehaviour
 
     void BackButton(Transform parent)
     {
-        Button back = UIFactory.CreateButton(parent, "Back", "НАЗАД", 30,
+        Button back = UIFactory.CreateButton(parent, "Back", Localization.T("menu.back"), 30,
                                              new Vector2(0.5f, 0f), new Vector2(0.5f, 0f),
                                              new Vector2(0f, 176f), new Vector2(380f, 84f),
                                              () => ShowPanel(homePanel));
@@ -572,6 +627,7 @@ public class MainMenuUI : MonoBehaviour
 
     void Refresh()
     {
+        if (root == null) return;
         RefreshDrones();
         RefreshCharges();
         RefreshMaps();
@@ -581,14 +637,16 @@ public class MainMenuUI : MonoBehaviour
     void RefreshHome()
     {
         if (droneNavLabel != null)
-            droneNavLabel.text = "ДРОН:   " + DroneLoadout.Selected.displayName;
+            droneNavLabel.text = Localization.F("menu.drone",
+                Localization.DroneName(DroneLoadout.Selected.id));
 
         if (warheadNavLabel != null)
-            warheadNavLabel.text = "ЗАРЯД:   "
-                                   + WarheadProfile.For(DroneLoadout.SelectedWarhead).DisplayName;
+            warheadNavLabel.text = Localization.F("menu.charge",
+                WarheadProfile.For(DroneLoadout.SelectedWarhead).DisplayName);
 
         if (launchLabel != null)
-            launchLabel.text = "В БОЙ · " + MissionCatalog.Selected.displayName;
+            launchLabel.text = Localization.F("menu.launch_map",
+                Localization.MapName(MissionCatalog.Selected.id));
     }
 
     void RefreshDrones()
@@ -605,13 +663,19 @@ public class MainMenuUI : MonoBehaviour
             bool active = unlocked && i == selected;
 
             string action = unlocked
-                ? (active ? "ВЫБРАН" : "ВЫБРАТЬ")
-                : available ? "ОТКРЫТЬ ЗА РЕКЛАМУ"
-                            : "СНАЧАЛА «" + DroneLoadout.PrerequisiteName(model) + "»";
+                ? (active ? Localization.T("action.selected") : Localization.T("action.select"))
+                : available ? Localization.T("action.unlock_ad")
+                            : Localization.F("action.need_first",
+                                Localization.DroneName(PrerequisiteId(model)));
 
             Dress(droneFrames[i], droneButtons[i], droneActions[i],
                   action, unlocked, available, active);
         }
+    }
+
+    static string PrerequisiteId(DroneModel model)
+    {
+        return string.IsNullOrEmpty(model.requiresId) ? "" : model.requiresId;
     }
 
     void RefreshCharges()
@@ -627,9 +691,10 @@ public class MainMenuUI : MonoBehaviour
             bool active = unlocked && Charges[i] == selected;
 
             string action = unlocked
-                ? (active ? "УСТАНОВЛЕН" : "УСТАНОВИТЬ")
-                : available ? "ОТКРЫТЬ ЗА РЕКЛАМУ"
-                            : "СНАЧАЛА «" + DroneLoadout.WarheadPrerequisiteName(Charges[i]) + "»";
+                ? (active ? Localization.T("action.fitted") : Localization.T("action.fit"))
+                : available ? Localization.T("action.unlock_ad")
+                            : Localization.F("action.need_first",
+                                Localization.WarheadName(WarheadType.Standard));
 
             Dress(warheadFrames[i], warheadButtons[i], warheadActions[i],
                   action, unlocked, available, active);
@@ -649,9 +714,13 @@ public class MainMenuUI : MonoBehaviour
             bool active = unlocked && i == selected;
 
             string action;
-            if (!unlocked) action = "ОТКРЫТЬ ЗА РЕКЛАМУ";
-            else if (active) action = cleared ? "ВЫБРАНА · ПРОЙДЕНА" : "ВЫБРАНА";
-            else action = cleared ? "ВЫБРАТЬ · ПРОЙДЕНА" : "ВЫБРАТЬ";
+            if (!unlocked) action = Localization.T("action.unlock_ad");
+            else if (active) action = cleared
+                ? Localization.T("action.map_selected_cleared")
+                : Localization.T("action.map_selected");
+            else action = cleared
+                ? Localization.T("action.map_select_cleared")
+                : Localization.T("action.select");
 
             Dress(mapFrames[i], mapButtons[i], mapActions[i], action, unlocked, true, active);
         }
@@ -696,11 +765,12 @@ public class MainMenuUI : MonoBehaviour
 
         if (!DroneLoadout.IsAvailable(model))
         {
-            SetStatus("Сначала откройте дрон «" + DroneLoadout.PrerequisiteName(model) + "».");
+            SetStatus(Localization.F("status.need_drone",
+                Localization.DroneName(PrerequisiteId(model))));
             return;
         }
 
-        WatchAd("Дрон «" + model.displayName + "» открыт.", () =>
+        WatchAd(Localization.F("status.drone_unlocked", Localization.DroneName(model.id)), () =>
         {
             DroneLoadout.Unlock(model);
             DroneLoadout.SelectedIndex = index;
@@ -722,11 +792,12 @@ public class MainMenuUI : MonoBehaviour
 
         if (!DroneLoadout.IsWarheadAvailable(charge))
         {
-            SetStatus("Сначала откройте заряд «" + DroneLoadout.WarheadPrerequisiteName(charge) + "».");
+            SetStatus(Localization.F("status.need_charge",
+                Localization.WarheadName(WarheadType.Standard)));
             return;
         }
 
-        WatchAd("Заряд «" + WarheadProfile.For(charge).DisplayName + "» открыт.", () =>
+        WatchAd(Localization.F("status.charge_unlocked", Localization.WarheadName(charge)), () =>
         {
             DroneLoadout.UnlockWarhead(charge);
             DroneLoadout.SelectedWarhead = charge;
@@ -744,7 +815,8 @@ public class MainMenuUI : MonoBehaviour
             return;
         }
 
-        WatchAd("Карта «" + MissionCatalog.Maps[index].displayName + "» открыта.", () =>
+        WatchAd(Localization.F("status.map_unlocked",
+            Localization.MapName(MissionCatalog.Maps[index].id)), () =>
         {
             MissionCatalog.Unlock(index);
             MissionCatalog.SelectedIndex = index;
@@ -763,7 +835,7 @@ public class MainMenuUI : MonoBehaviour
     void WatchAd(string successMessage, System.Action grant)
     {
         waitingForAd = true;
-        SetStatus("Загрузка рекламы...");
+        SetStatus(Localization.T("status.ad_loading"));
         Refresh();
 
         YandexAds.ShowRewarded(watched =>
@@ -784,7 +856,7 @@ public class MainMenuUI : MonoBehaviour
             }
             else
             {
-                SetStatus("Реклама недоступна. Попробуйте позже.");
+                SetStatus(Localization.T("status.ad_failed"));
             }
 
             Refresh();
