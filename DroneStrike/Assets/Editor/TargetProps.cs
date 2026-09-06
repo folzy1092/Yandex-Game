@@ -206,18 +206,10 @@ public static class TargetProps
     // ---------- supply depot ----------
 
     /// <summary>
-    /// A stack of crates under a tarp on four posts. The tarp is derived from the
-    /// stack height so it rests on the posts instead of floating over them.
+    /// A field supply point under anti-drone netting. It is always generated
+    /// from the same four-post frame, so an older three-legged SupplyTent model
+    /// can no longer appear in some scenes.
     /// </summary>
-    /// <summary>
-    /// Uses the downloaded supply tent model if imported
-    /// (Assets/Resources/Models/SupplyTent.glb), otherwise a crate stack under a
-    /// tarp built from primitives. Same collider footprint either way, so the
-    /// hitbox does not depend on which one loaded.
-    /// </summary>
-    const float TentModelScale = 1f;
-    const float TentModelYawOffset = 0f;
-
     /// <summary>
     /// Width a field supply tent comes out at, in metres. A real one is big
     /// enough to drive a truck into, and at 5.4 m it read as a garden gazebo
@@ -233,16 +225,6 @@ public static class TargetProps
                                      Target.Kind.SupplyDepot,
                                      new Vector3(TentFootprint, postHeight + 0.2f, TentFootprint),
                                      new Vector3(0f, (postHeight + 0.2f) * 0.5f, 0f));
-
-        GameObject tentModel = ModelLibrary.Instantiate("SupplyTent", root.transform,
-                                                        TentModelScale, TentModelYawOffset);
-        if (tentModel != null)
-        {
-            NormalizeModelSize(root, tentModel, TentFootprint);
-            RecentreModelOnGround(root, tentModel);
-            FitColliderToModel(root, tentModel);
-            return root.GetComponent<Target>();
-        }
 
         BuildSupplyDepotPrimitives(root, palette, postHeight);
         return root.GetComponent<Target>();
@@ -269,7 +251,8 @@ public static class TargetProps
                     new Vector3(2.0f, crateHeight, 2.6f), palette.crate);
         }
 
-        // Four posts holding the tarp up, with the tarp resting on top of them.
+        // Four fixed posts. There is no conditional model path and no skipped
+        // corner, so every depot has exactly the same complete support frame.
         float half = TentFootprint * 0.5f - 0.4f;
         foreach (float x in new[] { -half, half })
         {
@@ -277,11 +260,28 @@ public static class TargetProps
             {
                 AddPart(root, "Post", new Vector3(x, postHeight * 0.5f, z),
                         new Vector3(0.22f, postHeight, 0.22f), palette.metal);
+                AddPart(root, "PostFoot", new Vector3(x, 0.08f, z),
+                        new Vector3(0.65f, 0.16f, 0.65f), palette.concrete);
             }
         }
 
-        AddPart(root, "Tarp", new Vector3(0f, postHeight + 0.06f, 0f),
-                new Vector3(TentFootprint, 0.14f, TentFootprint), palette.vehicleDark);
+        // Perimeter beams make the four supports read as one load-bearing frame.
+        float span = half * 2f;
+        foreach (float z in new[] { -half, half })
+            AddPart(root, "TopBeam", new Vector3(0f, postHeight, z),
+                    new Vector3(span, 0.14f, 0.14f), palette.metal);
+        foreach (float x in new[] { -half, half })
+            AddPart(root, "TopBeam", new Vector3(x, postHeight, 0f),
+                    new Vector3(0.14f, 0.14f, span), palette.metal);
+
+        var net = new GameObject("AntiDroneNet");
+        net.transform.SetParent(root.transform, false);
+        net.transform.localPosition = new Vector3(0f, postHeight, 0f);
+        var filter = net.AddComponent<MeshFilter>();
+        filter.sharedMesh = PrimitiveMesh.Drape(span + 0.35f, span + 0.35f, 0.72f, 8, 7319);
+        var renderer = net.AddComponent<MeshRenderer>();
+        renderer.sharedMaterial = DroneMaterials.Load("Mat_CamoNet");
+        renderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.TwoSided;
     }
 
     // ---------- antenna ----------

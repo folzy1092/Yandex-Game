@@ -41,7 +41,7 @@ public class GameAudio : MonoBehaviour
     // Graceful fallbacks. They should never be selected in a complete install.
     AudioClip fallbackImpact;
     AudioClip fallbackExplosion;
-    AudioClip fallbackRotor;
+    AudioClip rotorLoop;
 
     Voice[] worldVoices;
     Voice[] uiVoices;
@@ -135,8 +135,10 @@ public class GameAudio : MonoBehaviour
 
         fallbackImpact = ProceduralAudio.CreateImpact("FallbackImpact", 0.16f, 1750f, 1006);
         fallbackExplosion = ProceduralAudio.CreateExplosion("FallbackExplosion", 1.1f, 1012);
-        fallbackRotor = ProceduralAudio.CreateRotorLoop("FallbackRotor", 0.5f,
-            new[] { 420f, 438f, 456f }, 1011);
+        // Keep the softer original rotor character. The imported five-layer
+        // version sounded sharp and tiring during a full mission.
+        rotorLoop = ProceduralAudio.CreateRotorLoop("RotorLoop", 0.25f,
+            new[] { 280f, 292f, 304f }, 1011);
     }
 
     AudioClip[] LoadNamed(params string[] paths)
@@ -219,14 +221,20 @@ public class GameAudio : MonoBehaviour
     public void PlaySignalLost() { PlayUi(signalLost, 0.34f, 10); }
     public void PlayTargetDestroyed() { PlayUi(targetDestroyed, 0.20f, 25); }
 
-    public DroneMotorRig AttachDroneMotor(Transform parent)
+    public AudioSource AttachDroneLoop(Transform parent)
     {
-        AudioClip idle = Resources.Load<AudioClip>("Audio/Drone/motor_idle") ?? fallbackRotor;
-        AudioClip cruise = Resources.Load<AudioClip>("Audio/Drone/motor_cruise") ?? fallbackRotor;
-        AudioClip load = Resources.Load<AudioClip>("Audio/Drone/motor_load") ?? fallbackRotor;
-        AudioClip windLow = Resources.Load<AudioClip>("Audio/Drone/wind_low") ?? fallbackRotor;
-        AudioClip windHigh = Resources.Load<AudioClip>("Audio/Drone/wind_high") ?? fallbackRotor;
-        return new DroneMotorRig(parent, idle, cruise, load, windLow, windHigh);
+        var go = new GameObject("RotorLoop");
+        go.transform.SetParent(parent, false);
+
+        var source = go.AddComponent<AudioSource>();
+        source.clip = rotorLoop;
+        source.loop = true;
+        source.playOnAwake = false;
+        source.spatialBlend = 0f;
+        source.dopplerLevel = 0f;
+        source.volume = 0f;
+        source.Play();
+        return source;
     }
 
     // Legacy calls remain available to avoid silently breaking prototype code.
@@ -320,97 +328,5 @@ public class GameAudio : MonoBehaviour
                 candidate = voice;
         }
         return candidate;
-    }
-}
-
-/// <summary>Dedicated motor and wind loops for one active drone.</summary>
-public sealed class DroneMotorRig
-{
-    const float FadeRate = 7f;
-
-    readonly AudioSource idle;
-    readonly AudioSource cruise;
-    readonly AudioSource load;
-    readonly AudioSource windLow;
-    readonly AudioSource windHigh;
-    readonly AudioSource[] sources;
-    bool stopped;
-
-    public DroneMotorRig(Transform parent, AudioClip idleClip, AudioClip cruiseClip,
-                         AudioClip loadClip, AudioClip windLowClip, AudioClip windHighClip)
-    {
-        idle = CreateLoop(parent, "MotorIdle", idleClip);
-        cruise = CreateLoop(parent, "MotorCruise", cruiseClip);
-        load = CreateLoop(parent, "MotorLoad", loadClip);
-        windLow = CreateLoop(parent, "WindLow", windLowClip);
-        windHigh = CreateLoop(parent, "WindHigh", windHighClip);
-        sources = new[] { idle, cruise, load, windLow, windHigh };
-        PlayAll();
-    }
-
-    static AudioSource CreateLoop(Transform parent, string name, AudioClip clip)
-    {
-        var go = new GameObject(name);
-        go.transform.SetParent(parent, false);
-        var source = go.AddComponent<AudioSource>();
-        source.clip = clip;
-        source.loop = true;
-        source.playOnAwake = false;
-        source.spatialBlend = 0f;
-        source.dopplerLevel = 0f;
-        source.volume = 0f;
-        return source;
-    }
-
-    void PlayAll()
-    {
-        foreach (AudioSource source in Sources())
-            if (source.clip != null && !source.isPlaying) source.Play();
-        stopped = false;
-    }
-
-    public void Tick(float throttle, float speedMetresPerSecond, bool powered)
-    {
-        if (powered && stopped) PlayAll();
-
-        float targetIdle = powered ? 0.16f * (1f - Mathf.SmoothStep(0.10f, 0.62f, throttle)) : 0f;
-        float targetLoad = powered ? 0.24f * Mathf.SmoothStep(0.42f, 1f, throttle) : 0f;
-        float targetCruise = powered ? 0.20f * Mathf.SmoothStep(0.08f, 0.58f, throttle)
-                                      * (1f - Mathf.SmoothStep(0.62f, 1f, throttle) * 0.45f) : 0f;
-        float speed = Mathf.InverseLerp(2f, 28f, speedMetresPerSecond);
-        float targetWindLow = powered ? speed * 0.09f : 0f;
-        float targetWindHigh = powered ? Mathf.SmoothStep(0.35f, 1f, speed) * 0.13f : 0f;
-
-        Set(idle, targetIdle, Mathf.Lerp(0.96f, 1.03f, throttle));
-        Set(cruise, targetCruise, Mathf.Lerp(0.94f, 1.06f, throttle));
-        Set(load, targetLoad, Mathf.Lerp(0.95f, 1.05f, throttle));
-        Set(windLow, targetWindLow, Mathf.Lerp(0.92f, 1.05f, speed));
-        Set(windHigh, targetWindHigh, Mathf.Lerp(0.90f, 1.08f, speed));
-
-        if (!powered && AllQuiet())
-        {
-            foreach (AudioSource source in Sources()) source.Stop();
-            stopped = true;
-        }
-    }
-
-    void Set(AudioSource source, float target, float pitch)
-    {
-        source.volume = Mathf.MoveTowards(source.volume, target, Time.unscaledDeltaTime * FadeRate);
-        source.pitch = pitch;
-    }
-
-    bool AllQuiet()
-    {
-        foreach (AudioSource source in Sources()) if (source.volume > 0.001f) return false;
-        return true;
-    }
-
-    AudioSource[] Sources() { return sources; }
-
-    public void Dispose()
-    {
-        foreach (AudioSource source in Sources())
-            if (source != null) UnityEngine.Object.Destroy(source.gameObject);
     }
 }
