@@ -21,7 +21,7 @@ from urllib.request import Request, urlopen
 
 DEFAULT_TARGET = Path(r"C:\Users\Folzy\Desktop\DroneStrike")
 DEFAULT_REPOSITORY = "folzy1092/Yandex-Game"
-DEFAULT_REF = "fix/net-water-and-damage-visuals"
+DEFAULT_REF = "main"
 DEFAULT_MANIFEST = "DroneStrike-Update-Manifest.json"
 ALLOWED_TOP_LEVEL = {"Assets", "Documentation", "Tools"}
 
