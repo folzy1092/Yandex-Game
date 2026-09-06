@@ -9,7 +9,7 @@
     },
     {
       "path": "Assets/Editor/MissionBuilder.cs",
-      "sha256": "265fe08e42e360c59fa4f03ccf1a2fc058c298f0d33e71c04b1b3e8757882dd1"
+      "sha256": "16389fcd3f94421c011a55e32390949f59599052d88770be989c368cd712dda8"
     },
     {
       "path": "Assets/Editor/SceneVisualAssets.cs",
@@ -17,7 +17,7 @@
     },
     {
       "path": "Assets/Editor/TargetProps.cs",
-      "sha256": "b00f9c825ecb772ba6ad0d0b76bcfd8e8568f1a168b53a16434cadcb11e21002"
+      "sha256": "05ea1fcfbf44347dcdaea02bd9c0420aff7a406ea707f8284e8720aba360bca3"
     },
     {
       "path": "Assets/Plugins/WebGL/YandexGames.jslib",
@@ -153,7 +153,7 @@
     },
     {
       "path": "Assets/Scripts/Drone/DroneAudio.cs",
-      "sha256": "3600c53407284a2919bebc4ad94b7dbdffbb70143837782ed2a462b56e3d891f"
+      "sha256": "eb6612842ca95f062dca442d7cc5011bacacaff456af122db67a7522e9456003"
     },
     {
       "path": "Assets/Scripts/Drone/DroneCameraGimbal.cs",
@@ -185,7 +185,7 @@
     },
     {
       "path": "Assets/Scripts/World/GameAudio.cs",
-      "sha256": "c4e769e96e5b5aa8c6d09de5f4b93f3c1a6aee588477e7ce66b154dbda49ff6b"
+      "sha256": "5762c52b3c48451cbbc0b0b1edf820873e97bcc370e5e8bcb173a000f5006b22"
     },
     {
       "path": "Assets/Scripts/World/GameEffects.cs",
