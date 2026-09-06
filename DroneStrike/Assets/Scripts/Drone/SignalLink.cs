@@ -80,6 +80,7 @@ public class SignalLink : MonoBehaviour
 
         IsLost = true;
         if (drone != null) drone.CutPower();
+        if (GameAudio.Instance != null) GameAudio.Instance.PlaySignalLost();
         if (OnLost != null) OnLost();
 
         StartCoroutine(SelfDestruct());

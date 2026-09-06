@@ -132,8 +132,11 @@ public class Target : MonoBehaviour
         if (GameEffects.Instance != null)
             GameEffects.Instance.HardImpact(transform.position + Vector3.up, Vector3.up);
 
+        // Warhead.Detonate already owns the single large explosion. The target
+        // contributes a quiet confirmation instead of replaying another impact
+        // at the same location.
         if (GameAudio.Instance != null)
-            GameAudio.Instance.PlayHardImpact(transform.position);
+            GameAudio.Instance.PlayTargetDestroyed();
 
         Material burnt = Resources.Load<Material>("Materials/Mat_Burnt");
         if (burnt != null)

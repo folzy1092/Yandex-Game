@@ -194,6 +194,7 @@ public static class MissionBuilder
 
         Random.state = previous;
 
+        SceneVisualAssets.PersistMeshes(scene, profile.sceneName);
         Directory.CreateDirectory("Assets/Scenes");
         EditorSceneManager.SaveScene(scene, "Assets/Scenes/" + profile.sceneName + ".unity");
         Debug.Log("Drone Strike: " + profile.sceneName + " built with " + targetCount + " targets.");
@@ -231,8 +232,14 @@ public static class MissionBuilder
         sun.intensity = profile.sunIntensity;
         sun.color = profile.sunColour;
         sun.shadows = LightShadows.Soft;
-        sun.shadowStrength = 0.6f;
+        sun.shadowStrength = 0.72f;
+        sun.shadowBias = 0.035f;
+        sun.shadowNormalBias = 0.25f;
         sunGO.transform.rotation = Quaternion.Euler(profile.sunAngles);
+        RenderSettings.sun = sun;
+        RenderSettings.skybox = DroneMaterials.BuildSky(profile.sceneName,
+            Color.Lerp(new Color(0.50f, 0.55f, 0.62f), profile.fogColour, 0.35f),
+            profile.fogColour * 0.65f);
 
         RenderSettings.ambientMode = UnityEngine.Rendering.AmbientMode.Trilight;
         RenderSettings.ambientSkyColor = profile.fogColour * 0.9f;
@@ -977,50 +984,87 @@ public static class MissionBuilder
     }
 
     /// <summary>
-    /// Camouflage netting: a dark sheet on four poles, high enough for a drone
-    /// to fly under and low enough to hide what is parked beneath it from above.
+    /// Anti-drone netting: a fully supported four-corner frame with a sagging,
+    /// alpha-cut mesh. It is deliberately all-or-nothing: a pole that cannot
+    /// be placed cancels the entire structure instead of leaving a floating
+    /// canopy on three legs.
     /// </summary>
     static void CamoNet(Transform parent, Material net, float x, float z, float size, float yaw)
     {
+        const float poleRadius = 0.9f;
+        float halfWidth = size * 0.5f;
+        float halfDepth = size * 0.35f;
+        Quaternion rotation = Quaternion.Euler(0f, yaw, 0f);
+        Vector3 centre = OnGround(x, z);
+
+        // Validate the four feet before touching claims or creating any object.
+        // The previous per-pole loop could skip one occupied corner and still
+        // build the sheet, which was the source of three-legged canopies.
+        foreach (float px in new[] { -halfWidth, halfWidth })
+        {
+            foreach (float pz in new[] { -halfDepth, halfDepth })
+            {
+                Vector3 world = centre + rotation * new Vector3(px, 0f, pz);
+                if (!IsFree(world.x, world.z, poleRadius)) return;
+                if (!ClearOfRoad(world.x, world.z, RoadClearance)) return;
+            }
+        }
+
         var group = new GameObject("CamoNet");
         group.transform.SetParent(parent, false);
-        group.transform.position = OnGround(x, z);
-        group.transform.rotation = Quaternion.Euler(0f, yaw, 0f);
+        group.transform.position = centre;
+        group.transform.rotation = rotation;
 
         const float poleHeight = 5.2f;
         Material metal = DroneMaterials.Load("Mat_RustMetal");
 
-        foreach (float px in new[] { -size * 0.5f, size * 0.5f })
+        foreach (float px in new[] { -halfWidth, halfWidth })
         {
-            foreach (float pz in new[] { -size * 0.35f, size * 0.35f })
+            foreach (float pz in new[] { -halfDepth, halfDepth })
             {
                 Vector3 world = group.transform.TransformPoint(new Vector3(px, 0f, pz));
-                if (!IsFree(world.x, world.z, 0.9f)) continue;
-                if (!ClearOfRoad(world.x, world.z, RoadClearance)) continue;
+                Claim(world.x, world.z, poleRadius);
 
-                Claim(world.x, world.z, 0.9f);
-
-                // Tapered rather than a uniform cylinder, and leaning a couple
-                // of degrees off true — a driven post is never perfectly
-                // upright, and a uniform column read as moulded plastic rather
-                // than something hammered into the ground.
+                // Tapered driven post with a steel foot. Keep it upright: once
+                // the net is visibly sagging, arbitrary leaning makes it look
+                // broken rather than field-built.
                 var pole = new GameObject("Pole");
                 pole.transform.SetParent(group.transform, false);
-                pole.transform.localPosition = new Vector3(px, 0f, pz);
-                pole.transform.localRotation =
-                    Quaternion.Euler(Random.Range(-3f, 3f), Random.Range(0f, 360f), Random.Range(-3f, 3f));
+                pole.transform.localPosition = new Vector3(px, poleHeight * 0.5f, pz);
 
                 var poleMesh = pole.AddComponent<MeshFilter>();
                 poleMesh.sharedMesh = PrimitiveMesh.Frustum(0.14f, 0.08f, poleHeight);
                 var poleRenderer = pole.AddComponent<MeshRenderer>();
                 poleRenderer.sharedMaterial = metal;
-                poleRenderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
-                pole.transform.localPosition += Vector3.up * (poleHeight * 0.5f);
+                poleRenderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.On;
+
+                var foot = new GameObject("Foot");
+                foot.transform.SetParent(group.transform, false);
+                foot.transform.localPosition = new Vector3(px, 0.05f, pz);
+                foot.transform.localScale = new Vector3(0.55f, 0.10f, 0.55f);
+                var footFilter = foot.AddComponent<MeshFilter>();
+                footFilter.sharedMesh = PrimitiveMesh.Frustum(0.32f, 0.22f, 1f);
+                footFilter.transform.localRotation = Quaternion.Euler(0f, 0f, 0f);
+                foot.GetComponent<MeshRenderer>().sharedMaterial = metal;
             }
         }
 
+        // Rope along the perimeter and across the diagonals gives the sheet a
+        // readable frame at drone altitude. The texture supplies the fine mesh;
+        // these are the heavy tension lines a real field net hangs from.
+        Vector3 nw = new Vector3(-halfWidth, poleHeight, halfDepth);
+        Vector3 ne = new Vector3(halfWidth, poleHeight, halfDepth);
+        Vector3 sw = new Vector3(-halfWidth, poleHeight, -halfDepth);
+        Vector3 se = new Vector3(halfWidth, poleHeight, -halfDepth);
+        AddNetCable(group.transform, metal, nw, ne);
+        AddNetCable(group.transform, metal, ne, se);
+        AddNetCable(group.transform, metal, se, sw);
+        AddNetCable(group.transform, metal, sw, nw);
+        AddNetCable(group.transform, metal, nw, se);
+        AddNetCable(group.transform, metal, ne, sw);
+
         // A sagging mesh rather than a flat cube: a taut, perfectly planar
-        // rhombus over a vehicle read as a solid painted roof, not fabric.
+        // rhombus over a vehicle reads as a cardboard roof, not flexible mesh.
         var sheet = new GameObject("Net");
         sheet.transform.SetParent(group.transform, false);
         sheet.transform.localPosition = new Vector3(0f, poleHeight, 0f);
@@ -1038,6 +1082,21 @@ public static class MissionBuilder
         var sheetRenderer = sheet.AddComponent<MeshRenderer>();
         sheetRenderer.sharedMaterial = net;
         sheetRenderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.TwoSided;
+    }
+
+    static void AddNetCable(Transform parent, Material material, Vector3 from, Vector3 to)
+    {
+        Vector3 span = to - from;
+        var cable = new GameObject("TensionLine");
+        cable.transform.SetParent(parent, false);
+        cable.transform.localPosition = (from + to) * 0.5f;
+        cable.transform.localRotation = Quaternion.FromToRotation(Vector3.up, span.normalized);
+
+        var filter = cable.AddComponent<MeshFilter>();
+        filter.sharedMesh = PrimitiveMesh.Frustum(0.045f, 0.045f, span.magnitude);
+        var renderer = cable.AddComponent<MeshRenderer>();
+        renderer.sharedMaterial = material;
+        renderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.On;
     }
 
     // ---------- clutter ----------
@@ -1082,6 +1141,7 @@ public static class MissionBuilder
 
             BuildGrassTuft(group.transform, foliage, x, z);
         }
+        SceneVisualAssets.CombineGrass(group.transform);
     }
 
     /// <summary>

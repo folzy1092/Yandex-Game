@@ -126,7 +126,8 @@ public class DroneController : MonoBehaviour
 
     void Update()
     {
-        if (!IsPowered) return;
+        if (!IsPowered || Time.timeScale <= 0f || Cursor.lockState != CursorLockMode.Locked) return;
+        if (MissionManager.Instance != null && !MissionManager.Instance.IsRunning) return;
 
         float mouseX = Input.GetAxis("Mouse X") * mouseSensitivity;
         yaw += mouseX * yawRate * Time.deltaTime;
