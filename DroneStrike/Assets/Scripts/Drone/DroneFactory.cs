@@ -171,7 +171,10 @@ public static class DroneFactory
         var camera = cameraGO.AddComponent<Camera>();
         camera.fieldOfView = 92f;      // wide, like the lens on a real FPV rig
         camera.nearClipPlane = 0.04f;
-        camera.farClipPlane = 600f;
+        camera.farClipPlane = 850f; // Beyond the longest map's fog end, avoiding a visible cut-off.
+        camera.clearFlags = CameraClearFlags.Skybox;
+        camera.allowHDR = false;
+        camera.allowMSAA = true;
 
         cameraGO.AddComponent<AudioListener>();
 

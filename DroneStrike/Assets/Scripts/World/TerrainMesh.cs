@@ -99,6 +99,18 @@ public static class TerrainMesh
         mesh.uv = uvs;
         mesh.triangles = triangles;
         mesh.RecalculateNormals();
+        var normals = mesh.normals;
+        var colours = new Color[vertices.Length];
+        float colourSeed = (seed % 8191) * 0.173f;
+        for (int i = 0; i < vertices.Length; i++)
+        {
+            Vector3 p = vertices[i];
+            float patches = Mathf.PerlinNoise(colourSeed + p.x * 0.028f, colourSeed + p.z * 0.028f);
+            float variation = Mathf.PerlinNoise(colourSeed + p.x * 0.009f, colourSeed + p.z * 0.009f);
+            colours[i] = new Color(Mathf.SmoothStep(0f, 0.85f, Mathf.InverseLerp(0.4f, 0.7f, patches)),
+                Mathf.InverseLerp(0.96f, 0.72f, normals[i].y), variation, 1f);
+        }
+        mesh.colors = colours;
         mesh.RecalculateBounds();
 
         return mesh;

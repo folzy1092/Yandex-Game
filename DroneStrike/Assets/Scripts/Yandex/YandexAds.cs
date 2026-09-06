@@ -33,6 +33,11 @@ public class YandexAds : MonoBehaviour
     Action<bool> rewardedCallback;
     bool rewardGranted;
     float savedTimeScale = 1f;
+    bool savedAudioPause;
+    enum AdRequest { None, Fullscreen, Rewarded }
+    AdRequest pending;
+    bool hasFocus = true;
+    public static bool IsBusy { get { return Instance != null && Instance.pending != AdRequest.None; } }
 
     /// <summary>
     /// True while an ad is on screen. Showing an ad takes focus away from the
@@ -101,6 +106,12 @@ public class YandexAds : MonoBehaviour
     void RequestFullscreen(Action<bool> onClosed)
     {
 #if UNITY_WEBGL && !UNITY_EDITOR
+        if (pending != AdRequest.None)
+        {
+            if (onClosed != null) onClosed(false);
+            return;
+        }
+        pending = AdRequest.Fullscreen;
         fullscreenCallback = onClosed;
         YandexShowFullscreen();
 #else
@@ -111,6 +122,12 @@ public class YandexAds : MonoBehaviour
     void RequestRewarded(Action<bool> onFinished)
     {
 #if UNITY_WEBGL && !UNITY_EDITOR
+        if (pending != AdRequest.None)
+        {
+            if (onFinished != null) onFinished(false);
+            return;
+        }
+        pending = AdRequest.Rewarded;
         rewardedCallback = onFinished;
         rewardGranted = false;
         YandexShowRewarded();
@@ -143,14 +160,15 @@ public class YandexAds : MonoBehaviour
 
     public void OnAdOpened(string _)
     {
+        if (pending == AdRequest.None || adShowing) return;
         adShowing = true;
         PauseGame(true);
     }
 
     public void OnFullscreenClosed(string wasShown)
     {
-        adShowing = false;
-        PauseGame(false);
+        if (pending != AdRequest.Fullscreen) return;
+        FinishAd();
 
         Action<bool> callback = fullscreenCallback;
         fullscreenCallback = null;
@@ -159,17 +177,28 @@ public class YandexAds : MonoBehaviour
 
     public void OnRewardGranted(string _)
     {
-        rewardGranted = true;
+        if (pending == AdRequest.Rewarded) rewardGranted = true;
     }
 
     public void OnRewardedClosed(string wasShown)
     {
-        adShowing = false;
-        PauseGame(false);
+        if (pending != AdRequest.Rewarded) return;
+        FinishAd();
 
         Action<bool> callback = rewardedCallback;
         rewardedCallback = null;
-        if (callback != null) callback(rewardGranted || wasShown == "true");
+        bool earned = rewardGranted;
+        rewardGranted = false;
+        if (callback != null) callback(earned);
+    }
+
+    void FinishAd()
+    {
+        // Errors/no-fill can close without ever opening. In that case the
+        // bridge has not paused anything and must not overwrite the UI pause.
+        if (adShowing) PauseGame(false);
+        adShowing = false;
+        pending = AdRequest.None;
     }
 
     // ---------- focus ----------
@@ -197,13 +226,14 @@ public class YandexAds : MonoBehaviour
 
     void ApplyFocus(bool hasFocus)
     {
+        this.hasFocus = hasFocus;
         // An ad owns the audio while it is on screen: the game is already
         // silent, and un-muting here when the ad frame takes focus would put
         // the game's sound back underneath it.
         if (adShowing) return;
 
         AudioListener.pause = !hasFocus;
-        AudioListener.volume = hasFocus ? 1f : 0f;
+        GameAudio.SetPlatformMuted(!hasFocus);
     }
 
     void PauseGame(bool paused)
@@ -211,9 +241,10 @@ public class YandexAds : MonoBehaviour
         if (paused)
         {
             savedTimeScale = Time.timeScale;
+            savedAudioPause = AudioListener.pause;
             Time.timeScale = 0f;
             AudioListener.pause = true;
-            AudioListener.volume = 0f;
+            GameAudio.SetPlatformMuted(true);
 
             // The player needs a usable cursor to interact with the ad.
             Cursor.lockState = CursorLockMode.None;
@@ -221,8 +252,8 @@ public class YandexAds : MonoBehaviour
             return;
         }
 
-        Time.timeScale = savedTimeScale <= 0f ? 1f : savedTimeScale;
-        AudioListener.pause = false;
-        AudioListener.volume = 1f;
+        Time.timeScale = savedTimeScale;
+        AudioListener.pause = savedAudioPause || !hasFocus;
+        GameAudio.SetPlatformMuted(!hasFocus);
     }
 }

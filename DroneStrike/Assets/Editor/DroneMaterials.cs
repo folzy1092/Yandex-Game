@@ -39,17 +39,9 @@ public static class DroneMaterials
         // hundreds of metres across. Three maps built from the same generator
         // read as reskins of each other if the grass under them is identical —
         // a different tint is the cheapest thing that actually varies.
-        SaveSurface("Ground",
-            ProceduralTextures.CreateConcrete(512, new Color(0.32f, 0.42f, 0.24f), 0.45f, 4001, 0.5f),
-            new Vector2(60f, 60f), 0.05f);
-
-        SaveSurface("GroundForest",
-            ProceduralTextures.CreateConcrete(512, new Color(0.20f, 0.32f, 0.16f), 0.55f, 4011, 0.4f),
-            new Vector2(60f, 60f), 0.04f);
-
-        SaveSurface("GroundDusk",
-            ProceduralTextures.CreateConcrete(512, new Color(0.34f, 0.34f, 0.20f), 0.42f, 4012, 0.5f),
-            new Vector2(60f, 60f), 0.05f);
+        SaveGround("Ground", new Color(0.32f, 0.42f, 0.24f), new Color(0.43f, 0.35f, 0.23f));
+        SaveGround("GroundForest", new Color(0.22f, 0.34f, 0.19f), new Color(0.32f, 0.26f, 0.18f));
+        SaveGround("GroundDusk", new Color(0.36f, 0.36f, 0.24f), new Color(0.42f, 0.32f, 0.24f));
 
         SaveSurface("Asphalt",
             ProceduralTextures.CreateConcrete(512, new Color(0.24f, 0.24f, 0.26f), 0.30f, 4002, 0.6f),
@@ -61,6 +53,37 @@ public static class DroneMaterials
             new Vector2(6f, 6f), 0.08f);
 
         SaveFlat("Mat_Water", new Color(0.16f, 0.30f, 0.38f), 0.85f);
+    }
+
+    static void SaveGround(string name, Color grass, Color soil)
+    {
+        var detail = ProceduralTextures.CreateConcrete(256, new Color(0.55f, 0.55f, 0.55f),
+                                                       0.45f, 4001, 0.5f);
+        detail.anisoLevel = 4;
+        SaveTexture(name, detail);
+        detail = AssetDatabase.LoadAssetAtPath<Texture2D>(TextureFolder + "/Tex_" + name + ".asset");
+        Shader shader = Shader.Find("DroneStrike/Field Ground");
+        if (shader == null) throw new System.InvalidOperationException("Copy Assets/Shaders before generating materials.");
+        var material = new Material(shader);
+        material.mainTexture = detail;
+        material.color = grass;
+        material.SetColor("_SoilColor", soil);
+        material.SetColor("_RockColor", new Color(0.43f, 0.44f, 0.40f));
+        Save(material, "Mat_" + name);
+    }
+
+    public static Material BuildSky(string sceneName, Color sky, Color ground)
+    {
+        var material = new Material(Shader.Find("Skybox/Procedural"));
+        material.SetColor("_SkyTint", sky);
+        material.SetColor("_GroundColor", ground);
+        material.SetFloat("_SunDisk", 2f);
+        material.EnableKeyword("_SUNDISK_HIGH_QUALITY");
+        material.SetFloat("_SunSize", 0.035f);
+        material.SetFloat("_AtmosphereThickness", 1.15f);
+        material.SetFloat("_Exposure", 1.15f);
+        Save(material, "Sky_" + sceneName);
+        return Load("Sky_" + sceneName);
     }
 
     static void BuildStructureMaterials()
@@ -106,7 +129,7 @@ public static class DroneMaterials
             new Vector2(3f, 3f), 0.05f);
 
         SaveFlat("Mat_Sandbag", new Color(0.48f, 0.44f, 0.31f), 0.06f);
-        SaveFlat("Mat_CamoNet", new Color(0.19f, 0.24f, 0.15f), 0.05f);
+        SaveCamoNet();
     }
 
     static void BuildVehicleMaterials()
@@ -227,8 +250,8 @@ public static class DroneMaterials
                             float metallic = 0f)
     {
         string texturePath = TextureFolder + "/Tex_" + name + ".asset";
-        AssetDatabase.DeleteAsset(texturePath);
-        AssetDatabase.CreateAsset(texture, texturePath);
+        SaveAsset(texture, texturePath);
+        texture = AssetDatabase.LoadAssetAtPath<Texture2D>(texturePath);
 
         var material = new Material(Shader.Find("Standard"));
         material.mainTexture = texture;
@@ -249,9 +272,67 @@ public static class DroneMaterials
         Save(material, name);
     }
 
+    /// <summary>
+    /// Alpha-cut mesh fabric, not an opaque green sheet. The holes are real
+    /// cutouts, so the net keeps its shadow and vehicles remain visible through
+    /// it from the drone camera.
+    /// </summary>
+    static void SaveCamoNet()
+    {
+        Texture2D texture = CreateNetting(256, 14);
+        SaveTexture("CamoNet", texture);
+        texture = AssetDatabase.LoadAssetAtPath<Texture2D>(TextureFolder + "/Tex_CamoNet.asset");
+
+        var material = new Material(Shader.Find("Standard"));
+        material.mainTexture = texture;
+        material.color = new Color(0.23f, 0.29f, 0.17f, 1f);
+        material.SetFloat("_Glossiness", 0.08f);
+        material.SetFloat("_Mode", 1f); // Standard's cutout mode
+        material.SetFloat("_Cutoff", 0.42f);
+        material.SetInt("_SrcBlend", (int)UnityEngine.Rendering.BlendMode.One);
+        material.SetInt("_DstBlend", (int)UnityEngine.Rendering.BlendMode.Zero);
+        material.SetInt("_ZWrite", 1);
+        material.EnableKeyword("_ALPHATEST_ON");
+        material.DisableKeyword("_ALPHABLEND_ON");
+        material.DisableKeyword("_ALPHAPREMULTIPLY_ON");
+        material.renderQueue = 2450;
+        Save(material, "Mat_CamoNet");
+    }
+
+    /// <summary>Olive anti-drone mesh with square cells and reinforced knots.</summary>
+    static Texture2D CreateNetting(int size, int cells)
+    {
+        var texture = new Texture2D(size, size, TextureFormat.RGBA32, false);
+        texture.name = "CamoNet";
+        texture.wrapMode = TextureWrapMode.Repeat;
+        texture.filterMode = FilterMode.Bilinear;
+
+        for (int y = 0; y < size; y++)
+        {
+            for (int x = 0; x < size; x++)
+            {
+                float u = ((x + 0.5f) / size) * cells;
+                float v = ((y + 0.5f) / size) * cells;
+                float fu = Mathf.Abs((u - Mathf.Floor(u)) - 0.5f);
+                float fv = Mathf.Abs((v - Mathf.Floor(v)) - 0.5f);
+
+                // Crossed 7 cm strands with a small knot at every crossing.
+                bool strand = fu > 0.445f || fv > 0.445f;
+                bool knot = fu > 0.37f && fv > 0.37f;
+                float alpha = (strand || knot) ? 1f : 0f;
+                float shade = 0.78f + 0.18f * Mathf.PerlinNoise(u * 0.8f, v * 0.8f);
+                texture.SetPixel(x, y, new Color(shade, shade, shade, alpha));
+            }
+        }
+
+        texture.Apply();
+        return texture;
+    }
+
     static void SaveAdditive(string name, Texture2D texture, Color tint)
     {
         SaveTexture(name, texture);
+        texture = AssetDatabase.LoadAssetAtPath<Texture2D>(TextureFolder + "/Tex_" + name + ".asset");
 
         var material = new Material(EffectShader());
         material.mainTexture = texture;
@@ -272,6 +353,7 @@ public static class DroneMaterials
     static void SaveTransparent(string name, Texture2D texture, Color tint)
     {
         SaveTexture(name, texture);
+        texture = AssetDatabase.LoadAssetAtPath<Texture2D>(TextureFolder + "/Tex_" + name + ".asset");
 
         var material = new Material(EffectShader());
         material.mainTexture = texture;
@@ -298,15 +380,26 @@ public static class DroneMaterials
     static void SaveTexture(string materialName, Texture2D texture)
     {
         string path = TextureFolder + "/Tex_" + materialName + ".asset";
-        AssetDatabase.DeleteAsset(path);
-        AssetDatabase.CreateAsset(texture, path);
+        SaveAsset(texture, path);
     }
 
     static void Save(Material material, string name)
     {
         string path = MaterialFolder + "/" + name + ".mat";
-        AssetDatabase.DeleteAsset(path);
-        AssetDatabase.CreateAsset(material, path);
+        material.enableInstancing = true;
+        SaveAsset(material, path);
+    }
+
+    static void SaveAsset(Object generated, string path)
+    {
+        var existing = AssetDatabase.LoadMainAssetAtPath(path);
+        if (existing == null) AssetDatabase.CreateAsset(generated, path);
+        else
+        {
+            EditorUtility.CopySerialized(generated, existing);
+            EditorUtility.SetDirty(existing);
+            Object.DestroyImmediate(generated);
+        }
     }
 
     public static Material Load(string materialName)

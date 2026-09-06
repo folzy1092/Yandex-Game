@@ -49,6 +49,16 @@ public class GameEffects : MonoBehaviour
     ParticleSystem sparks;
     ParticleSystem blood;
 
+    class Blast
+    {
+        public Transform root;
+        public ParticleSystem fire, smoke, debris;
+        public Light light;
+        public float remaining;
+    }
+    readonly Blast[] blasts = new Blast[4];
+    int nextBlast;
+
     int nextTracer;
     int nextFlash;
     int nextDecal;
@@ -67,10 +77,18 @@ public class GameEffects : MonoBehaviour
         BuildFlashes();
         BuildDecals();
         BuildParticles();
+        BuildExplosions();
     }
 
     void Update()
     {
+        foreach (var blast in blasts)
+        {
+            if (blast.remaining <= 0f) continue;
+            blast.remaining = Mathf.Max(0f, blast.remaining - Time.deltaTime);
+            blast.light.intensity = 5f * (blast.remaining / 0.3f);
+            blast.light.enabled = blast.remaining > 0f;
+        }
         for (int i = 0; i < tracers.Length; i++)
         {
             TracerLine tracer = tracers[i];
@@ -165,6 +183,80 @@ public class GameEffects : MonoBehaviour
     public void FleshImpact(Vector3 point, Vector3 normal)
     {
         EmitBurst(blood, point, normal, 14);
+    }
+
+    /// <summary>Bounded, reusable fireball, rising dust and ballistic sparks.</summary>
+    public void Explosion(Vector3 position, float blastRadius)
+    {
+        Blast blast = blasts[nextBlast];
+        nextBlast = (nextBlast + 1) % blasts.Length;
+        blast.fire.Stop(true, ParticleSystemStopBehavior.StopEmittingAndClear);
+        blast.smoke.Stop(true, ParticleSystemStopBehavior.StopEmittingAndClear);
+        blast.debris.Stop(true, ParticleSystemStopBehavior.StopEmittingAndClear);
+        blast.root.position = position;
+        float scale = Mathf.Clamp(blastRadius * 0.35f, 1.2f, 3f);
+        var fire = blast.fire.main;
+        fire.startSize = new ParticleSystem.MinMaxCurve(scale * 0.7f, scale * 1.3f);
+        fire.startSpeed = new ParticleSystem.MinMaxCurve(scale, scale * 2.5f);
+        var smoke = blast.smoke.main;
+        smoke.startSize = new ParticleSystem.MinMaxCurve(scale * 0.5f, scale);
+        smoke.startSpeed = new ParticleSystem.MinMaxCurve(scale * 0.4f, scale);
+        blast.fire.Emit(12);
+        blast.smoke.Emit(16);
+        blast.debris.Emit(28);
+        blast.light.range = scale * 7f;
+        blast.light.intensity = 5f;
+        blast.light.enabled = true;
+        blast.remaining = 0.3f;
+    }
+
+    void BuildExplosions()
+    {
+        for (int i = 0; i < blasts.Length; i++)
+        {
+            var root = new GameObject("Explosion" + i);
+            root.transform.SetParent(transform, false);
+            var blast = new Blast { root = root.transform };
+            blast.fire = BlastParticles(root.transform, "Fireball", "Mat_FireReal", Color.white,
+                0.55f, 2f, 5f, 0f, false);
+            blast.smoke = BlastParticles(root.transform, "Dust", "Mat_SmokeReal",
+                new Color(0.9f, 0.85f, 0.75f, 0.65f), 2.2f, 1.5f, 2f, -0.06f, true);
+            blast.debris = BlastParticles(root.transform, "Debris", "Mat_Spark",
+                new Color(1f, 0.8f, 0.35f), 0.8f, 0.09f, 11f, 1.1f, false);
+            blast.light = root.AddComponent<Light>();
+            blast.light.type = LightType.Point;
+            blast.light.color = new Color(1f, 0.55f, 0.18f);
+            blast.light.shadows = LightShadows.None;
+            blast.light.enabled = false;
+            blasts[i] = blast;
+        }
+    }
+
+    ParticleSystem BlastParticles(Transform parent, string name, string materialName, Color colour,
+                                   float lifetime, float size, float speed, float gravity, bool expand)
+    {
+        var system = CreateParticleSystem(name, LoadMaterial(materialName), colour, size, lifetime, speed);
+        system.transform.SetParent(parent, false);
+        var main = system.main;
+        main.loop = false;
+        main.maxParticles = 64;
+        main.startLifetime = new ParticleSystem.MinMaxCurve(lifetime * 0.65f, lifetime);
+        main.startRotation = new ParticleSystem.MinMaxCurve(0f, Mathf.PI * 2f);
+        main.gravityModifier = gravity;
+        var shape = system.shape;
+        shape.shapeType = ParticleSystemShapeType.Sphere;
+        shape.radius = 0.25f;
+        var sizes = system.sizeOverLifetime;
+        sizes.size = new ParticleSystem.MinMaxCurve(1f, expand
+            ? AnimationCurve.Linear(0f, 0.6f, 1f, 2.8f)
+            : AnimationCurve.EaseInOut(0f, 1f, 1f, 0f));
+        var gradient = new Gradient();
+        gradient.SetKeys(new[] { new GradientColorKey(Color.white, 0f), new GradientColorKey(Color.white, 1f) },
+            new[] { new GradientAlphaKey(0f, 0f), new GradientAlphaKey(1f, 0.08f), new GradientAlphaKey(0f, 1f) });
+        var colours = system.colorOverLifetime;
+        colours.enabled = true;
+        colours.color = new ParticleSystem.MinMaxGradient(gradient);
+        return system;
     }
 
     // ---------- construction ----------
@@ -270,6 +362,7 @@ public class GameEffects : MonoBehaviour
         go.transform.SetParent(transform, false);
 
         var system = go.AddComponent<ParticleSystem>();
+        system.Stop(true, ParticleSystemStopBehavior.StopEmittingAndClear);
 
         // Configure before the system ever plays, otherwise Unity warns about
         // modifying a running system.

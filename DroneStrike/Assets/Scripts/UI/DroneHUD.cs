@@ -19,6 +19,7 @@ public class DroneHUD : MonoBehaviour
     Image batteryFill;
     Image signalFill;
     Image staticOverlay;
+    CanvasGroup scanlines;
     RectTransform compassStrip;
 
     GameObject resultPanel;
@@ -94,7 +95,15 @@ public class DroneHUD : MonoBehaviour
 
         if (drone == null || drone.Controller == null)
         {
-            if (staticOverlay != null) staticOverlay.color = new Color(1f, 1f, 1f, 0.35f);
+            // There is no camera feed between launches. A bright static layer
+            // here was the source of the white flash on a restart, before the
+            // next drone had been created and supplied a healthy signal.
+            if (staticOverlay != null)
+            {
+                staticOverlay.color = new Color(1f, 1f, 1f, 0f);
+                staticOverlay.pixelsPerUnitMultiplier = 1f;
+            }
+            if (scanlines != null) scanlines.alpha = 0f;
             // No drone to lose signal to, so nothing should be mid-glitch —
             // otherwise the next drone could launch into a leftover jolt.
             if (feedRoot != null) feedRoot.anchoredPosition = Vector2.zero;
@@ -114,7 +123,7 @@ public class DroneHUD : MonoBehaviour
     /// </summary>
     void HandleEscape()
     {
-        if (!Input.GetKeyDown(KeyCode.Escape)) return;
+        if (!Input.GetKeyDown(KeyCode.Escape) || YandexAds.IsBusy) return;
 
         MissionManager mission = MissionManager.Instance;
         if (mission == null || !mission.IsRunning) return;
@@ -179,11 +188,15 @@ public class DroneHUD : MonoBehaviour
             ? new Color(0.8f, 0.85f, 0.9f)
             : new Color(0.95f, 0.35f, 0.3f);
 
-        // Static grows as the link weakens, and flickers so it does not look
-        // like a flat grey sheet laid over the screen.
-        float noise = (1f - strength) * 0.5f;
+        // Keep a healthy feed clean. Starting from zero at 72% means the
+        // player sees the warning only near the actual range limit, not a
+        // permanent white veil at 94% signal.
+        float severity = Mathf.InverseLerp(0.72f, 0f, strength);
+        float noise = severity * severity * 0.42f;
         float flicker = Mathf.PerlinNoise(Time.time * 14f, 0f) * 0.35f + 0.65f;
         staticOverlay.color = new Color(1f, 1f, 1f, noise * flicker);
+        if (scanlines != null)
+            scanlines.alpha = Mathf.Lerp(0.012f, 0.085f, severity * severity);
 
         UpdateGlitch(strength);
     }
@@ -215,6 +228,7 @@ public class DroneHUD : MonoBehaviour
             // fires immediately if the link degrades again, rather than
             // waiting out an interval that was rolled while it was still bad.
             nextGlitchTime = Time.time;
+            staticOverlay.pixelsPerUnitMultiplier = 1f;
             return;
         }
 
@@ -226,18 +240,24 @@ public class DroneHUD : MonoBehaviour
         float severity = Mathf.InverseLerp(GlitchThreshold, 0f, strength);
         float interval = Mathf.Lerp(1.1f, 0.06f, severity);
 
-        nextGlitchTime = Time.time + interval * (0.5f + Random.value);
+        // UI must not consume UnityEngine.Random: that state also controls
+        // gameplay choices such as the next launch pad. Perlin samples give
+        // varied-looking interference without changing the mission.
+        float variation = Mathf.PerlinNoise(Time.unscaledTime * 5.1f, 12.7f);
+        nextGlitchTime = Time.time + interval * (0.5f + variation);
         glitchEndTime = Time.time + Mathf.Lerp(0.03f, 0.12f, severity);
         glitchAlpha = Mathf.Lerp(0.85f, 1f, severity);
 
-        feedRoot.anchoredPosition = new Vector2(Random.Range(-16f, 16f) * (0.35f + severity), 0f);
+        float offset = Mathf.PerlinNoise(Time.unscaledTime * 17.3f, 4.2f) * 32f - 16f;
+        feedRoot.anchoredPosition = new Vector2(offset * (0.35f + severity), 0f);
         staticOverlay.color = new Color(1f, 1f, 1f, glitchAlpha);
 
         // Cheap stand-in for a UV jump: Image has no exposed tile offset, but
         // rescaling how large each tile reads makes the same noise texture
         // jump to a different-looking pattern without touching the texture
         // itself.
-        staticOverlay.pixelsPerUnitMultiplier = Random.Range(0.7f, 1.8f);
+        staticOverlay.pixelsPerUnitMultiplier = Mathf.Lerp(0.7f, 1.8f,
+            Mathf.PerlinNoise(Time.unscaledTime * 23.9f, 8.4f));
     }
 
     // ---------- construction ----------
@@ -335,6 +355,8 @@ public class DroneHUD : MonoBehaviour
         var holder = new GameObject("Scanlines");
         holder.transform.SetParent(root, false);
         UIFactory.Stretch(holder);
+        scanlines = holder.AddComponent<CanvasGroup>();
+        scanlines.alpha = 0.012f;
 
         const int lines = 90;
         for (int i = 0; i < lines; i++)
@@ -344,7 +366,7 @@ public class DroneHUD : MonoBehaviour
 
             var image = line.AddComponent<Image>();
             image.sprite = UIFactory.BlankSprite;
-            image.color = new Color(0f, 0f, 0f, 0.10f);
+            image.color = Color.black;
             image.raycastTarget = false;
 
             var rect = line.GetComponent<RectTransform>();
@@ -382,7 +404,9 @@ public class DroneHUD : MonoBehaviour
         {
             for (int x = 0; x < size; x++)
             {
-                float value = Random.value;
+                // A fixed hash keeps this visual texture stable and avoids
+                // consuming the global gameplay RNG while the HUD is built.
+                float value = Mathf.Repeat(Mathf.Sin(x * 12.9898f + y * 78.233f) * 43758.5453f, 1f);
                 texture.SetPixel(x, y, new Color(value, value, value, value * 0.85f));
             }
         }

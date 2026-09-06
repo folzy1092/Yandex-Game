@@ -115,11 +115,14 @@ public class Warhead : MonoBehaviour
 
         if (GameEffects.Instance != null)
         {
-            GameEffects.Instance.MuzzleFlash(origin, Vector3.up);
-            GameEffects.Instance.HardImpact(origin, Vector3.up);
+            GameEffects.Instance.Explosion(origin, Profile.blastRadius);
         }
 
-        if (GameAudio.Instance != null) GameAudio.Instance.PlayExplosion(origin);
+        if (GameAudio.Instance != null) GameAudio.Instance.PlayExplosion(origin, type);
+
+        DroneCameraGimbal gimbal = GetComponent<DroneCameraGimbal>();
+        if (gimbal != null)
+            gimbal.Shake(Mathf.Lerp(1.8f, 2.8f, Mathf.InverseLerp(3f, 9f, Profile.blastRadius)));
 
         ApplyBlast(origin, impactSpeed);
 
@@ -130,6 +133,18 @@ public class Warhead : MonoBehaviour
         // anything still reading its transform this frame stays valid.
         foreach (Renderer renderer in GetComponentsInChildren<Renderer>())
             renderer.enabled = false;
+
+        // Clear any optional trails or local particles immediately. Without
+        // this, a detached trail can remain visible until its lifetime expires
+        // while the next drone is already launching.
+        foreach (TrailRenderer trail in GetComponentsInChildren<TrailRenderer>(true))
+        {
+            trail.emitting = false;
+            trail.Clear();
+            trail.enabled = false;
+        }
+        foreach (ParticleSystem particles in GetComponentsInChildren<ParticleSystem>(true))
+            particles.Stop(true, ParticleSystemStopBehavior.StopEmittingAndClear);
 
         body.detectCollisions = false;
         body.isKinematic = true;
@@ -150,17 +165,23 @@ public class Warhead : MonoBehaviour
             : 1f;
 
         Collider[] caught = Physics.OverlapSphere(origin, Profile.blastRadius);
-        var alreadyHit = new System.Collections.Generic.HashSet<Target>();
+        var nearestHits = new System.Collections.Generic.Dictionary<Target, float>();
 
         foreach (Collider collider in caught)
         {
             Target target = collider.GetComponentInParent<Target>();
             if (target == null || target.IsDestroyed) continue;
 
-            // A target with several colliders must not be damaged once per collider.
-            if (!alreadyHit.Add(target)) continue;
-
+            // Collider iteration order is undefined. Use the nearest surface
+            // across ALL colliders before applying damage once per target.
             float distance = Vector3.Distance(origin, collider.ClosestPoint(origin));
+            if (!nearestHits.TryGetValue(target, out float nearest) || distance < nearest)
+                nearestHits[target] = distance;
+        }
+        foreach (var hit in nearestHits)
+        {
+            Target target = hit.Key;
+            float distance = hit.Value;
             float falloff = Mathf.Clamp01(1f - distance / Profile.blastRadius);
 
             target.TakeDamage(Profile.damage * damageMultiplier * falloff * speedBonus);

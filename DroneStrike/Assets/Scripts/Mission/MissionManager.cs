@@ -160,9 +160,8 @@ public class MissionManager : MonoBehaviour
         // One pad is not a choice; two or more must not repeat.
         if (launchPoints.Length == 1) return launchPoints[0];
 
-        int index = lastLaunchPad;
-        for (int attempt = 0; attempt < 8 && index == lastLaunchPad; attempt++)
-            index = UnityEngine.Random.Range(0, launchPoints.Length);
+        int index = UnityEngine.Random.Range(0, launchPoints.Length - (lastLaunchPad >= 0 ? 1 : 0));
+        if (lastLaunchPad >= 0 && index >= lastLaunchPad) index++;
 
         lastLaunchPad = index;
         return launchPoints[index] != null ? launchPoints[index] : launchPoint;

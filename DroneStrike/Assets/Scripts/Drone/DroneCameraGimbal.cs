@@ -21,13 +21,16 @@ public class DroneCameraGimbal : MonoBehaviour
     public float mouseSensitivity = 2.5f;
 
     /// <summary>Looking straight down is useful for a strike run; straight up is not.</summary>
-    public float minPitch = -85f;
-    public float maxPitch = 35f;
+    public float minPitch = -35f;
+    public float maxPitch = 85f;
 
     /// <summary>Starting tilt. Slightly down, as a camera on a strike drone is set.</summary>
     public float restingPitch = 12f;
 
     float pitch;
+    float shakeUntil;
+    float shakeDuration;
+    float shakeStrength;
 
     void Awake()
     {
@@ -36,6 +39,8 @@ public class DroneCameraGimbal : MonoBehaviour
 
     void Update()
     {
+        if (Time.timeScale <= 0f || Cursor.lockState != CursorLockMode.Locked) return;
+        if (MissionManager.Instance != null && !MissionManager.Instance.IsRunning) return;
         // Vertical only: the horizontal axis turns the drone itself, which the
         // flight controller owns.
         float mouseY = Input.GetAxis("Mouse Y") * mouseSensitivity;
@@ -48,6 +53,32 @@ public class DroneCameraGimbal : MonoBehaviour
 
         // Runs after the physics has moved the body, so the stabilisation is
         // applied to this frame's attitude rather than the previous one's.
-        cameraTransform.rotation = Quaternion.Euler(pitch, transform.eulerAngles.y, 0f);
+        float shakePitch = 0f;
+        float shakeYaw = 0f;
+        float shakeRoll = 0f;
+        if (Time.unscaledTime < shakeUntil && shakeDuration > 0f)
+        {
+            float remaining = Mathf.Clamp01((shakeUntil - Time.unscaledTime) / shakeDuration);
+            float phase = Time.unscaledTime * 83f;
+            float amount = shakeStrength * remaining * remaining;
+            shakePitch = Mathf.Sin(phase) * amount;
+            shakeYaw = Mathf.Sin(phase * 1.31f + 1.7f) * amount * 0.7f;
+            shakeRoll = Mathf.Sin(phase * 0.73f + 3.1f) * amount * 0.55f;
+        }
+
+        cameraTransform.rotation = Quaternion.Euler(
+            pitch + shakePitch, transform.eulerAngles.y + shakeYaw, shakeRoll);
+    }
+
+    /// <summary>
+    /// A short deterministic kick from the detonation. Sine waves are used
+    /// instead of UnityEngine.Random so a visual effect cannot alter gameplay
+    /// RNG such as the next launch pad selection.
+    /// </summary>
+    public void Shake(float strength = 2.4f, float duration = 0.22f)
+    {
+        shakeStrength = Mathf.Max(shakeStrength, strength);
+        shakeDuration = Mathf.Max(0.01f, duration);
+        shakeUntil = Time.unscaledTime + shakeDuration;
     }
 }

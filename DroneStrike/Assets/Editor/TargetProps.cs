@@ -381,10 +381,17 @@ public static class TargetProps
         GameObject trunkPart = AddPart(tree, "Trunk", new Vector3(0f, 1.6f, 0f),
                                        new Vector3(0.32f, 3.2f, 0.32f), trunk, PrimitiveType.Cylinder);
 
-        AddPart(tree, "CanopyLower", new Vector3(0f, 3.4f, 0f),
-                new Vector3(2.6f, 2.2f, 2.6f), foliage);
-        AddPart(tree, "CanopyUpper", new Vector3(0f, 4.9f, 0f),
-                new Vector3(1.7f, 1.8f, 1.7f), foliage);
+        // Layered evergreen silhouettes, shared by every tree. No new RNG
+        // calls here: map seeds retain their original placement sequence.
+        var crown = AddTreeCrown(tree.transform, "Crown", TreeCrownMesh(false), foliage);
+        var distant = AddTreeCrown(tree.transform, "DistantCrown", TreeCrownMesh(true), foliage);
+        distant.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+        var lod = tree.AddComponent<LODGroup>();
+        lod.SetLODs(new[] {
+            new LOD(0.045f, new Renderer[] { trunkPart.GetComponent<Renderer>(), crown }),
+            new LOD(0.004f, new Renderer[] { distant })
+        });
+        lod.RecalculateBounds();
 
         // The trunk is the only part that collides, so a drone clips through
         // branches instead of detonating on them. AddPart strips every collider,
@@ -395,6 +402,48 @@ public static class TargetProps
 
         NoShadows(trunkPart);
         return tree;
+    }
+
+    static Mesh nearCrown, farCrown;
+
+    static Mesh TreeCrownMesh(bool distant)
+    {
+        Mesh cached = distant ? farCrown : nearCrown;
+        if (cached != null) return cached;
+        const string folder = "Assets/Generated/Shared";
+        System.IO.Directory.CreateDirectory(folder);
+        string path = folder + (distant ? "/PineFar.asset" : "/PineNear.asset");
+        cached = UnityEditor.AssetDatabase.LoadAssetAtPath<Mesh>(path);
+        if (cached == null)
+        {
+            Mesh cone = PrimitiveMesh.Frustum(1f, 0f, 1f, distant ? 5 : 9);
+            var parts = new CombineInstance[distant ? 1 : 3];
+            for (int i = 0; i < parts.Length; i++)
+            {
+                float radius = distant ? 1.6f : 1.65f - i * 0.40f;
+                float height = distant ? 4.7f : 2.8f - i * 0.35f;
+                float centre = distant ? 3.65f : 2.7f + i * 1.0f;
+                parts[i] = new CombineInstance { mesh = cone,
+                    transform = Matrix4x4.TRS(new Vector3(0f, centre, 0f),
+                        Quaternion.Euler(0f, i * 23f, 0f), new Vector3(radius, height, radius)) };
+            }
+            cached = new Mesh { name = distant ? "PineFar" : "PineNear" };
+            cached.CombineMeshes(parts, true, true);
+            Object.DestroyImmediate(cone);
+            UnityEditor.AssetDatabase.CreateAsset(cached, path);
+        }
+        if (distant) farCrown = cached; else nearCrown = cached;
+        return cached;
+    }
+
+    static MeshRenderer AddTreeCrown(Transform parent, string name, Mesh mesh, Material material)
+    {
+        var go = new GameObject(name);
+        go.transform.SetParent(parent, false);
+        go.AddComponent<MeshFilter>().sharedMesh = mesh;
+        var renderer = go.AddComponent<MeshRenderer>();
+        renderer.sharedMaterial = material;
+        return renderer;
     }
 
     // ---------- helpers ----------

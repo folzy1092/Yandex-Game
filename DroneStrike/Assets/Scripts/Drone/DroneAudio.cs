@@ -1,43 +1,30 @@
 using UnityEngine;
 
 /// <summary>
-/// The rotor hum, pitched and volumed by throttle so it actually tells the
-/// pilot something — spooling up into a dive reads as speed, dying away as the
-/// motors cut reads as trouble, before the player's eyes even confirm it.
+/// Blends dedicated idle, cruise, load and wind loops. The layers follow real
+/// throttle and velocity, so a hovering drone does not sound like a fast pass.
 /// </summary>
 [RequireComponent(typeof(DroneController))]
 public class DroneAudio : MonoBehaviour
 {
-    public float minPitch = 0.85f;
-    public float maxPitch = 1.35f;
-    public float minVolume = 0.07f;
-    public float maxVolume = 0.22f;
-
-    /// <summary>How quickly volume fades once the motors cut, in units/second.</summary>
-    public float fadeOutRate = 1.4f;
-
     DroneController drone;
-    AudioSource source;
+    DroneMotorRig motor;
 
     void Start()
     {
         drone = GetComponent<DroneController>();
-        if (GameAudio.Instance != null) source = GameAudio.Instance.AttachDroneLoop(transform);
+        if (GameAudio.Instance != null)
+            motor = GameAudio.Instance.AttachDroneMotor(transform);
     }
 
     void Update()
     {
-        if (source == null || drone == null) return;
+        if (motor == null || drone == null) return;
+        motor.Tick(drone.ThrottleLevel, drone.SpeedKmh / 3.6f, drone.IsPowered);
+    }
 
-        if (!drone.IsPowered)
-        {
-            source.volume = Mathf.MoveTowards(source.volume, 0f, Time.deltaTime * fadeOutRate);
-            if (source.volume <= 0.001f && source.isPlaying) source.Stop();
-            return;
-        }
-
-        float throttle = drone.ThrottleLevel;
-        source.pitch = Mathf.Lerp(minPitch, maxPitch, throttle);
-        source.volume = Mathf.Lerp(minVolume, maxVolume, throttle);
+    void OnDestroy()
+    {
+        if (motor != null) motor.Dispose();
     }
 }
