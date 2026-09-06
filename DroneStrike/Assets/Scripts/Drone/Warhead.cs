@@ -129,8 +129,28 @@ public class Warhead : MonoBehaviour
         if (drone != null) drone.CutPower();
         if (OnDetonated != null) OnDetonated();
 
-        // The drone is gone; hide it rather than destroying it this frame, so
-        // anything still reading its transform this frame stays valid.
+        RetireDrone();
+    }
+
+    /// <summary>
+    /// Water kills the airframe without producing a dry-land fireball or
+    /// applying blast damage through the pond bank.
+    /// </summary>
+    public void Submerge()
+    {
+        if (HasDetonated) return;
+        HasDetonated = true;
+
+        if (drone != null) drone.CutPower();
+        if (OnDetonated != null) OnDetonated();
+
+        RetireDrone();
+    }
+
+    void RetireDrone()
+    {
+        // Hide it rather than destroying it this frame, so anything still
+        // reading its transform during the trigger callback stays valid.
         foreach (Renderer renderer in GetComponentsInChildren<Renderer>())
             renderer.enabled = false;
 

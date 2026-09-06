@@ -5,227 +5,27 @@
   "files": [
     {
       "path": "Assets/Editor/DroneMaterials.cs",
-      "sha256": "d1a24c0a97cdc5e7e8d223e252e195bebe907f08df94221218b07d44dfe02020"
+      "sha256": "ca80578591c366fa35a250ca2aae2309dd02fa5b4b0ba5624eb3a51e90fde448"
     },
     {
       "path": "Assets/Editor/MissionBuilder.cs",
-      "sha256": "16389fcd3f94421c011a55e32390949f59599052d88770be989c368cd712dda8"
-    },
-    {
-      "path": "Assets/Editor/SceneVisualAssets.cs",
-      "sha256": "18dc8b5d11d9202bfd220456d3b4d2868f47a3c48c8cd2b584c24de612165ec1"
-    },
-    {
-      "path": "Assets/Editor/TargetProps.cs",
-      "sha256": "05ea1fcfbf44347dcdaea02bd9c0420aff7a406ea707f8284e8720aba360bca3"
-    },
-    {
-      "path": "Assets/Plugins/WebGL/YandexGames.jslib",
-      "sha256": "744811e1b5c447c8cdaab121f2ea9bd76fd53cc4f1f35dee41ac4ab34fd5f9b7"
-    },
-    {
-      "path": "Assets/Resources/Audio/Drone/motor_cruise.wav",
-      "sha256": "5b8747c7ecce11308fe1c29c6a93a081dc52f52e50863a7bc1fe91b008bb0481"
-    },
-    {
-      "path": "Assets/Resources/Audio/Drone/motor_idle.wav",
-      "sha256": "aadd367641461dbc4facf216023f3b5071e8f62ebe44366027cc5b03a8f0b756"
-    },
-    {
-      "path": "Assets/Resources/Audio/Drone/motor_load.wav",
-      "sha256": "ca2f7c461ecbc4d0c53acf967445123d2ddf514200c077e407d221eb896a2a6e"
-    },
-    {
-      "path": "Assets/Resources/Audio/Drone/wind_high.wav",
-      "sha256": "56ac886a510be39ae92ec6050a584a63574f3ac90b43352b1b3dc96672f2c87d"
-    },
-    {
-      "path": "Assets/Resources/Audio/Drone/wind_low.wav",
-      "sha256": "d642ae652d3c7185f3864d5f62d59d8565a213a9ea0b98ea046995abb58fdb74"
-    },
-    {
-      "path": "Assets/Resources/Audio/Explosions/explosion_compact_01.wav",
-      "sha256": "cc714f6c2a1ae62d56ecc613b596e1d38f9d29b4a6c5d8fa7d256a9b7ad118a1"
-    },
-    {
-      "path": "Assets/Resources/Audio/Explosions/explosion_compact_02.wav",
-      "sha256": "d1f404b538eceb955fd7b2edee371eea0abb46a5ca0d0fe4e760c05581c1a7e6"
-    },
-    {
-      "path": "Assets/Resources/Audio/Explosions/explosion_compact_03.wav",
-      "sha256": "7aa624488a130c36e1dce5899d227a5cb3b1c43f5ac6a6089af0a4eea059f411"
-    },
-    {
-      "path": "Assets/Resources/Audio/Explosions/explosion_heavy_01.wav",
-      "sha256": "2d2087442905f007b20530b8e3e5cd88810b15fa80825922165a3db0400a267f"
-    },
-    {
-      "path": "Assets/Resources/Audio/Explosions/explosion_heavy_02.wav",
-      "sha256": "582c41309bb5b6434c19000bd5eaa206b77394ae596ed1ad69d4cd59e58ca3b6"
-    },
-    {
-      "path": "Assets/Resources/Audio/Explosions/explosion_heavy_03.wav",
-      "sha256": "e7ede6e0250cead45251f0ad0f86dd0a1cdfff394ff29e560a76fd065821bd39"
-    },
-    {
-      "path": "Assets/Resources/Audio/Explosions/explosion_standard_01.wav",
-      "sha256": "b3f9739c33a18c64ddb2f98afc64048df9c232e85fc8ed8b3427536085779c54"
-    },
-    {
-      "path": "Assets/Resources/Audio/Explosions/explosion_standard_02.wav",
-      "sha256": "07e7c09eb66c2ff144c998c078695030d4de0216de23d8a4d6b323b219f7670e"
-    },
-    {
-      "path": "Assets/Resources/Audio/Explosions/explosion_standard_03.wav",
-      "sha256": "1d64e22172fd24e8e481a04e052539d60dff24489f4ca5e1266ea77f5d345874"
-    },
-    {
-      "path": "Assets/Resources/Audio/Impacts/Ground/impact_ground_01.ogg",
-      "sha256": "7d3ba0bb5e60a11b5d3e558c141303dcf494256675fbf753c0d252d2cf0481e3"
-    },
-    {
-      "path": "Assets/Resources/Audio/Impacts/Ground/impact_ground_02.ogg",
-      "sha256": "7642a4fd43e547afe4f7adfadb3dabb681c0ff512f52c1674bae30a726841faf"
-    },
-    {
-      "path": "Assets/Resources/Audio/Impacts/Ground/impact_ground_03.ogg",
-      "sha256": "5069e3571a77d7f7aae9ef71d0364aa245fb7d64a7c8cc9956f221d03088c089"
-    },
-    {
-      "path": "Assets/Resources/Audio/Impacts/Hard/impact_hard_01.ogg",
-      "sha256": "112d4f93ddcc370b410630f971c0f5d991856102da9c76bc5c5540d388e75aaa"
-    },
-    {
-      "path": "Assets/Resources/Audio/Impacts/Hard/impact_hard_02.ogg",
-      "sha256": "142fd6c77f13d25f318265901163f70f8dfe12f87829169a570025be43de7011"
-    },
-    {
-      "path": "Assets/Resources/Audio/Impacts/Hard/impact_hard_03.ogg",
-      "sha256": "b0cab75d1befa32b4cf215d8ee7e1c400a39182e8b105963b8e310f825b198a1"
-    },
-    {
-      "path": "Assets/Resources/Audio/Impacts/Metal/impact_metal_01.ogg",
-      "sha256": "a96f879fec0864a8938e0c745b6996a6c5679c16a234ce31a01cc995e8401003"
-    },
-    {
-      "path": "Assets/Resources/Audio/Impacts/Metal/impact_metal_02.ogg",
-      "sha256": "e8a9eaba7c4d27422e4eeb3e6c7100d5d7dc0f83e005efc98c960adcc5265337"
-    },
-    {
-      "path": "Assets/Resources/Audio/Impacts/Metal/impact_metal_03.ogg",
-      "sha256": "7e89ce2ca0dbda95ea2b78d4b50791cab35c10d20e9f5ccd45dd0b00e99ff548"
-    },
-    {
-      "path": "Assets/Resources/Audio/SOURCE_MANIFEST.md",
-      "sha256": "4fc396d7c391568ae4e20a4c3492df6d92e99b8cac865f0782e1402d2dfccc4e"
-    },
-    {
-      "path": "Assets/Resources/Audio/UI/battery_low.wav",
-      "sha256": "fde0e72f34db2eea08321719fd71afbf248b649a0b7fdaeffd11c77a45e072c6"
-    },
-    {
-      "path": "Assets/Resources/Audio/UI/signal_lost.wav",
-      "sha256": "adf21d2bb6812539d183a91137d4164b69f0938c8214adc2fec7b56b01a157ae"
-    },
-    {
-      "path": "Assets/Resources/Audio/UI/signal_weak.wav",
-      "sha256": "20a33a1517f4f9a927e025787be59e358c550b2359143676849bb47b315288a6"
-    },
-    {
-      "path": "Assets/Resources/Audio/UI/target_destroyed.wav",
-      "sha256": "f62c605bdea38edd8b1a88e9806d96ac19df43ccfedcc0f424ed156c455341e1"
-    },
-    {
-      "path": "Assets/Resources/Audio/UI/ui_back.wav",
-      "sha256": "45f1c9df0db7af4c55166bad72568dcbd6e729ee362ce470b88d9deee51a5e5c"
-    },
-    {
-      "path": "Assets/Resources/Audio/UI/ui_confirm.wav",
-      "sha256": "d9b3719731a409c8109c5a049aceffbff9ff6c0ffe074a02fe52664393139b79"
-    },
-    {
-      "path": "Assets/Resources/Audio/UI/ui_focus.wav",
-      "sha256": "435a6701378802f98739dbcb39f70a505f6cce88b91886eef4f680192e93412c"
-    },
-    {
-      "path": "Assets/Resources/Audio/UI/ui_unavailable.wav",
-      "sha256": "350375a1a4adb8fe6f7b4cd775cdbb9a3015e2473b31a0e6fad9e3b3a1e8a9fd"
-    },
-    {
-      "path": "Assets/Scripts/Drone/DroneAudio.cs",
-      "sha256": "eb6612842ca95f062dca442d7cc5011bacacaff456af122db67a7522e9456003"
-    },
-    {
-      "path": "Assets/Scripts/Drone/DroneCameraGimbal.cs",
-      "sha256": "fc3d429407381878356a47731905807645424f4e36fd775996a64399d0523134"
-    },
-    {
-      "path": "Assets/Scripts/Drone/DroneController.cs",
-      "sha256": "0b5a414a8997e43a3ea7351d7b223e3fa2f4ca222ab6af43d7aa16a895a6d608"
-    },
-    {
-      "path": "Assets/Scripts/Drone/DroneFactory.cs",
-      "sha256": "780b08f8ad47331cfdb5d8089bcd05f7addcd67d87eddc6242caebed84fdcfd7"
-    },
-    {
-      "path": "Assets/Scripts/Drone/SignalLink.cs",
-      "sha256": "8f8ee0182dddd26b47838b6afa39a83e11d622dfb5dae54a52a6cc16a4e0fa5a"
+      "sha256": "7802d289a780ce31437b98ea2da2fe5db3422f69846003ead8fe1484827e7a0c"
     },
     {
       "path": "Assets/Scripts/Drone/Warhead.cs",
-      "sha256": "81ff294d7263cc534145cd210a2f3180a2151533226527adb37786fba9a56788"
-    },
-    {
-      "path": "Assets/Scripts/Mission/MissionManager.cs",
-      "sha256": "fd2035cc1c0ee23b9b587156199e00fde8def9a4f1e44f304366575d10f9b6ff"
-    },
-    {
-      "path": "Assets/Scripts/UI/DroneHUD.cs",
-      "sha256": "225d15b2c16a8cac0d49cdf71fc5e30a7b7de28918ede7dc36a42778f4716981"
-    },
-    {
-      "path": "Assets/Scripts/World/GameAudio.cs",
-      "sha256": "5762c52b3c48451cbbc0b0b1edf820873e97bcc370e5e8bcb173a000f5006b22"
-    },
-    {
-      "path": "Assets/Scripts/World/GameEffects.cs",
-      "sha256": "9480e17d6728000b425c82e17643b707378204c3729a37e3a0ae896372fd2aa8"
+      "sha256": "984941f8d9f3e148061d009e9a168b6eadd6dbd3f5e9de618537962911dd0e3d"
     },
     {
       "path": "Assets/Scripts/World/Target.cs",
-      "sha256": "0982b756a8989c346ae485e5410f85974588d80999686a907a637c692b3feef9"
-    },
-    {
-      "path": "Assets/Scripts/World/TargetHighlight.cs",
-      "sha256": "190315fa49b69c1ad1372c5a8f53074d6587136fa54382a7bde5ff714d4f38da"
+      "sha256": "fa8ed9ec541aa273d0155ca151626b0caf2eaa21fff16cd4e3eb7fec08962a85"
     },
     {
       "path": "Assets/Scripts/World/TerrainMesh.cs",
-      "sha256": "739e7439f35b2c0005a03f03b92922b8e64595ff7a78834f3d1fc74ec413fb77"
+      "sha256": "df781dcd0f5d6af45f9c8ff36aee2d61adf261c2406ff7c244cb47c0003de16e"
     },
     {
-      "path": "Assets/Scripts/Yandex/YandexAds.cs",
-      "sha256": "a15b369d525df4f7cfc958c5f8587fcddfd41faf14098ad2ff158ae0b9c4cb98"
-    },
-    {
-      "path": "Assets/Shaders/FieldGround.shader",
-      "sha256": "cbc957ff57a89c1d488bdc80f860725d409e89bed95c4ca398d7bd99f35fbe2b"
-    },
-    {
-      "path": "Documentation/ThirdPartyLicenses/Kenney-Impact-Sounds-CC0.txt",
-      "sha256": "454078804390b07e89fda9fa1a51527b1df43a8ced39110ec5dc19c411269215"
-    },
-    {
-      "path": "Documentation/ThirdPartyLicenses/Kenney-Interface-Sounds-CC0.txt",
-      "sha256": "26ff07d4d3131581e54cee2c199b220e8366fc9bc6edeb884a21d7e1076146e1"
-    },
-    {
-      "path": "Tools/BuildOverlayManifest.py",
-      "sha256": "a9d33c100eb1a0de466d924691b4351ae71cfc4d2f004df0d19760edf5bcb627"
-    },
-    {
-      "path": "Tools/GenerateDroneStrikeAudio.py",
-      "sha256": "717fa9514e211adac01291005a6138edafc8e2b52d4cf2256ed58d1564e87e47"
+      "path": "Assets/Scripts/World/WaterHazard.cs",
+      "sha256": "4b7ddd597b267bbf1f776f0938ea3bb492bd8acd272bbb7404336d0c05cfb197"
     }
   ]
 }

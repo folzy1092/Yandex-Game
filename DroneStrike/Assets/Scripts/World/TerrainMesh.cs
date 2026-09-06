@@ -39,7 +39,9 @@ public static class TerrainMesh
     /// Ground within this distance of the centre is flattened, so the launch area
     /// and the target compound sit on level ground instead of a hillside.
     /// </param>
-    public static Mesh Build(float size, int resolution, float amplitude, int seed, float flatRadius)
+    public static Mesh Build(float size, int resolution, float amplitude, int seed, float flatRadius,
+                             bool carvePond = false, Vector2 pondCentre = default(Vector2),
+                             float pondRadius = 0f, float pondDepth = 0f)
     {
         resolution = Mathf.Clamp(resolution, 2, 250);
 
@@ -68,6 +70,19 @@ public static class TerrainMesh
                     float blend = Mathf.SmoothStep(0f, 1f,
                         Mathf.InverseLerp(flatRadius, flatRadius * 2f, distance));
                     height *= blend;
+                }
+
+                if (carvePond && pondRadius > 0f && pondDepth > 0f)
+                {
+                    float pondDistance = Vector2.Distance(
+                        new Vector2(worldX, worldZ), pondCentre);
+
+                    // Flat muddy floor across the middle, then a smooth bank
+                    // back to the surrounding ground. This is actual terrain
+                    // geometry, so the pond has visible depth from the air.
+                    float shore = Mathf.SmoothStep(0f, 1f,
+                        Mathf.InverseLerp(pondRadius * 0.48f, pondRadius, pondDistance));
+                    height -= (1f - shore) * pondDepth;
                 }
 
                 vertices[index] = new Vector3(worldX, height, worldZ);

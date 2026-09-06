@@ -107,6 +107,12 @@ public class Target : MonoBehaviour
         {
             foreach (Renderer renderer in GetComponentsInChildren<Renderer>())
             {
+                // The target marker owns a transparent radial material and a
+                // blue MaterialPropertyBlock. Replacing that material with an
+                // opaque damage material turns its quad into the bright square
+                // that appeared under armour after a weak hit.
+                if (renderer.GetComponent<TargetHighlight>() != null) continue;
+
                 int slotCount = renderer.sharedMaterials.Length;
                 var slots = new Material[slotCount];
                 for (int i = 0; i < slotCount; i++) slots[i] = damaged;
@@ -143,6 +149,8 @@ public class Target : MonoBehaviour
         {
             foreach (Renderer renderer in GetComponentsInChildren<Renderer>())
             {
+                if (renderer.GetComponent<TargetHighlight>() != null) continue;
+
                 // A downloaded model typically has several material slots (hull,
                 // tracks, glass...). Setting sharedMaterial alone only replaces
                 // slot 0, leaving the rest showing their original texture — every

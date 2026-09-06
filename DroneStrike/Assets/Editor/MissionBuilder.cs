@@ -259,8 +259,10 @@ public static class MissionBuilder
     {
         var ground = new GameObject("Terrain");
 
-        Mesh mesh = TerrainMesh.Build(profile.mapSize, 129, profile.hillAmplitude,
-                                      profile.seed, FlatRadius);
+        int terrainResolution = profile.hasPond ? 193 : 129;
+        Mesh mesh = TerrainMesh.Build(profile.mapSize, terrainResolution, profile.hillAmplitude,
+                                      profile.seed, FlatRadius, profile.hasPond,
+                                      new Vector2(PondX, PondZ), PondRadius, PondDepth);
 
         ground.AddComponent<MeshFilter>().sharedMesh = mesh;
         ground.AddComponent<MeshRenderer>().sharedMaterial = DroneMaterials.Load(profile.groundMaterial);
@@ -276,23 +278,42 @@ public static class MissionBuilder
     /// exactly one of it, on one map, so a whole rejection-sampling pass would
     /// be more code than the thing is worth.
     /// </summary>
+    const float PondX = 10f;
+    const float PondZ = -40f;
+    const float PondRadius = 14f;
+    const float PondDepth = 3.2f;
+    const float PondSurfaceDrop = 0.72f;
+
     static void BuildPond()
     {
-        const float x = 10f;
-        const float z = -40f;
-        const float radius = 14f;
-
-        if (!ClearOfRoad(x, z, radius + RoadClearance))
+        if (!ClearOfRoad(PondX, PondZ, PondRadius + RoadClearance))
             Debug.LogWarning("Drone Strike: the pond overlaps the road.");
 
-        Claim(x, z, radius + 4f);
+        Claim(PondX, PondZ, PondRadius + 4f);
 
         var pond = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
         pond.name = "Pond";
-        pond.transform.position = OnGround(x, z, 0.12f);
-        pond.transform.localScale = new Vector3(radius * 2f, 0.05f, radius * 2f);
+        pond.transform.position = OnGround(PondX, PondZ, -PondSurfaceDrop);
+        float waterRadius = PondRadius * 0.82f;
+        pond.transform.localScale = new Vector3(waterRadius * 2f, 0.08f, waterRadius * 2f);
         pond.GetComponent<Renderer>().sharedMaterial = DroneMaterials.Load("Mat_Water");
         Object.DestroyImmediate(pond.GetComponent<Collider>());
+
+        // Exact circular trigger on the visible water. Touching the surface
+        // floods the electronics and immediately costs the current drone.
+        var waterCollider = pond.AddComponent<MeshCollider>();
+        waterCollider.sharedMesh = pond.GetComponent<MeshFilter>().sharedMesh;
+        waterCollider.convex = true;
+        waterCollider.isTrigger = true;
+        pond.AddComponent<WaterHazard>();
+
+        // Dark floor beneath transparent water gives a visible depth cue.
+        var bottom = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
+        bottom.name = "PondBottom";
+        bottom.transform.position = OnGround(PondX, PondZ, -PondDepth + 0.05f);
+        bottom.transform.localScale = new Vector3(PondRadius * 2f, 0.10f, PondRadius * 2f);
+        bottom.GetComponent<Renderer>().sharedMaterial = DroneMaterials.Load("Mat_PondBottom");
+        Object.DestroyImmediate(bottom.GetComponent<Collider>());
     }
 
     static float GroundAt(float x, float z)
@@ -984,7 +1005,7 @@ public static class MissionBuilder
     }
 
     /// <summary>
-    /// Anti-drone netting: a fully supported four-corner frame with a sagging,
+    /// Anti-drone netting: a fully supported six-post frame with a sagging,
     /// alpha-cut mesh. It is deliberately all-or-nothing: a pole that cannot
     /// be placed cancels the entire structure instead of leaving a floating
     /// canopy on three legs.
@@ -996,18 +1017,24 @@ public static class MissionBuilder
         float halfDepth = size * 0.35f;
         Quaternion rotation = Quaternion.Euler(0f, yaw, 0f);
         Vector3 centre = OnGround(x, z);
-
-        // Validate the four feet before touching claims or creating any object.
-        // The previous per-pole loop could skip one occupied corner and still
-        // build the sheet, which was the source of three-legged canopies.
-        foreach (float px in new[] { -halfWidth, halfWidth })
+        Vector2[] supports =
         {
-            foreach (float pz in new[] { -halfDepth, halfDepth })
-            {
-                Vector3 world = centre + rotation * new Vector3(px, 0f, pz);
-                if (!IsFree(world.x, world.z, poleRadius)) return;
-                if (!ClearOfRoad(world.x, world.z, RoadClearance)) return;
-            }
+            new Vector2(-halfWidth, -halfDepth),
+            new Vector2(-halfWidth, 0f),
+            new Vector2(-halfWidth, halfDepth),
+            new Vector2(halfWidth, -halfDepth),
+            new Vector2(halfWidth, 0f),
+            new Vector2(halfWidth, halfDepth)
+        };
+
+        // Validate every foot before touching claims or creating any object.
+        // The previous per-pole loop could skip one occupied corner and still
+        // build the sheet, which was the source of incomplete canopies.
+        foreach (Vector2 support in supports)
+        {
+            Vector3 world = centre + rotation * new Vector3(support.x, 0f, support.y);
+            if (!IsFree(world.x, world.z, poleRadius)) return;
+            if (!ClearOfRoad(world.x, world.z, RoadClearance)) return;
         }
 
         var group = new GameObject("CamoNet");
@@ -1018,52 +1045,51 @@ public static class MissionBuilder
         const float poleHeight = 5.2f;
         Material metal = DroneMaterials.Load("Mat_RustMetal");
 
-        foreach (float px in new[] { -halfWidth, halfWidth })
+        foreach (Vector2 support in supports)
         {
-            foreach (float pz in new[] { -halfDepth, halfDepth })
-            {
-                Vector3 world = group.transform.TransformPoint(new Vector3(px, 0f, pz));
-                Claim(world.x, world.z, poleRadius);
+            float px = support.x;
+            float pz = support.y;
+            Vector3 world = group.transform.TransformPoint(new Vector3(px, 0f, pz));
+            Claim(world.x, world.z, poleRadius);
 
-                // Tapered driven post with a steel foot. Keep it upright: once
-                // the net is visibly sagging, arbitrary leaning makes it look
-                // broken rather than field-built.
-                var pole = new GameObject("Pole");
-                pole.transform.SetParent(group.transform, false);
-                pole.transform.localPosition = new Vector3(px, poleHeight * 0.5f, pz);
+            var pole = new GameObject("Pole");
+            pole.transform.SetParent(group.transform, false);
+            pole.transform.localPosition = new Vector3(px, poleHeight * 0.5f, pz);
 
-                var poleMesh = pole.AddComponent<MeshFilter>();
-                poleMesh.sharedMesh = PrimitiveMesh.Frustum(0.14f, 0.08f, poleHeight);
-                var poleRenderer = pole.AddComponent<MeshRenderer>();
-                poleRenderer.sharedMaterial = metal;
-                poleRenderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.On;
+            var poleMesh = pole.AddComponent<MeshFilter>();
+            poleMesh.sharedMesh = PrimitiveMesh.Frustum(0.14f, 0.08f, poleHeight);
+            var poleRenderer = pole.AddComponent<MeshRenderer>();
+            poleRenderer.sharedMaterial = metal;
+            poleRenderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.On;
+            var poleCollider = pole.AddComponent<CapsuleCollider>();
+            poleCollider.direction = 1;
+            poleCollider.height = poleHeight;
+            poleCollider.radius = 0.14f;
 
-                var foot = new GameObject("Foot");
-                foot.transform.SetParent(group.transform, false);
-                foot.transform.localPosition = new Vector3(px, 0.05f, pz);
-                foot.transform.localScale = new Vector3(0.55f, 0.10f, 0.55f);
-                var footFilter = foot.AddComponent<MeshFilter>();
-                footFilter.sharedMesh = PrimitiveMesh.Frustum(0.32f, 0.22f, 1f);
-                footFilter.transform.localRotation = Quaternion.Euler(0f, 0f, 0f);
-                var footRenderer = foot.AddComponent<MeshRenderer>();
-                footRenderer.sharedMaterial = metal;
-                footRenderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.On;
-            }
+            var foot = new GameObject("Foot");
+            foot.transform.SetParent(group.transform, false);
+            foot.transform.localPosition = new Vector3(px, 0.05f, pz);
+            foot.transform.localScale = new Vector3(0.55f, 0.10f, 0.55f);
+            var footFilter = foot.AddComponent<MeshFilter>();
+            footFilter.sharedMesh = PrimitiveMesh.Frustum(0.32f, 0.22f, 1f);
+            var footRenderer = foot.AddComponent<MeshRenderer>();
+            footRenderer.sharedMaterial = metal;
+            footRenderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.On;
         }
 
-        // Rope along the perimeter and across the diagonals gives the sheet a
-        // readable frame at drone altitude. The texture supplies the fine mesh;
-        // these are the heavy tension lines a real field net hangs from.
+        // Perimeter rope plus one centre support. Huge diagonal bars made the
+        // previous version look like a broken steel truss from underneath.
         Vector3 nw = new Vector3(-halfWidth, poleHeight, halfDepth);
         Vector3 ne = new Vector3(halfWidth, poleHeight, halfDepth);
         Vector3 sw = new Vector3(-halfWidth, poleHeight, -halfDepth);
         Vector3 se = new Vector3(halfWidth, poleHeight, -halfDepth);
+        Vector3 mw = new Vector3(-halfWidth, poleHeight, 0f);
+        Vector3 me = new Vector3(halfWidth, poleHeight, 0f);
         AddNetCable(group.transform, metal, nw, ne);
         AddNetCable(group.transform, metal, ne, se);
         AddNetCable(group.transform, metal, se, sw);
         AddNetCable(group.transform, metal, sw, nw);
-        AddNetCable(group.transform, metal, nw, se);
-        AddNetCable(group.transform, metal, ne, sw);
+        AddNetCable(group.transform, metal, mw, me);
 
         // A sagging mesh rather than a flat cube: a taut, perfectly planar
         // rhombus over a vehicle reads as a cardboard roof, not flexible mesh.
@@ -1071,19 +1097,20 @@ public static class MissionBuilder
         sheet.transform.SetParent(group.transform, false);
         sheet.transform.localPosition = new Vector3(0f, poleHeight, 0f);
 
-        // A 0.6 m dip across a sixteen-plus-metre sheet is under 4% of the
-        // span — invisible at any distance a drone actually sees it from, so
-        // even with the lighting bug fixed it still read as a flat plate
-        // rather than netting. A real sag deep enough to actually show up as
-        // shading, on a finer grid so the curve looks smooth rather than
-        // faceted.
+        // A shallow, smooth sag reads as flexible mesh without hanging down
+        // into the vehicle park like a crumpled solid roof.
         var sheetFilter = sheet.AddComponent<MeshFilter>();
-        sheetFilter.sharedMesh = PrimitiveMesh.Drape(size + 1f, size * 0.7f + 1f, 2.4f, 10,
+        sheetFilter.sharedMesh = PrimitiveMesh.Drape(size + 0.5f, size * 0.7f + 0.5f, 0.9f, 16,
                                                      Mathf.RoundToInt(x * 13f + z * 7f));
 
         var sheetRenderer = sheet.AddComponent<MeshRenderer>();
         sheetRenderer.sharedMaterial = net;
-        sheetRenderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.TwoSided;
+        sheetRenderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.On;
+
+        // A static non-convex mesh collider follows the actual sag. The drone
+        // now hits the net surface instead of passing through a visual-only prop.
+        var sheetCollider = sheet.AddComponent<MeshCollider>();
+        sheetCollider.sharedMesh = sheetFilter.sharedMesh;
     }
 
     static void AddNetCable(Transform parent, Material material, Vector3 from, Vector3 to)
