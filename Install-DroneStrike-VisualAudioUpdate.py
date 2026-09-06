@@ -10,6 +10,7 @@ import argparse
 import hashlib
 import json
 import os
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timezone
 from pathlib import Path, PurePosixPath
 from shutil import copy2
@@ -68,24 +69,33 @@ def load_manifest(repository, ref, manifest_path):
 
 
 def download_and_verify(repository, ref, files):
-    prepared = []
-    for index, entry in enumerate(files, 1):
+    def one(entry):
         if not isinstance(entry, dict):
-            raise RuntimeError("Invalid manifest entry at index {}.".format(index))
+            raise RuntimeError("Invalid manifest entry.")
         relative = checked_relative(entry.get("path", ""))
         expected_hash = entry.get("sha256", "")
         if len(expected_hash) != 64 or any(c not in "0123456789abcdef" for c in expected_hash):
             raise RuntimeError("Invalid SHA-256 for " + relative.as_posix())
 
-        print("[{}/{}] Downloading {}".format(index, len(files), relative.as_posix()))
         content = get_bytes(raw_url(repository, ref, "DroneStrike/" + relative.as_posix()))
         actual_hash = hashlib.sha256(content).hexdigest()
         if actual_hash != expected_hash:
             raise RuntimeError(
                 "Hash mismatch for {}. Nothing has been installed.".format(relative.as_posix())
             )
-        prepared.append((relative, content))
-    return prepared
+        return relative, content
+
+    prepared = []
+    with ThreadPoolExecutor(max_workers=6) as executor:
+        futures = {executor.submit(one, entry): index
+                   for index, entry in enumerate(files, 1)}
+        completed = 0
+        for future in as_completed(futures):
+            prepared.append(future.result())
+            completed += 1
+            print("Verified {}/{} files".format(completed, len(files)))
+
+    return sorted(prepared, key=lambda item: item[0].as_posix())
 
 
 def check_target(target):
