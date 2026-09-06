@@ -1045,7 +1045,9 @@ public static class MissionBuilder
                 var footFilter = foot.AddComponent<MeshFilter>();
                 footFilter.sharedMesh = PrimitiveMesh.Frustum(0.32f, 0.22f, 1f);
                 footFilter.transform.localRotation = Quaternion.Euler(0f, 0f, 0f);
-                foot.GetComponent<MeshRenderer>().sharedMaterial = metal;
+                var footRenderer = foot.AddComponent<MeshRenderer>();
+                footRenderer.sharedMaterial = metal;
+                footRenderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.On;
             }
         }
 
