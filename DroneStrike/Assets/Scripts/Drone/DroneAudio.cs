@@ -1,49 +1,76 @@
 using UnityEngine;
 
 /// <summary>
-/// The original single-layer rotor hum. It follows throttle without stacking
-/// bright motor and wind layers into a constant high-pitched whine.
+/// The motor sound, from real on-board FPV recordings (CC0, see
+/// Resources/Audio/SOURCE_MANIFEST.md): a low-revs loop and a high-revs loop
+/// crossfaded by throttle, with the pitch rising smoothly with revs and speed.
+///
+/// The old single synthesized 0.25 s loop sounded like a muddy, stepped buzz:
+/// keyboard throttle is either 0 or 1, and the pitch snapped between the two
+/// the instant a key went down, while the short loop audibly repeated. Now
+/// the throttle driving the sound is smoothed (motors spool up and down, they
+/// do not jump), the loops are 9-11 s of real recording, and the two layers
+/// blend with an equal-power crossfade.
 ///
 /// When the drone dies — impact, blast, water, flat battery, lost link — the
-/// hum fades out over <see cref="fadeOutSeconds"/> and the source is then
-/// stopped and destroyed, so nothing is left playing on a hidden airframe.
-/// The fade runs on unscaled time: a mission that ends on the same frame
-/// pauses the clock (timeScale 0), and a fade on scaled time froze half-way,
-/// leaving the dead drone humming under the results screen.
+/// sound fades out over <see cref="fadeOutSeconds"/> and the sources are then
+/// stopped and destroyed. The fade runs on unscaled time: a mission that ends
+/// on the same frame pauses the clock (timeScale 0), and a fade on scaled time
+/// froze half-way, leaving the dead drone humming under the results screen.
 /// </summary>
 [RequireComponent(typeof(DroneController))]
 public class DroneAudio : MonoBehaviour
 {
-    public float minPitch = 0.82f;
-    public float maxPitch = 1.12f;
-    public float minVolume = 0.06f;
-    public float maxVolume = 0.18f;
+    public float idleVolume = 0.30f;
+    public float fullVolume = 0.48f;
+    public float minPitch = 0.9f;
+    public float maxPitch = 1.14f;
+    public float spoolUp = 3.2f;
+    public float spoolDown = 1.8f;
     public float fadeOutSeconds = 0.2f;
 
     DroneController drone;
-    AudioSource source;
-    float fadeFrom = -1f;
+    Rigidbody body;
+    AudioSource low;
+    AudioSource high;
+    bool recorded;
+    float revs;
+    float fadeFromLow = -1f, fadeFromHigh;
     float fadeStartedAt;
 
     void Start()
     {
         drone = GetComponent<DroneController>();
-        if (GameAudio.Instance != null) source = GameAudio.Instance.AttachDroneLoop(transform);
+        body = GetComponent<Rigidbody>();
+        if (GameAudio.Instance == null) return;
+
+        low = GameAudio.Instance.AttachDroneLayer(transform, "fpv_real_low");
+        high = GameAudio.Instance.AttachDroneLayer(transform, "fpv_real_high");
+        recorded = low != null && high != null;
+        if (!recorded)
+        {
+            if (low != null) Destroy(low.gameObject);
+            if (high != null) Destroy(high.gameObject);
+            high = null;
+            low = GameAudio.Instance.AttachDroneLoop(transform);
+        }
     }
 
     void Update()
     {
-        if (source == null || drone == null) return;
+        if (low == null || drone == null) return;
 
         if (!drone.IsPowered)
         {
-            if (fadeFrom < 0f)
+            if (fadeFromLow < 0f)
             {
-                fadeFrom = source.volume;
+                fadeFromLow = low.volume;
+                fadeFromHigh = high != null ? high.volume : 0f;
                 fadeStartedAt = Time.unscaledTime;
             }
             float t = Mathf.Clamp01((Time.unscaledTime - fadeStartedAt) / Mathf.Max(0.01f, fadeOutSeconds));
-            source.volume = Mathf.Lerp(fadeFrom, 0f, t);
+            low.volume = Mathf.Lerp(fadeFromLow, 0f, t);
+            if (high != null) high.volume = Mathf.Lerp(fadeFromHigh, 0f, t);
             if (t >= 1f) Silence();
             return;
         }
@@ -54,23 +81,50 @@ public class DroneAudio : MonoBehaviour
         bool paused = mission != null && mission.PauseReasons != MissionManager.PauseReason.None;
         if (paused)
         {
-            source.volume = Mathf.MoveTowards(source.volume, 0f, Time.unscaledDeltaTime * 1.5f);
+            low.volume = Mathf.MoveTowards(low.volume, 0f, Time.unscaledDeltaTime * 1.5f);
+            if (high != null) high.volume = Mathf.MoveTowards(high.volume, 0f, Time.unscaledDeltaTime * 1.5f);
             return;
         }
 
-        if (!source.isPlaying) source.Play();
-        float throttle = drone.ThrottleLevel;
-        source.pitch = Mathf.Lerp(minPitch, maxPitch, throttle);
-        source.volume = Mathf.Lerp(minVolume, maxVolume, throttle);
+        if (!low.isPlaying) low.Play();
+        if (high != null && !high.isPlaying) high.Play();
+
+        // Motors spool: the sound follows a smoothed throttle, never the key.
+        float target = drone.ThrottleLevel;
+        float rate = target > revs ? spoolUp : spoolDown;
+        revs = Mathf.MoveTowards(revs, target, Time.deltaTime * rate);
+        float speed = body != null ? Mathf.Clamp01(body.linearVelocity.magnitude / 30f) : 0f;
+
+        float pitch = Mathf.Lerp(minPitch, maxPitch, revs) + speed * 0.05f;
+        float loudness = Mathf.Lerp(idleVolume, fullVolume, Mathf.Max(revs, speed * 0.6f));
+
+        if (recorded)
+        {
+            float blend = Mathf.Clamp01(revs * 0.8f + speed * 0.3f);
+            low.volume = loudness * Mathf.Cos(blend * Mathf.PI * 0.5f);
+            high.volume = loudness * Mathf.Sin(blend * Mathf.PI * 0.5f);
+            low.pitch = pitch;
+            // The high-revs recording sits ~40% above the low one already.
+            high.pitch = pitch * 0.94f;
+        }
+        else
+        {
+            low.pitch = pitch;
+            low.volume = loudness * 0.4f;
+        }
     }
 
-    /// <summary>Stops and removes the loop immediately.</summary>
+    /// <summary>Stops and removes the loops immediately.</summary>
     public void Silence()
     {
-        if (source == null) return;
-        source.Stop();
-        Destroy(source.gameObject);
-        source = null;
+        foreach (AudioSource source in new[] { low, high })
+        {
+            if (source == null) continue;
+            source.Stop();
+            Destroy(source.gameObject);
+        }
+        low = null;
+        high = null;
     }
 
     void OnDisable() { Silence(); }

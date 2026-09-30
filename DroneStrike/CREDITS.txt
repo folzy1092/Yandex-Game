@@ -100,3 +100,13 @@ Assets/Resources/Models/Pallet.glb
   "Pallet" by Quaternius
   Source:  https://poly.pizza/m/cUAsYHDqfD
   License: Public Domain (CC0 1.0)
+
+
+Drone motor sound (added 2026-10-01)
+-------------------------------------
+Assets/Resources/Audio/Drone/fpv_real_low.wav, fpv_real_high.wav
+  "FPV Drone Flight 1" and "FPV Drone Flight 3" by qubodup
+  https://freesound.org/people/qubodup/sounds/854464/
+  https://freesound.org/people/qubodup/sounds/854466/
+  License: CC0 1.0 (public domain). Looped and levelled for the game;
+  details and hashes in Assets/Resources/Audio/SOURCE_MANIFEST.md.

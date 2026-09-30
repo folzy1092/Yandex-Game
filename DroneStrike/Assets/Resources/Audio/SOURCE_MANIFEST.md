@@ -54,3 +54,24 @@ SHA-256:
 | `ui_unavailable.wav` | `350375a1a4adb8fe6f7b4cd775cdbb9a3015e2473b31a0e6fad9e3b3a1e8a9fd` |
 | `signal_lost.wav` | `adf21d2bb6812539d183a91137d4164b69f0938c8214adc2fec7b56b01a157ae` |
 | `target_destroyed.wav` | `f62c605bdea38edd8b1a88e9806d96ac19df43ccfedcc0f424ed156c455341e1` |
+
+## Recorded FPV motor loops (qubodup, CC0)
+
+| Final file | Source |
+| --- | --- |
+| `Drone/fpv_real_low.wav` | "FPV Drone Flight 1", https://freesound.org/people/qubodup/sounds/854464/ |
+| `Drone/fpv_real_high.wav` | "FPV Drone Flight 3", https://freesound.org/people/qubodup/sounds/854466/ |
+
+- Author: qubodup (extracted and normalised the drone audio from "Maneuver
+  Battle Lab Quarterly Drone Race EPK(H)" by Brandon Dorrill, Fort Benning
+  Public Affairs Office - a US government work)
+- License: CC0 1.0 Universal (as listed on each Freesound page)
+- Taken from Freesound's public HQ MP3 previews (48 kHz), decoded offline.
+- Changes: 70 Hz one-pole high-pass; low loop = 0.8-12.6 s of Flight 1,
+  high loop = 2.0-11.2 s of Flight 3; each made seamless with a 0.6 s
+  equal-power crossfade of its tail into its head; RMS-normalised to 0.22,
+  peak-limited to 0.89; written as 16-bit mono WAV.
+- SHA-256 of the final files: `fpv_real_low.wav`
+  `d85b07ba2f8d7522cc87c4e7cb3b3945fc43bac1a1936beb2ec2435dca7e9b17`,
+  `fpv_real_high.wav`
+  `75e7877300fcdeb9dcaa0a7ebe738128ef1b9e293089a4aa1bea054fed0804fa`.

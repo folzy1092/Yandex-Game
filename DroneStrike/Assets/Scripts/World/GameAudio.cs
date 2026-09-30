@@ -238,6 +238,32 @@ public class GameAudio : MonoBehaviour
     }
 
     /// <summary>
+    /// One layer of the recorded motor sound (Resources/Audio/Drone/NAME),
+    /// looping, non-spatial, starting silent at a varied point in the loop so
+    /// successive drones do not start on the identical sample. Null if the
+    /// clip is missing, so the caller can fall back to the synthesized loop.
+    /// </summary>
+    public AudioSource AttachDroneLayer(Transform parent, string clipName)
+    {
+        AudioClip clip = Resources.Load<AudioClip>("Audio/Drone/" + clipName);
+        if (clip == null) return null;
+
+        var go = new GameObject("Motor_" + clipName);
+        go.transform.SetParent(parent, false);
+        var source = go.AddComponent<AudioSource>();
+        source.clip = clip;
+        source.loop = true;
+        source.playOnAwake = false;
+        source.spatialBlend = 0f;
+        source.dopplerLevel = 0f;
+        source.volume = 0f;
+        source.priority = 16;
+        source.Play();
+        source.time = (float)(random.NextDouble() * clip.length * 0.9);
+        return source;
+    }
+
+    /// <summary>
     /// Radio crackle for flying inside a live jammer's radius. Non-spatial,
     /// starts silent; the HUD drives its volume from the jam intensity.
     /// </summary>
