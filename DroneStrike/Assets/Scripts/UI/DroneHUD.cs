@@ -39,6 +39,7 @@ public class DroneHUD : MonoBehaviour
     Text sensitivityLabel;
     Text invertLabel;
     Text fovLabel;
+    Text lensLabel;
 
     Text signalLostBanner;
     float signalLostUntil;
@@ -747,6 +748,12 @@ public class DroneHUD : MonoBehaviour
                 GameAudio.SetMasterVolume(value > 1f ? 0f : value);
                 RefreshCameraSettings();
             }).GetComponentInChildren<Text>();
+        lensLabel = UIFactory.CreateButton(pausePanel.transform, "LensFx", "", 23,
+            centre, centre, new Vector2(340f, -320f), new Vector2(300f, 62f), () =>
+            {
+                FpvCameraFx.Enabled = !FpvCameraFx.Enabled;
+                RefreshCameraSettings();
+            }).GetComponentInChildren<Text>();
         RefreshCameraSettings();
 
         pausePanel.SetActive(false);
@@ -822,6 +829,8 @@ public class DroneHUD : MonoBehaviour
         if (invertLabel != null) invertLabel.text =
             (english ? "INVERT Y " : "ИНВЕРСИЯ Y ") + (DroneCameraGimbal.InvertY ? "ON" : "OFF");
         if (fovLabel != null) fovLabel.text = "FOV " + DroneCameraGimbal.FieldOfView.ToString("0");
+        if (lensLabel != null) lensLabel.text =
+            (english ? "LENS FX " : "ОБЪЕКТИВ ") + (FpvCameraFx.Enabled ? "ON" : "OFF");
         if (volumeLabel != null) volumeLabel.text =
             (english ? "VOLUME " : "ГРОМКОСТЬ ") + Mathf.RoundToInt(GameAudio.MasterVolume * 100f) + "%";
     }

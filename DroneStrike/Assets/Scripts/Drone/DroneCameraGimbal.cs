@@ -49,6 +49,7 @@ public class DroneCameraGimbal : MonoBehaviour
 
     float pitch;
     float yaw;
+    DroneController controller;
     float shakeUntil;
     float shakeDuration;
     float shakeStrength;
@@ -99,8 +100,24 @@ public class DroneCameraGimbal : MonoBehaviour
             shakeRoll = Mathf.Sin(phase * 0.73f + 3.1f) * amount * 0.55f;
         }
 
+        // Riding in the airframe rather than floating beside it: the view
+        // banks with part of the drone's lean and nods a little into its
+        // acceleration, and the motors put a fine buzz into the image that
+        // grows with throttle. Aim (pitch/yaw) is still fully stabilised.
+        float bank = 0f, nod = 0f, buzzPitch = 0f, buzzRoll = 0f;
+        if (controller == null) controller = GetComponent<DroneController>();
+        if (controller != null && controller.IsPowered && Time.timeScale > 0f)
+        {
+            bank = controller.Lean.z * 0.35f;
+            nod = controller.Lean.x * 0.08f;
+            float t = Time.time;
+            float amount = 0.05f + 0.22f * controller.ThrottleLevel;
+            buzzPitch = (Mathf.PerlinNoise(t * 31f, 0.5f) - 0.5f) * 2f * amount;
+            buzzRoll = (Mathf.PerlinNoise(t * 27f, 7.5f) - 0.5f) * 2f * amount;
+        }
+
         cameraTransform.rotation = Quaternion.Euler(
-            pitch + shakePitch, yaw + shakeYaw, shakeRoll);
+            pitch + shakePitch + nod + buzzPitch, yaw + shakeYaw, shakeRoll + bank + buzzRoll);
     }
 
     /// <summary>

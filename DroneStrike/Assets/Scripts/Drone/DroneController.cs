@@ -94,6 +94,9 @@ public class DroneController : MonoBehaviour
 
     public bool IsPowered { get; private set; }
 
+    /// <summary>Current cosmetic lean, degrees: x = pitch into acceleration, z = bank.</summary>
+    public Vector3 Lean { get { return leanVelocity; } }
+
     Rigidbody body;
     DroneCameraGimbal gimbal;
     Collider terrainCollider;

@@ -898,7 +898,15 @@ public static class MissionBuilder
     /// 3.16 m along local X and 0.78 m along local Z. Rotate that X axis onto
     /// the claimed line's Z axis before repeating sections along the line.
     /// </summary>
-    const float TrenchSegmentSpan = 4.5f;
+    const float TrenchSegmentSpan = 3.0f;
+
+    /// <summary>
+    /// The span the segment count used to be computed from. Kept only so the
+    /// berm consumes exactly as many Random calls as it did, which keeps the
+    /// whole seed sequence (and every map layout after it) unchanged.
+    /// At 4.5 m a segment's sandbags came out ~0.9 m long; real ones are ~0.6.
+    /// </summary>
+    const float LegacyTrenchSegmentSpan = 4.5f;
     const float TrenchModelYawOffset = 90f;
 
     /// <summary>
@@ -913,6 +921,13 @@ public static class MissionBuilder
         Vector3 direction = Quaternion.Euler(0f, yaw, 0f) * Vector3.forward;
         int segments = Mathf.Max(1, Mathf.RoundToInt(length / TrenchSegmentSpan));
 
+        // Burn the old per-segment Random calls, then jitter the new, finer
+        // segments from a local generator seeded by the berm's position.
+        int legacySegments = Mathf.Max(1, Mathf.RoundToInt(length / LegacyTrenchSegmentSpan));
+        for (int i = 0; i < legacySegments * 5; i++) Random.Range(0f, 1f);
+        var local = new System.Random(Mathf.RoundToInt(x * 131f + z * 17f));
+        System.Func<float, float, float> jitter = (min, max) => min + (float)local.NextDouble() * (max - min);
+
         bool anyPlaced = false;
 
         Vector3 sideways = Quaternion.Euler(0f, 90f, 0f) * direction;
@@ -923,11 +938,11 @@ public static class MissionBuilder
 
             // Keep adjacent sections touching while varying their silhouette.
             // The old broad jitter left gaps between already misoriented rows.
-            float alongJitter = Random.Range(-0.08f, 0.08f);
-            float sidewaysJitter = Random.Range(-0.12f, 0.12f);
-            float yawJitter = Random.Range(-5f, 5f);
-            float heightJitter = Random.Range(-0.03f, 0.04f);
-            float scaleJitter = Random.Range(1.06f, 1.10f);
+            float alongJitter = jitter(-0.06f, 0.06f);
+            float sidewaysJitter = jitter(-0.1f, 0.1f);
+            float yawJitter = jitter(-4f, 4f);
+            float heightJitter = jitter(-0.03f, 0.03f);
+            float scaleJitter = jitter(1.06f, 1.10f);
 
             Vector3 segmentPos = OnGround(
                 x + direction.x * (along + alongJitter) + sideways.x * sidewaysJitter,
@@ -989,29 +1004,67 @@ public static class MissionBuilder
         group.transform.position = OnGround(x, z);
         group.transform.rotation = Quaternion.Euler(0f, yaw, 0f);
 
-        // Three courses, each shorter than the one below, so it tapers the way a
-        // stacked wall really does instead of reading as a plain slab.
-        const float bagHeight = 0.42f;
+        // Burn exactly the Random calls the old three-course wall of
+        // metre-long bags made (two per bag), so the seed sequence and every
+        // layout after this wall stay the same.
         for (int course = 0; course < 3; course++)
         {
-            float courseLength = length - course * 1.6f;
-            if (courseLength < 2f) break;
+            float oldLength = length - course * 1.6f;
+            if (oldLength < 2f) break;
+            int oldBags = Mathf.Max(2, Mathf.RoundToInt(oldLength / 1.1f));
+            for (int i = 0; i < oldBags * 2; i++) Random.Range(0f, 1f);
+        }
 
-            int bags = Mathf.Max(2, Mathf.RoundToInt(courseLength / 1.1f));
-            for (int i = 0; i < bags; i++)
+        // Real bags: ~0.6 m long, 0.2 m thick when laid, 0.4 m deep, in
+        // stretcher bond (each course offset by half a bag), five courses
+        // to a ~1 m breastwork, each course a little shorter. The old wall
+        // used 1.05 x 0.42 m bags, about twice life size.
+        const float bagLength = 0.6f;
+        const float bagHeight = 0.2f;
+        const float bagDepth = 0.42f;
+        var jitterSource = new System.Random(Mathf.RoundToInt(x * 97f + z * 31f));
+        var bags = new List<CombineInstance>();
+        // A soft pillow, not a brick: a low-poly lens of revolution squashed
+        // to bag proportions by each bag's own matrix below.
+        Mesh cube = PrimitiveMesh.Revolve(new[]
+        {
+            new Vector2(0f, -0.5f), new Vector2(0.38f, -0.44f), new Vector2(0.5f, -0.15f),
+            new Vector2(0.5f, 0.12f), new Vector2(0.36f, 0.42f), new Vector2(0f, 0.5f)
+        }, 10);
+        for (int course = 0; course < 5; course++)
+        {
+            float courseLength = length - course * 0.7f;
+            if (courseLength < 1.5f) break;
+            int count = Mathf.Max(2, Mathf.RoundToInt(courseLength / (bagLength + 0.04f)));
+            float offset = course % 2 == 0 ? 0f : bagLength * 0.5f;
+            for (int i = 0; i < count; i++)
             {
-                float along = -courseLength * 0.5f + (i + 0.5f) * (courseLength / bags);
-
-                var bag = GameObject.CreatePrimitive(PrimitiveType.Cube);
-                bag.name = "Bag";
-                bag.transform.SetParent(group.transform, false);
-                bag.transform.localPosition = new Vector3(0f, bagHeight * (course + 0.5f), along);
-                bag.transform.localRotation =
-                    Quaternion.Euler(0f, Random.Range(-6f, 6f), Random.Range(-4f, 4f));
-                bag.transform.localScale = new Vector3(0.95f, bagHeight, 1.05f);
-                bag.GetComponent<Renderer>().sharedMaterial = sandbag;
+                float along = -courseLength * 0.5f + (i + 0.5f) * (courseLength / count) + offset;
+                if (Mathf.Abs(along) > courseLength * 0.5f) continue;
+                float yawJitter = (float)(jitterSource.NextDouble() * 10.0 - 5.0);
+                float rollJitter = (float)(jitterSource.NextDouble() * 6.0 - 3.0);
+                bags.Add(new CombineInstance
+                {
+                    mesh = cube,
+                    transform = Matrix4x4.TRS(new Vector3(0f, bagHeight * (course + 0.5f), along),
+                                              Quaternion.Euler(0f, yawJitter, rollJitter),
+                                              new Vector3(bagDepth * 1.08f, bagHeight * 1.2f, bagLength * 1.1f))
+                });
             }
         }
+
+        // One mesh per wall: a hundred-odd small bags as separate objects
+        // would cost a draw call each. Named "Bag" so the grounding check
+        // still measures it.
+        var wall = new GameObject("Bag");
+        wall.transform.SetParent(group.transform, false);
+        var mesh = new Mesh { name = "SandbagWall", indexFormat = UnityEngine.Rendering.IndexFormat.UInt32 };
+        mesh.CombineMeshes(bags.ToArray(), true, true);
+        wall.AddComponent<MeshFilter>().sharedMesh = mesh;
+        wall.AddComponent<MeshRenderer>().sharedMaterial = sandbag;
+        var wallCollider = wall.AddComponent<BoxCollider>();
+        wallCollider.center = mesh.bounds.center;
+        wallCollider.size = mesh.bounds.size;
     }
 
     /// <summary>
@@ -1486,7 +1539,11 @@ public static class MissionBuilder
             if (new Vector2(x, z).magnitude < keepClear) continue;
             if (!ClearOfRoad(x, z, 18f)) continue;
 
-            TargetProps.Tree(group.transform, OnGround(x, z), Random.Range(0.8f, 1.6f),
+            // Real pines stand 15-25 m; at 0.8-1.6 these came out at 5-11 m,
+            // barely taller than the trucks. Same single Random call as
+            // before (the seed sequence is unchanged), mapped to 1.5-2.6.
+            float treeRoll = Random.Range(0.8f, 1.6f);
+            TargetProps.Tree(group.transform, OnGround(x, z), 1.5f + (treeRoll - 0.8f) * 1.375f,
                              trunk, foliage);
         }
     }

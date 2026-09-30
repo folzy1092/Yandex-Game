@@ -180,6 +180,14 @@ public static class DroneMaterials
         // Silhouette outline for mission targets (see TargetOutline.shader).
         // One asset here so the shader ships in the WebGL build; every target
         // makes its own instance at runtime to carry its own colour.
+        // Galvanised lattice and white-painted antennas for the comms tower.
+        SaveFlat("Mat_Galvanized", new Color(0.62f, 0.64f, 0.65f), 0.5f, 0.6f);
+        SaveFlat("Mat_WhitePaint", new Color(0.86f, 0.87f, 0.85f), 0.45f, 0.1f);
+
+        // Full-screen FPV lens effect; the asset keeps the shader in the build.
+        Shader lens = Shader.Find("DroneStrike/FpvLens");
+        if (lens != null) Save(new Material(lens), "Mat_FpvLens");
+
         Shader outline = Shader.Find("DroneStrike/TargetOutline");
         if (outline != null) Save(new Material(outline), "Mat_TargetOutline");
         else Debug.LogWarning("Drone Strike: DroneStrike/TargetOutline shader missing — targets will have no outline.");

@@ -186,6 +186,7 @@ public static class DroneFactory
         camera.allowMSAA = true;
 
         cameraGO.AddComponent<AudioListener>();
+        cameraGO.AddComponent<FpvCameraFx>();
 
         return cameraGO.transform;
     }

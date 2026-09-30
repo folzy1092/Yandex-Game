@@ -48,6 +48,15 @@ public static class ReviewCapture
             Shoot(camera, "truck_outline_40m", truck.transform, new Vector3(22f, 22f, 26f), 1.2f);
         }
 
+        GameObject tower = GameObject.Find("Antenna");
+        if (tower != null)
+        {
+            Shoot(camera, "tower_close", tower.transform, new Vector3(9f, 5f, 12f), 6f);
+            Shoot(camera, "tower_40m", tower.transform, new Vector3(30f, 18f, 28f), 6f);
+        }
+        GameObject wall = GameObject.Find("Sandbags");
+        if (wall != null) Shoot(camera, "sandbags", wall.transform, new Vector3(4f, 2.5f, 5f), 0.5f);
+
         GameObject stack = GameObject.Find("CrateStack");
         if (stack != null)
         {
@@ -137,6 +146,7 @@ public static class ReviewCapture
             string suffix = charge == WarheadType.Standard ? "" : "_heavy";
             fpv.transform.rotation = Quaternion.Euler(12f, 0f, 0f);
             Render(fpv, "fpv_charge" + suffix);
+            Render(fpv, "fpv_lens" + suffix, Resources.Load<Material>("Materials/Mat_FpvLens"));
 
             Transform view = fpv.transform.Find("WarheadView");
             if (view != null)
@@ -240,11 +250,19 @@ public static class ReviewCapture
         Render(camera, name);
     }
 
-    static void Render(Camera camera, string name)
+    static void Render(Camera camera, string name, Material post = null)
     {
         var texture = new RenderTexture(Width, Height, 24);
         camera.targetTexture = texture;
         camera.Render();
+        if (post != null)
+        {
+            // Image effects do not run in edit mode; apply the lens by hand.
+            var graded = new RenderTexture(Width, Height, 0);
+            Graphics.Blit(texture, graded, post);
+            Object.DestroyImmediate(texture);
+            texture = graded;
+        }
         RenderTexture.active = texture;
         var image = new Texture2D(Width, Height, TextureFormat.RGB24, false);
         image.ReadPixels(new Rect(0, 0, Width, Height), 0, 0);

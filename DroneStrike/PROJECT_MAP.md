@@ -22,6 +22,7 @@
 | `Assets/Editor/PropModels.cs` | Установка мелких моделей (ящики, поддоны) по измеренным границам, штабелирование по верху нижнего. |
 | `Assets/Editor/ReviewCapture.cs` | `Capture Review Shots`: рендер контрольных кадров реквизита в `Builds/Review` без Play (работает в batch). |
 | `Assets/Scripts/World/FieldProps.cs` | Runtime-реквизит заданий: станция помех, топливный тайник, круг радиуса взрыва, волна помех. |
+| `Assets/Scripts/Drone/FpvCameraFx.cs` + `Assets/Shaders/FpvLens.shader` | Эффект объектива FPV (fisheye, виньетка, аберрация, зерно); крен и вибрация камеры — в `DroneCameraGimbal`. |
 | `Assets/Scripts/World/Craters.cs` | Воронки от взрывов у земли (вал, гарь), пул на 24 штуки. |
 | `Assets/Scripts/World/TargetHealthBar.cs` | Полоска HP над повреждённой, но живой целью. |
 | `Assets/Scripts/World/TargetOutline.cs` + `Assets/Shaders/TargetOutline.shader` | Неоновая обводка силуэта живых целей (пиксельная ширина, цвета по состоянию). |
@@ -97,6 +98,7 @@ Unity-проекта `C:\Users\Folzy\Desktop\DroneStrike\Assets`: `Scripts/`,
   нижней точке, а не по неизвестному pivot файла.
 - После изменения `MissionBuilder` проверяйте все производственные seed и
   число целей: 11 / 13 / 14, и строку `grounding check` (0 floating, 0 sunk).
-- Раскладка мелкого реквизита (`FuelDrums`, `CrateStack`, `ConcreteBlocks`)
-  делает те же вызовы `Random`, что и раньше, — не меняйте их число и порядок,
+- Раскладка мелкого реквизита (`FuelDrums`, `CrateStack`, `ConcreteBlocks`),
+  стенки из мешков, окопы и деревья делают те же вызовы `Random`, что и раньше
+  (лишнее «сжигается», новая вариативность — от локального `System.Random`), — не меняйте их число и порядок,
   иначе сдвинется вся карта после них.

@@ -462,57 +462,171 @@ public static class TargetProps
     // ---------- antenna ----------
 
     /// <summary>
-    /// A guyed mast with a dish.
+    /// A communications tower on the skyline: a 14 m galvanised triangular
+    /// lattice mast on a concrete footing, a white parabolic dish and panel
+    /// antennas near the top, a whip on the crown, three guy wires and an
+    /// equipment cabinet at the foot.
     ///
-    /// Scenery, though it was a target for most of development. A nine-metre
-    /// pole reads as infrastructure from the air whatever is bolted to it, and
-    /// its highlight ring sits on the ground at the base — far below the part
-    /// of it the player is actually looking at while lining up a dive — so
-    /// masts got cleared past without ever being recognised as objectives.
-    /// A target the player cannot tell is a target is worse than one less kind
-    /// of target, so the mast keeps its place on the skyline and stays out of
-    /// the mission tally.
+    /// Scenery, not a target. It replaced a rust-textured square pole with a
+    /// flat disc on it that read as a wooden sign or a street lamp. Being
+    /// tall, pale grey and see-through, it cannot be mistaken for the jammer
+    /// station either (short, dark, cabinet, blinking red beacon).
     /// </summary>
     public static GameObject Antenna(Transform parent, Vector3 position, float yaw, Palette palette)
     {
-        const float mastHeight = 9f;
+        const float height = 14f;
+        const float footing = 0.4f;
+        const float baseRadius = 0.85f;
+        const float topRadius = 0.32f;
+
+        Material steel = DroneMaterials.Load("Mat_Galvanized");
+        Material white = DroneMaterials.Load("Mat_WhitePaint");
+        Material dark = DroneMaterials.Load("Mat_Gap");
+        if (steel == null) steel = palette.metal;
+        if (white == null) white = palette.concrete;
+        if (dark == null) dark = palette.vehicleDark;
 
         var root = new GameObject("Antenna");
         root.transform.SetParent(parent, false);
         root.transform.position = position;
         root.transform.rotation = Quaternion.Euler(0f, yaw, 0f);
 
-        // Still solid: a drone flown into it is still a drone lost, the same
-        // as with a tree or a warehouse.
+        // Solid for the drone: flying into the mast still costs the drone.
         var collider = root.AddComponent<BoxCollider>();
-        collider.size = new Vector3(2.6f, mastHeight, 2.6f);
-        collider.center = new Vector3(0f, mastHeight * 0.5f, 0f);
+        collider.size = new Vector3(2.2f, height + footing, 2.2f);
+        collider.center = new Vector3(0f, (height + footing) * 0.5f, 0f);
 
-        AddPart(root, "Base", new Vector3(0f, 0.3f, 0f),
-                new Vector3(2.2f, 0.6f, 2.2f), palette.concrete);
+        AddPart(root, "Footing", new Vector3(0f, footing * 0.5f, 0f),
+                new Vector3(2.4f, footing, 2.4f), palette.concrete);
 
-        AddPart(root, "Mast", new Vector3(0f, 0.6f + mastHeight * 0.5f, 0f),
-                new Vector3(0.34f, mastHeight, 0.34f), palette.metal);
-
-        // Lattice cross-bracing: a few angled bars break up the bare column.
-        for (int i = 0; i < 4; i++)
+        // Three legs leaning in toward the crown, with rings and zig-zag
+        // bracing on each face.
+        var legBase = new Vector3[3];
+        var legTop = new Vector3[3];
+        for (int i = 0; i < 3; i++)
         {
-            float height = 1.6f + i * 2f;
-            GameObject brace = AddPart(root, "Brace", new Vector3(0f, height, 0f),
-                                       new Vector3(0.9f, 0.08f, 0.08f), palette.metal);
-            brace.transform.localRotation = Quaternion.Euler(0f, i * 45f, 32f);
+            Quaternion around = Quaternion.Euler(0f, i * 120f, 0f);
+            legBase[i] = around * new Vector3(0f, footing, baseRadius);
+            legTop[i] = around * new Vector3(0f, footing + height, topRadius);
+            Strut(root, "Leg", legBase[i], legTop[i], 0.08f, steel);
+        }
+        const int bays = 8;
+        for (int bay = 0; bay <= bays; bay++)
+        {
+            float t = (float)bay / bays;
+            for (int i = 0; i < 3; i++)
+            {
+                Vector3 a = Vector3.Lerp(legBase[i], legTop[i], t);
+                Vector3 b = Vector3.Lerp(legBase[(i + 1) % 3], legTop[(i + 1) % 3], t);
+                Strut(root, "Ring", a, b, 0.035f, steel);
+                if (bay == bays) continue;
+                float next = (float)(bay + 1) / bays;
+                Vector3 c = Vector3.Lerp(legBase[(i + 1) % 3], legTop[(i + 1) % 3], next);
+                Strut(root, "Brace", a, c, 0.025f, steel);
+            }
         }
 
-        // Dish near the top, angled out — the part that identifies it from above.
-        GameObject dish = AddPart(root, "Dish", new Vector3(0.85f, mastHeight - 1.4f, 0f),
-                                  new Vector3(1.9f, 0.14f, 1.9f), palette.metal,
-                                  PrimitiveType.Cylinder);
-        dish.transform.localRotation = Quaternion.Euler(0f, 0f, 68f);
+        // Dish and panel antennas on short arms near the top.
+        float mount = footing + height - 2.4f;
+        GameObject dish = new GameObject("Dish");
+        dish.transform.SetParent(root.transform, false);
+        dish.transform.localPosition = new Vector3(0f, mount, topRadius + 0.75f);
+        dish.transform.localRotation = Quaternion.Euler(80f, 0f, 0f);
+        dish.AddComponent<MeshFilter>().sharedMesh = DishMesh(0.75f, 0.28f, 6, 20);
+        dish.AddComponent<MeshRenderer>().sharedMaterial = white;
+        Strut(root, "DishArm", new Vector3(0f, mount, topRadius * 0.9f), dish.transform.localPosition, 0.05f, steel);
+        Strut(root, "DishFeed", dish.transform.localPosition + new Vector3(0f, 0f, 0.28f),
+              dish.transform.localPosition + new Vector3(0f, 0f, 0.62f), 0.025f, dark);
 
-        AddPart(root, "Crown", new Vector3(0f, mastHeight + 0.5f, 0f),
-                new Vector3(1.2f, 0.1f, 0.1f), palette.metal);
+        for (int i = 0; i < 3; i++)
+        {
+            Quaternion around = Quaternion.Euler(0f, 60f + i * 120f, 0f);
+            Vector3 arm = around * new Vector3(0f, 0f, topRadius + 0.45f);
+            Vector3 at = new Vector3(0f, footing + height - 0.9f, 0f);
+            Strut(root, "PanelArm", at + around * new Vector3(0f, 0f, topRadius * 0.6f), at + arm, 0.04f, steel);
+            GameObject panel = AddPart(root, "Panel", at + arm + around * new Vector3(0f, 0f, 0.05f),
+                                       new Vector3(0.3f, 1.3f, 0.1f), white);
+            panel.transform.localRotation = around;
+        }
+
+        Strut(root, "Whip", new Vector3(0f, footing + height, 0f),
+              new Vector3(0f, footing + height + 2.2f, 0f), 0.03f, steel);
+
+        // Guy wires from two-thirds height to anchors on the ground.
+        for (int i = 0; i < 3; i++)
+        {
+            Quaternion around = Quaternion.Euler(0f, i * 120f + 60f, 0f);
+            Vector3 anchor = around * new Vector3(0f, 0.05f, 4.1f);
+            Vector3 top = Vector3.Lerp(legBase[i], legTop[i], 0.65f);
+            Strut(root, "GuyWire", top, anchor, 0.012f, dark);
+            AddPart(root, "GuyAnchor", anchor + Vector3.up * 0.1f, new Vector3(0.3f, 0.2f, 0.3f), palette.concrete);
+        }
+
+        // Equipment cabinet and cable tray at the foot.
+        AddPart(root, "Cabinet", new Vector3(1.55f, 0.75f, -0.2f), new Vector3(0.7f, 1.5f, 0.9f), white);
+        AddPart(root, "CabinetDoorSeam", new Vector3(1.905f, 0.75f, -0.2f), new Vector3(0.01f, 1.3f, 0.02f), dark);
+        Strut(root, "CableTray", new Vector3(1.2f, 1.1f, -0.2f), new Vector3(0.25f, 2.2f, 0f), 0.06f, dark);
 
         return root;
+    }
+
+    /// <summary>A thin round bar between two local points.</summary>
+    static GameObject Strut(GameObject root, string name, Vector3 from, Vector3 to, float thickness, Material material)
+    {
+        Vector3 span = to - from;
+        GameObject bar = AddPart(root, name, (from + to) * 0.5f,
+                                 new Vector3(thickness, span.magnitude * 0.5f, thickness), material,
+                                 PrimitiveType.Cylinder);
+        bar.transform.localRotation = Quaternion.FromToRotation(Vector3.up, span.normalized);
+        return bar;
+    }
+
+    /// <summary>
+    /// A parabolic bowl opening along +Y, both sides with their own vertices
+    /// and analytic normals (shared vertices across a double-sided sheet
+    /// average to zero normals and render black — see CLAUDE.md).
+    /// </summary>
+    static Mesh DishMesh(float radius, float depth, int rings, int segments)
+    {
+        var vertices = new System.Collections.Generic.List<Vector3>();
+        var normals = new System.Collections.Generic.List<Vector3>();
+        var triangles = new System.Collections.Generic.List<int>();
+        float a = depth / (radius * radius);
+
+        for (int side = 0; side < 2; side++)
+        {
+            int start = vertices.Count;
+            for (int k = 0; k <= rings; k++)
+            {
+                float r = radius * k / rings;
+                for (int s = 0; s <= segments; s++)
+                {
+                    float angle = (float)s / segments * Mathf.PI * 2f;
+                    float cos = Mathf.Cos(angle), sin = Mathf.Sin(angle);
+                    vertices.Add(new Vector3(cos * r, a * r * r, sin * r));
+                    Vector3 up = new Vector3(-2f * a * r * cos, 1f, -2f * a * r * sin).normalized;
+                    normals.Add(side == 0 ? up : -up);
+                }
+            }
+            int stride = segments + 1;
+            for (int k = 0; k < rings; k++)
+                for (int s = 0; s < segments; s++)
+                {
+                    int i0 = start + k * stride + s;
+                    int i1 = start + (k + 1) * stride + s;
+                    int i2 = start + (k + 1) * stride + s + 1;
+                    int i3 = start + k * stride + s + 1;
+                    if (side == 0) triangles.AddRange(new[] { i0, i2, i1, i0, i3, i2 });
+                    else triangles.AddRange(new[] { i0, i1, i2, i0, i2, i3 });
+                }
+        }
+
+        var mesh = new Mesh { name = "Dish" };
+        mesh.SetVertices(vertices);
+        mesh.SetNormals(normals);
+        mesh.SetTriangles(triangles, 0);
+        mesh.RecalculateBounds();
+        return mesh;
     }
 
     // ---------- scenery, not targets ----------
