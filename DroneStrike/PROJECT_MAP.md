@@ -18,7 +18,10 @@
 |---|---|
 | `Assets/Editor/DroneBuildSetup.cs` | Главные команды Unity: генерация материалов, все сцены и WebGL-сборка. |
 | `Assets/Editor/MissionBuilder.cs` | Рельеф, дороги, цели, укрытия, навесы, пруд и стартовые площадки трёх миссий. |
-| `Assets/Editor/TargetProps.cs` | Построение техники, палаток, ящиков и других целевых объектов. |
+| `Assets/Editor/TargetProps.cs` | Построение техники, палаток, ящиков и других целевых объектов. Грузовик процедурный; `ModelYawOffset = -90` разворачивает `Tank.glb` носом в +Z. |
+| `Assets/Editor/ReviewCapture.cs` | `Capture Review Shots`: рендер контрольных кадров реквизита в `Builds/Review` без Play (работает в batch). |
+| `Assets/Scripts/World/FieldProps.cs` | Runtime-реквизит заданий: станция помех, топливный тайник, круг радиуса взрыва, волна помех. |
+| `Assets/Scripts/World/TargetOutline.cs` + `Assets/Shaders/TargetOutline.shader` | Неоновая обводка силуэта живых целей (пиксельная ширина, цвета по состоянию). |
 | `Assets/Scripts/Core/` | Загрузка оснащения, локализация, каталог карт и сохранение заданий. |
 | `Assets/Scripts/Drone/` | Управление, камера, батарея, связь, аудио, боевая часть и помехи. |
 | `Assets/Scripts/Mission/` | Состояние миссии, пауза, условия шести заданий и их прогресс. |
@@ -43,6 +46,15 @@
 5. `MissionChallenges` хранит медали и открытия через `PlayerPrefs`.
    Существующие ключи `drone_unlocked_*`, `warhead_unlocked_*` и `map_*`
    нельзя ломать при изменениях прогресса.
+
+## Задания с реквизитом
+
+`MissionChallengeRunner.Configure` сначала выключает ненужные цели, затем
+ставит реквизит, проверяя свободное место физикой (`Physics.OverlapBox`) и
+расстояние до патрульной дороги. Станция помех: 15–21 м от танка,
+`SignalJammer` (радиус 70 м, связь до ×0.2), танк `ProtectedByJammer` (урон
+×0.1, не опускается ниже 1 HP). Топливо: грузовики по бокам на 6.4 м,
+радиус взрыва `FieldProps.FuelBlastRadius` = 9 м.
 
 ## Рабочий цикл
 
@@ -81,4 +93,7 @@ Unity-проекта `C:\Users\Folzy\Desktop\DroneStrike\Assets`: `Scripts/`,
 - Для моделей сначала измеряйте bounds и pivot; размещайте их по реальной
   нижней точке, а не по неизвестному pivot файла.
 - После изменения `MissionBuilder` проверяйте все производственные seed и
-  число целей: 11 / 13 / 14.
+  число целей: 11 / 13 / 14, и строку `grounding check` (0 floating, 0 sunk).
+- Раскладка мелкого реквизита (`FuelDrums`, `CrateStack`, `ConcreteBlocks`)
+  делает те же вызовы `Random`, что и раньше, — не меняйте их число и порядок,
+  иначе сдвинется вся карта после них.

@@ -43,6 +43,11 @@ public class DroneHUD : MonoBehaviour
     Text signalLostBanner;
     float signalLostUntil;
 
+    /// <summary>Blinking amber warning while the drone flies inside a live jammer's radius.</summary>
+    Text jamBanner;
+    AudioSource jamNoise;
+    static readonly Color JamTint = new Color(1f, 0.72f, 0.35f);
+
     /// <summary>
     /// The stretched child that actually holds the video-feed overlay
     /// (scanlines, static, compass, crosshair, telemetry). The signal-loss
@@ -119,6 +124,7 @@ public class DroneHUD : MonoBehaviour
                 staticOverlay.pixelsPerUnitMultiplier = 1f;
             }
             if (scanlines != null) scanlines.alpha = 0f;
+            SetJam(0f);
             // No drone to lose signal to, so nothing should be mid-glitch —
             // otherwise the next drone could launch into a leftover jolt.
             if (feedRoot != null) feedRoot.anchoredPosition = Vector2.zero;
@@ -237,6 +243,49 @@ public class DroneHUD : MonoBehaviour
             scanlines.alpha = Mathf.Lerp(0.012f, 0.085f, severity * severity);
 
         UpdateGlitch(strength);
+
+        float jam = SignalJammer.Active != null ? SignalJammer.Active.Intensity(drone.transform.position) : 0f;
+        if (drone.Controller != null && !drone.Controller.IsPowered) jam = 0f;
+        SetJam(jam);
+    }
+
+    /// <summary>
+    /// The jammer has to be seen and heard, not read about: an amber cast over
+    /// the static, a blinking «ПОМЕХИ», and a crackle that rises as the drone
+    /// closes in. The link itself degrades in SignalLink, which is what makes
+    /// the picture tear here through the ordinary glitch path.
+    /// </summary>
+    void SetJam(float intensity)
+    {
+        if (jamBanner != null)
+        {
+            bool visible = intensity > 0.04f;
+            if (jamBanner.gameObject.activeSelf != visible) jamBanner.gameObject.SetActive(visible);
+            if (visible)
+            {
+                float blink = Mathf.PingPong(Time.unscaledTime * 3.5f, 1f);
+                Color colour = JamTint;
+                colour.a = Mathf.Lerp(0.45f, 1f, blink) * Mathf.Lerp(0.6f, 1f, intensity);
+                jamBanner.color = colour;
+            }
+        }
+
+        if (staticOverlay != null && intensity > 0.04f && Time.time >= glitchEndTime)
+        {
+            Color current = staticOverlay.color;
+            float alpha = Mathf.Max(current.a, intensity * 0.28f
+                * (0.7f + 0.3f * Mathf.PerlinNoise(Time.unscaledTime * 19f, 3.3f)));
+            staticOverlay.color = new Color(JamTint.r, JamTint.g, JamTint.b, alpha);
+        }
+
+        if (jamNoise == null && intensity > 0.04f && GameAudio.Instance != null)
+            jamNoise = GameAudio.Instance.AttachJamLoop(transform);
+        if (jamNoise != null)
+        {
+            float target = MissionManager.Instance != null &&
+                MissionManager.Instance.PauseReasons != MissionManager.PauseReason.None ? 0f : intensity * 0.22f;
+            jamNoise.volume = Mathf.MoveTowards(jamNoise.volume, target, Time.unscaledDeltaTime * 1.5f);
+        }
     }
 
     /// <summary>
@@ -391,6 +440,12 @@ public class DroneHUD : MonoBehaviour
                                                 centre, centre, new Vector2(0f, 90f),
                                                 new Vector2(900f, 80f));
         signalLostBanner.gameObject.SetActive(false);
+
+        jamBanner = UIFactory.CreateText(root, "JamWarning",
+                                         Localization.Current == Localization.Language.English ? "JAMMING" : "ПОМЕХИ",
+                                         44, TextAnchor.MiddleCenter, JamTint,
+                                         topCentre, topCentre, new Vector2(0f, -120f), new Vector2(600f, 64f));
+        jamBanner.gameObject.SetActive(false);
 
         BuildResultPanel(canvasRoot);
         BuildPausePanel(canvasRoot);
@@ -749,29 +804,52 @@ public class DroneHUD : MonoBehaviour
             (english ? "VOLUME " : "ГРОМКОСТЬ ") + Mathf.RoundToInt(GameAudio.MasterVolume * 100f) + "%";
     }
 
+    /// <summary>
+    /// One short line about what the strike achieved. The old readout was a
+    /// debug dump — «УДАР · LightVehicle · 80 DMG · УНИЧТОЖЕНА · 65 KM/H ·
+    /// СКОРОСТЬ +18%» — whose speed figure only ever meant "this hit did a bit
+    /// more damage", yet read as a reward the player never received. The
+    /// speed-to-damage bonus still exists in Warhead; it just is not narrated.
+    /// </summary>
     void ShowDroneReport(DroneLossReport report)
     {
         if (attackText == null) return;
         bool english = Localization.Current == Localization.Language.English;
-        string cause = LossCauseLabel(report.cause, english);
         AttackReport attack = report.attack;
-        if (attack.target != null)
+        Color good = new Color(0.55f, 0.95f, 0.6f);
+        Color warn = new Color(1f, 0.8f, 0.4f);
+
+        if (attack.fuelDetonated)
         {
-            string state = attack.target.IsDestroyed
-                ? (english ? "DESTROYED" : "УНИЧТОЖЕНА")
-                : (english ? "REMAINING " : "ОСТАЛОСЬ ") + Mathf.CeilToInt(attack.healthRemaining) + " HP";
-            attackText.text = cause + " · " + attack.target.kind + " · " +
-                Mathf.RoundToInt(attack.damage) + " DMG · " + state + "\n" +
-                Mathf.RoundToInt(attack.speed * 3.6f) + " KM/H" +
-                (attack.speedMultiplier > 1.01f
-                    ? (english ? " · SPEED +" : " · СКОРОСТЬ +") +
-                      Mathf.RoundToInt((attack.speedMultiplier - 1f) * 100f) + "%"
-                    : "") +
-                (attack.weakSpot ? (english ? " · WEAK SPOT" : " · СЛАБОЕ МЕСТО") : "") +
-                (attack.targetsDestroyed > 1 ? " · ×" + attack.targetsDestroyed : "");
+            attackText.text = (english ? "FUEL DETONATED" : "ТОПЛИВО ПОДОРВАНО") + "\n" +
+                (english ? "VEHICLES DESTROYED: " : "УНИЧТОЖЕНО МАШИН: ") + attack.vehiclesDestroyed +
+                "  +" + attack.pointsEarned;
+            attackText.color = good;
         }
-        else attackText.text = cause;
-        attackTextUntil = Time.unscaledTime + 2f;
+        else if (attack.target != null && attack.target.IsDestroyed)
+        {
+            attackText.text = (english ? "TARGET DESTROYED" : "ЦЕЛЬ УНИЧТОЖЕНА") + "  +" + attack.pointsEarned;
+            attackText.color = good;
+        }
+        else if (attack.target != null)
+        {
+            bool armour = attack.target.kind == Target.Kind.ArmouredVehicle;
+            string hp = Mathf.CeilToInt(attack.healthRemaining) + " HP";
+            string text = armour ? (english ? "TANK: " : "ТАНК: ") + hp
+                                 : (english ? "TARGET: " : "ЦЕЛЬ: ") + hp;
+            if (attack.shielded) text += "\n" + (english ? "JAMMER FIRST" : "СНАЧАЛА ПОМЕХИ");
+            else if (armour && attack.target.WeakRear && !attack.weakSpot)
+                text += "\n" + (english ? "HIT THE REAR" : "НУЖНА КОРМА");
+            attackText.text = text;
+            attackText.color = warn;
+        }
+        else
+        {
+            attackText.text = LossCauseLabel(report.cause, english);
+            attackText.color = warn;
+        }
+
+        attackTextUntil = Time.unscaledTime + 2.2f;
         attackText.gameObject.SetActive(true);
     }
 
@@ -803,26 +881,23 @@ public class DroneHUD : MonoBehaviour
             mission.TargetsDestroyed, mission.TargetsTotal, mission.Score);
         if (mission.HasChallenge)
         {
+            // Title, medal, time, drones, and one line to the next medal —
+            // nothing a player has to decode.
+            bool english = Localization.Current == Localization.Language.English;
             int medal = won ? MissionChallenges.MedalFor(mission.ChallengeIndex,
                 mission.ElapsedTime, mission.DronesUsed) : 0;
-            bool english = Localization.Current == Localization.Language.English;
             string medalName = medal == 3 ? (english ? "GOLD" : "ЗОЛОТО")
                 : medal == 2 ? (english ? "SILVER" : "СЕРЕБРО")
-                : medal == 1 ? (english ? "BRONZE" : "БРОНЗА") : "—";
-            float best = MissionChallenges.BestTime(mission.ChallengeIndex);
-            int bestDrones = MissionChallenges.BestDrones(mission.ChallengeIndex);
-            resultDetail.text = mission.Challenge.Title + "\n" + medalName + " · " +
-                Mathf.CeilToInt(mission.ElapsedTime) + " s · " + mission.DronesUsed +
-                (english ? " drones" : " дронов") + "\n" +
-                (english ? "This layout/kit best: " : "Рекорд варианта/комплекта: ") +
-                (best > 0f ? Mathf.CeilToInt(best) + " s / " + bestDrones +
-                    (english ? " drones" : " дронов") : "—");
-            if (won && medal < 3)
+                : medal == 1 ? (english ? "BRONZE" : "БРОНЗА") : (english ? "NO MEDAL" : "БЕЗ МЕДАЛИ");
+            resultDetail.text = mission.Challenge.Title + "\n" + medalName + "\n" +
+                (english ? "Time " : "Время ") + Mathf.CeilToInt(mission.ElapsedTime) +
+                (english ? " s · drones " : " с · дронов ") + mission.DronesUsed;
+            if (won && medal > 0 && medal < 3)
             {
                 float threshold = medal == 1 ? mission.Challenge.silverSeconds : mission.Challenge.goldSeconds;
                 int drones = medal == 1 ? mission.Challenge.silverDrones : mission.Challenge.goldDrones;
-                resultDetail.text += "\n" + (english ? "Next medal: ≤" : "Следующая медаль: ≤") +
-                    Mathf.CeilToInt(threshold) + " s, ≤" + drones +
+                resultDetail.text += "\n" + (english ? "Next medal: under " : "До следующей медали: до ") +
+                    Mathf.CeilToInt(threshold) + (english ? " s and " : " с и ") + drones +
                     (english ? " drones" : " дронов");
             }
         }

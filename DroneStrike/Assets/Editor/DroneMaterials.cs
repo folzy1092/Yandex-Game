@@ -156,6 +156,33 @@ public static class DroneMaterials
         SaveFlat("Mat_Vehicle", new Color(0.27f, 0.30f, 0.20f), 0.20f);
         SaveFlat("Mat_VehicleDark", new Color(0.16f, 0.18f, 0.13f), 0.25f);
         SaveFlat("Mat_Crate", new Color(0.42f, 0.36f, 0.22f), 0.12f);
+
+        // Everything on a vehicle used to share one matte olive, which is what
+        // made a truck read as "two boxes on wheels": nothing told the glass
+        // from the paint from the tyres. Each surface now has its own response
+        // to the sun — glossy dark glass, satin paint, dead-matte rubber, and
+        // near-black for the gaps between panels.
+        SaveFlat("Mat_VehiclePaint", new Color(0.30f, 0.34f, 0.22f), 0.42f, 0.15f);
+        SaveFlat("Mat_Glass", new Color(0.10f, 0.14f, 0.18f), 0.93f, 0.35f);
+        SaveFlat("Mat_Rubber", new Color(0.07f, 0.07f, 0.07f), 0.04f);
+        SaveFlat("Mat_Gap", new Color(0.03f, 0.03f, 0.03f), 0.02f);
+        SaveFlat("Mat_Chrome", new Color(0.55f, 0.56f, 0.55f), 0.70f, 0.85f);
+        SaveFlat("Mat_Headlamp", new Color(0.95f, 0.92f, 0.78f), 0.85f);
+
+        // Equipment and fuel: grey painted steel for the jammer cabinet and
+        // mast, and the two warning colours a real fuel point is marked with.
+        SaveFlat("Mat_SteelPaint", new Color(0.44f, 0.46f, 0.47f), 0.45f, 0.4f);
+        SaveFlat("Mat_Hazard", new Color(0.92f, 0.70f, 0.10f), 0.35f);
+        SaveFlat("Mat_HazardRed", new Color(0.70f, 0.12f, 0.08f), 0.35f);
+        SaveFlat("Mat_Canister", new Color(0.24f, 0.33f, 0.18f), 0.45f, 0.2f);
+        SaveFlat("Mat_Pallet", new Color(0.52f, 0.42f, 0.28f), 0.08f);
+
+        // Silhouette outline for mission targets (see TargetOutline.shader).
+        // One asset here so the shader ships in the WebGL build; every target
+        // makes its own instance at runtime to carry its own colour.
+        Shader outline = Shader.Find("DroneStrike/TargetOutline");
+        if (outline != null) Save(new Material(outline), "Mat_TargetOutline");
+        else Debug.LogWarning("Drone Strike: DroneStrike/TargetOutline shader missing — targets will have no outline.");
     }
 
     static void BuildDroneMaterials()
@@ -163,8 +190,10 @@ public static class DroneMaterials
         SaveFlat("Mat_DroneFrame", new Color(0.12f, 0.12f, 0.13f), 0.45f, 0.5f);
         SaveFlat("Mat_DroneAccent", new Color(0.15f, 0.45f, 0.75f), 0.55f, 0.3f);
 
-        // Olive drab, the way a real ordnance body is painted.
-        SaveFlat("Mat_Warhead", new Color(0.24f, 0.26f, 0.16f), 0.2f);
+        // Painted steel, not clay: the low-gloss olive this used to be read as
+        // a lump of plasticine in the bottom of the frame. A satin finish with
+        // some metal in it catches a highlight along the body instead.
+        SaveFlat("Mat_Warhead", new Color(0.27f, 0.29f, 0.20f), 0.55f, 0.45f);
         SaveFlat("Mat_WarheadBand", new Color(0.55f, 0.1f, 0.08f), 0.15f);
 
         // Props are near-invisible while spinning, so they only need to be dark

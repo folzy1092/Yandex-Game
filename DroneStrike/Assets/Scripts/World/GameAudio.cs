@@ -237,6 +237,52 @@ public class GameAudio : MonoBehaviour
         return source;
     }
 
+    /// <summary>
+    /// Radio crackle for flying inside a live jammer's radius. Non-spatial,
+    /// starts silent; the HUD drives its volume from the jam intensity.
+    /// </summary>
+    public AudioSource AttachJamLoop(Transform parent)
+    {
+        if (jamLoop == null) jamLoop = CreateJamNoise();
+
+        var go = new GameObject("JamNoise");
+        go.transform.SetParent(parent, false);
+        var source = go.AddComponent<AudioSource>();
+        source.clip = jamLoop;
+        source.loop = true;
+        source.playOnAwake = false;
+        source.spatialBlend = 0f;
+        source.volume = 0f;
+        source.Play();
+        return source;
+    }
+
+    AudioClip jamLoop;
+
+    /// <summary>Band-limited hiss broken into irregular bursts, like a jammed downlink.</summary>
+    static AudioClip CreateJamNoise()
+    {
+        const int rate = 22050;
+        const float seconds = 1.6f;
+        int samples = Mathf.RoundToInt(rate * seconds);
+        var data = new float[samples];
+        var random = new System.Random(4401);
+        float low = 0f;
+        float gate = 1f;
+        for (int i = 0; i < samples; i++)
+        {
+            float white = (float)(random.NextDouble() * 2.0 - 1.0);
+            low += (white - low) * 0.35f;
+            if (i % 441 == 0) gate = random.NextDouble() < 0.7 ? 1f : 0.25f;
+            float buzz = Mathf.Sign(Mathf.Sin(i * 2f * Mathf.PI * 97f / rate)) * 0.12f;
+            float fade = Mathf.Min(1f, Mathf.Min(i, samples - i) / 400f);
+            data[i] = (low * 0.8f + buzz) * gate * fade;
+        }
+        var clip = AudioClip.Create("JamNoise", samples, 1, rate, false);
+        clip.SetData(data, 0);
+        return clip;
+    }
+
     // Legacy calls remain available to avoid silently breaking prototype code.
     public void PlayPlayerShot(Vector3 position) { PlayHardImpact(position); }
     public void PlayBotShot(Vector3 position) { PlayHardImpact(position); }

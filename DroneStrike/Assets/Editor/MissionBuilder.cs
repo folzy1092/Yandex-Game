@@ -192,6 +192,7 @@ public static class MissionBuilder
         BuildFieldWorks(position.transform);
         BuildClutter(position.transform);
         BuildGrass(position.transform);
+        ValidateGrounding(position.transform);
 
         BuildWoodland();
 
@@ -215,7 +216,14 @@ public static class MissionBuilder
             crate = DroneMaterials.Load("Mat_Crate"),
             concrete = DroneMaterials.Load("Mat_Concrete"),
             metal = DroneMaterials.Load("Mat_RustMetal"),
-            roof = DroneMaterials.Load("Mat_Roof")
+            roof = DroneMaterials.Load("Mat_Roof"),
+            paint = DroneMaterials.Load("Mat_VehiclePaint"),
+            glass = DroneMaterials.Load("Mat_Glass"),
+            rubber = DroneMaterials.Load("Mat_Rubber"),
+            gap = DroneMaterials.Load("Mat_Gap"),
+            chrome = DroneMaterials.Load("Mat_Chrome"),
+            headlamp = DroneMaterials.Load("Mat_Headlamp"),
+            hazardRed = DroneMaterials.Load("Mat_HazardRed")
         };
     }
 
@@ -1257,57 +1265,187 @@ public static class MissionBuilder
         }
     }
 
+    // Clutter groups are laid out in tidy slots from the ground up. The old
+    // version threw each item at a random offset with a hard-coded lift, so
+    // a "second layer" crate could spawn with no crate under it and hang half
+    // a metre in the air, and drums and blocks interpenetrated. Every random
+    // call of the old version is still made, in the same order, so the seed
+    // sequence — and everything placed after the clutter — is unchanged.
+
     static void FuelDrums(Transform parent, Material metal, float x, float z)
     {
+        const float drumHeight = 0.9f;
+        const float drumDiameter = 0.6f;
+        const float pitch = 0.66f;
+
         int count = Random.Range(3, 7);
+        var group = new GameObject("FuelDrums");
+        group.transform.SetParent(parent, false);
+        group.transform.position = OnGround(x, z);
+
         for (int i = 0; i < count; i++)
         {
-            float angle = Random.Range(0f, 360f) * Mathf.Deg2Rad;
+            float angle = Random.Range(0f, 360f);
             float spread = Random.Range(0f, 1.7f);
+            float spin = Random.Range(0f, 360f);
+            if (i == 0) group.transform.rotation = Quaternion.Euler(0f, angle, 0f);
+
+            // Two rows of three, a couple of centimetres of play in each slot.
+            float slotX = (i % 3 - 1) * pitch;
+            float slotZ = (i < 3 ? -0.5f : 0.5f) * pitch;
+            float play = (spread / 1.7f - 0.5f) * 0.04f;
 
             var drum = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
             drum.name = "Drum";
-            drum.transform.SetParent(parent, false);
-            drum.transform.position = OnGround(x + Mathf.Cos(angle) * spread,
-                                               z + Mathf.Sin(angle) * spread, 0.45f);
-            drum.transform.rotation = Quaternion.Euler(0f, Random.Range(0f, 360f), 0f);
-            drum.transform.localScale = new Vector3(0.6f, 0.45f, 0.6f);
+            drum.transform.SetParent(group.transform, false);
+            drum.transform.localPosition = new Vector3(slotX + play, drumHeight * 0.5f, slotZ - play);
+            drum.transform.localRotation = Quaternion.Euler(0f, spin, 0f);
+            drum.transform.localScale = new Vector3(drumDiameter, drumHeight * 0.5f, drumDiameter);
             drum.GetComponent<Renderer>().sharedMaterial = metal;
         }
     }
 
     static void CrateStack(Transform parent, Material crate, float x, float z)
     {
+        var size = new Vector3(0.9f, 0.85f, 1.25f);
+        Vector2[] slots =
+        {
+            new Vector2(-0.5f, -0.7f), new Vector2(0.5f, -0.7f),
+            new Vector2(-0.5f, 0.7f), new Vector2(0.5f, 0.7f)
+        };
+
         int count = Random.Range(2, 6);
+        var group = new GameObject("CrateStack");
+        group.transform.SetParent(parent, false);
+        group.transform.position = OnGround(x, z);
+
+        int bases = 0;
+        var hasTop = new bool[slots.Length];
         for (int i = 0; i < count; i++)
         {
-            float height = Random.value < 0.35f ? 1.35f : 0.45f;
+            bool wantsTop = Random.value < 0.35f;
+            float jitterX = Random.Range(-1.2f, 1.2f);
+            float jitterZ = Random.Range(-1.2f, 1.2f);
+            float spin = Random.Range(0f, 360f);
+            if (i == 0) group.transform.rotation = Quaternion.Euler(0f, spin, 0f);
+
+            // A top crate only ever goes on a base crate that has nothing on
+            // it yet; anything else becomes a new base in the next free slot.
+            int slot;
+            int layer;
+            int stackOn = -1;
+            if (wantsTop && bases > 0)
+                for (int s = 0; s < bases; s++)
+                    if (!hasTop[s]) { stackOn = s; break; }
+            if (stackOn >= 0)
+            {
+                slot = stackOn;
+                layer = 1;
+                hasTop[stackOn] = true;
+            }
+            else if (bases < slots.Length)
+            {
+                slot = bases++;
+                layer = 0;
+            }
+            else continue;
 
             var box = GameObject.CreatePrimitive(PrimitiveType.Cube);
             box.name = "Crate";
-            box.transform.SetParent(parent, false);
-            box.transform.position = OnGround(x + Random.Range(-1.2f, 1.2f),
-                                              z + Random.Range(-1.2f, 1.2f), height);
-            box.transform.rotation = Quaternion.Euler(0f, Random.Range(0f, 360f), 0f);
-            box.transform.localScale = new Vector3(0.9f, 0.85f, 1.25f);
+            box.transform.SetParent(group.transform, false);
+            box.transform.localPosition = new Vector3(
+                slots[slot].x + jitterX * 0.02f,
+                size.y * (layer + 0.5f),
+                slots[slot].y + jitterZ * 0.02f);
+            box.transform.localRotation = Quaternion.Euler(0f, (jitterX - jitterZ) * 2f, 0f);
+            box.transform.localScale = size;
             box.GetComponent<Renderer>().sharedMaterial = crate;
         }
     }
 
     static void ConcreteBlocks(Transform parent, Material concrete, float x, float z)
     {
+        const float blockHeight = 1.1f;
         int count = Random.Range(2, 5);
+        var group = new GameObject("ConcreteBlocks");
+        group.transform.SetParent(parent, false);
+        group.transform.position = OnGround(x, z);
+
         for (int i = 0; i < count; i++)
         {
+            float jitterX = Random.Range(-1.5f, 1.5f);
+            float jitterZ = Random.Range(-1.5f, 1.5f);
+            float spin = Random.Range(0f, 360f);
+            if (i == 0) group.transform.rotation = Quaternion.Euler(0f, spin, 0f);
+
+            // A row of blocks side by side, 20 cm apart, slightly out of line.
             var block = GameObject.CreatePrimitive(PrimitiveType.Cube);
             block.name = "Block";
-            block.transform.SetParent(parent, false);
-            block.transform.position = OnGround(x + Random.Range(-1.5f, 1.5f),
-                                                z + Random.Range(-1.5f, 1.5f), 0.55f);
-            block.transform.rotation = Quaternion.Euler(0f, Random.Range(0f, 360f), 0f);
-            block.transform.localScale = new Vector3(1.1f, 1.1f, 2.4f);
+            block.transform.SetParent(group.transform, false);
+            block.transform.localPosition = new Vector3((i - (count - 1) * 0.5f) * 1.3f,
+                                                        blockHeight * 0.5f, jitterZ * 0.08f);
+            block.transform.localRotation = Quaternion.Euler(0f, jitterX * 2f, 0f);
+            block.transform.localScale = new Vector3(1.1f, blockHeight, 2.4f);
             block.GetComponent<Renderer>().sharedMaterial = concrete;
         }
+    }
+
+    // ---------- grounding check ----------
+
+    /// <summary>
+    /// Every crate, drum, block, sandbag and pallet in the position must rest
+    /// on the ground or on another such prop — never hang in the air, never
+    /// sink out of sight. Checked from the actual renderer bounds after the
+    /// scene is built, on the production seed, so a regression shows up in
+    /// the console of BUILD EVERYTHING instead of in a player's screenshot.
+    /// </summary>
+    static void ValidateGrounding(Transform root)
+    {
+        var props = new List<Renderer>();
+        foreach (Renderer renderer in root.GetComponentsInChildren<Renderer>())
+        {
+            string name = renderer.gameObject.name;
+            if (name == "Crate" || name == "Drum" || name == "Block" || name == "Bag" || name == "Pallet")
+                props.Add(renderer);
+        }
+
+        int floating = 0, sunk = 0;
+        var examples = new List<string>();
+        foreach (Renderer prop in props)
+        {
+            Bounds bounds = prop.bounds;
+            float ground = GroundAt(bounds.center.x, bounds.center.z);
+            float bottom = bounds.min.y;
+
+            if (bottom < ground - 0.15f)
+            {
+                sunk++;
+                if (examples.Count < 6) examples.Add(prop.name + " sunk " + (ground - bottom).ToString("0.00") + " m at " + bounds.center);
+                continue;
+            }
+            if (bottom <= ground + 0.05f) continue;
+
+            bool supported = false;
+            foreach (Renderer other in props)
+            {
+                if (other == prop) continue;
+                Bounds below = other.bounds;
+                if (below.max.y < bottom - 0.06f || below.min.y >= bottom) continue;
+                if (below.max.x < bounds.min.x || below.min.x > bounds.max.x) continue;
+                if (below.max.z < bounds.min.z || below.min.z > bounds.max.z) continue;
+                supported = true;
+                break;
+            }
+            if (supported) continue;
+
+            floating++;
+            if (examples.Count < 6) examples.Add(prop.name + " floats " + (bottom - ground).ToString("0.00") + " m at " + bounds.center);
+        }
+
+        string summary = "Drone Strike: " + profile.sceneName + " grounding check - " + props.Count
+                         + " props, " + floating + " floating, " + sunk + " sunk.";
+        if (floating + sunk == 0) Debug.Log(summary);
+        else Debug.LogWarning(summary + "\n" + string.Join("\n", examples));
     }
 
     // ---------- woodland ----------

@@ -72,6 +72,13 @@ public class Target : MonoBehaviour
         health = MaxHealth;
     }
 
+    void Start()
+    {
+        // Runtime-built targets (jammer station, fuel cache) and scene-built
+        // ones alike get their silhouette outline from here.
+        if (GetComponent<TargetOutline>() == null) gameObject.AddComponent<TargetOutline>();
+    }
+
     public void SetKind(Kind value)
     {
         kind = value;
@@ -87,7 +94,12 @@ public class Target : MonoBehaviour
     {
         if (IsDestroyed || amount <= 0f) return;
 
-        if (ProtectedByJammer) amount *= 0.1f;
+        // A live jammer spoofs the terminal guidance: the hit lands, but only
+        // scratches the target, and the target cannot be finished while the
+        // jammer stands. The mission does not count it and does not fail — the
+        // player sees "ТАНК: N HP · СНАЧАЛА ПОМЕХИ" and goes for the station.
+        if (ProtectedByJammer) amount = Mathf.Min(amount * 0.1f, Mathf.Max(0f, health - 1f));
+        if (amount <= 0f) return;
 
         bool weakHit = IsWeakHit(source);
         if (weakHit)
@@ -147,8 +159,8 @@ public class Target : MonoBehaviour
         {
             foreach (Renderer renderer in GetComponentsInChildren<Renderer>())
             {
-                // The transparent target marker must keep its own material.
-                if (renderer.GetComponent<TargetHighlight>() != null) continue;
+                // Markers and outline shells keep their own materials.
+                if (TargetOutline.IsOverlay(renderer)) continue;
                 int slotCount = renderer.sharedMaterials.Length;
                 var slots = new Material[slotCount];
                 for (int i = 0; i < slotCount; i++) slots[i] = damaged;
@@ -183,7 +195,7 @@ public class Target : MonoBehaviour
         {
             foreach (Renderer renderer in GetComponentsInChildren<Renderer>())
             {
-                if (renderer.GetComponent<TargetHighlight>() != null) continue;
+                if (TargetOutline.IsOverlay(renderer)) continue;
                 // A downloaded model typically has several material slots (hull,
                 // tracks, glass...). Setting sharedMaterial alone only replaces
                 // slot 0, leaving the rest showing their original texture — every

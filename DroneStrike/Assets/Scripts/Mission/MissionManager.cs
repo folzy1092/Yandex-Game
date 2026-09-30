@@ -109,6 +109,12 @@ public class MissionManager : MonoBehaviour
     bool victoryPending;
     AttackReport activeAttack;
     bool firstHitLogged;
+
+    // What the current drone's strike destroyed, including chain reactions
+    // that happen inside the blast callback. Reset at every launch.
+    int strikePoints;
+    int strikeVehicles;
+    bool strikeFuel;
     MissionChallengeRunner challenge;
 
     void Awake()
@@ -247,6 +253,10 @@ public class MissionManager : MonoBehaviour
     {
         if (challenge == null || challenge.IsRequired(target)) TargetsDestroyed++;
         Score += points;
+        strikePoints += points;
+        if (target.kind == Target.Kind.FuelDepot) strikeFuel = true;
+        else if (target.kind == Target.Kind.LightVehicle || target.kind == Target.Kind.ArmouredVehicle)
+            strikeVehicles++;
         if (challenge != null) challenge.OnTargetDestroyed(target);
         Notify();
 
@@ -304,6 +314,9 @@ public class MissionManager : MonoBehaviour
         activeDroneLost = false;
         signalLostOnActiveDrone = false;
         activeAttack = new AttackReport();
+        strikePoints = 0;
+        strikeVehicles = 0;
+        strikeFuel = false;
 
         // Every way of losing a drone funnels through the same handler.
         ActiveDrone.Warhead.OnImpactReport += HandleImpactReport;
@@ -327,6 +340,9 @@ public class MissionManager : MonoBehaviour
 
     void HandleImpactReport(AttackReport report)
     {
+        report.pointsEarned = strikePoints;
+        report.vehiclesDestroyed = strikeVehicles;
+        report.fuelDetonated = strikeFuel;
         activeAttack = report;
         if (!firstHitLogged && report.targetsHit > 0)
         {

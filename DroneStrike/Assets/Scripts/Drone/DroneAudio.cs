@@ -3,6 +3,13 @@ using UnityEngine;
 /// <summary>
 /// The original single-layer rotor hum. It follows throttle without stacking
 /// bright motor and wind layers into a constant high-pitched whine.
+///
+/// When the drone dies — impact, blast, water, flat battery, lost link — the
+/// hum fades out over <see cref="fadeOutSeconds"/> and the source is then
+/// stopped and destroyed, so nothing is left playing on a hidden airframe.
+/// The fade runs on unscaled time: a mission that ends on the same frame
+/// pauses the clock (timeScale 0), and a fade on scaled time froze half-way,
+/// leaving the dead drone humming under the results screen.
 /// </summary>
 [RequireComponent(typeof(DroneController))]
 public class DroneAudio : MonoBehaviour
@@ -11,10 +18,12 @@ public class DroneAudio : MonoBehaviour
     public float maxPitch = 1.12f;
     public float minVolume = 0.06f;
     public float maxVolume = 0.18f;
-    public float fadeOutRate = 1.4f;
+    public float fadeOutSeconds = 0.2f;
 
     DroneController drone;
     AudioSource source;
+    float fadeFrom = -1f;
+    float fadeStartedAt;
 
     void Start()
     {
@@ -28,8 +37,24 @@ public class DroneAudio : MonoBehaviour
 
         if (!drone.IsPowered)
         {
-            source.volume = Mathf.MoveTowards(source.volume, 0f, Time.deltaTime * fadeOutRate);
-            if (source.volume <= 0.001f && source.isPlaying) source.Stop();
+            if (fadeFrom < 0f)
+            {
+                fadeFrom = source.volume;
+                fadeStartedAt = Time.unscaledTime;
+            }
+            float t = Mathf.Clamp01((Time.unscaledTime - fadeStartedAt) / Mathf.Max(0.01f, fadeOutSeconds));
+            source.volume = Mathf.Lerp(fadeFrom, 0f, t);
+            if (t >= 1f) Silence();
+            return;
+        }
+
+        // Paused (menu, lost focus, ad): the motors are not what the player
+        // should be hearing over a pause screen.
+        MissionManager mission = MissionManager.Instance;
+        bool paused = mission != null && mission.PauseReasons != MissionManager.PauseReason.None;
+        if (paused)
+        {
+            source.volume = Mathf.MoveTowards(source.volume, 0f, Time.unscaledDeltaTime * 1.5f);
             return;
         }
 
@@ -38,4 +63,15 @@ public class DroneAudio : MonoBehaviour
         source.pitch = Mathf.Lerp(minPitch, maxPitch, throttle);
         source.volume = Mathf.Lerp(minVolume, maxVolume, throttle);
     }
+
+    /// <summary>Stops and removes the loop immediately.</summary>
+    public void Silence()
+    {
+        if (source == null) return;
+        source.Stop();
+        Destroy(source.gameObject);
+        source = null;
+    }
+
+    void OnDisable() { Silence(); }
 }

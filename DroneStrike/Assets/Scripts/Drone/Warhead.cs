@@ -11,6 +11,14 @@ public struct AttackReport
     public int targetsHit;
     public int targetsDestroyed;
     public bool weakSpot;
+    /// <summary>The main target was shielded by a live jammer when hit.</summary>
+    public bool shielded;
+
+    // Filled in by MissionManager, which sees chain reactions the blast
+    // itself does not (a fuel cache taking the parked trucks with it).
+    public int pointsEarned;
+    public bool fuelDetonated;
+    public int vehiclesDestroyed;
 }
 
 /// <summary>
@@ -230,6 +238,7 @@ public class Warhead : MonoBehaviour
 
             float before = target.Health;
             bool weak = target.IsWeakHit(origin);
+            bool shielded = target.ProtectedByJammer;
             target.TakeDamage(damage, origin);
             float applied = before - target.Health;
             report.targetsHit++;
@@ -240,6 +249,7 @@ public class Warhead : MonoBehaviour
                 report.damage = applied;
                 report.healthRemaining = target.Health;
                 report.weakSpot = weak;
+                report.shielded = shielded;
             }
         }
         return report;

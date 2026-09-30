@@ -13,12 +13,22 @@ read that before touching either project. This file is the cross-cutting
 context: how work actually gets done here, and what a fresh session needs to
 know before making changes.
 
-## There is no Unity in this environment
+## Unity and verification
 
-Whoever is editing code here (Claude or otherwise) has no Unity Editor, no
-compiler, no way to press Play. The user runs Unity themselves in a separate
-local project folder and reports back screenshots and console output. Every
-change ships unverified except by what can be checked without Unity:
+Unity **6000.3.22f1** (WebGL Build Support) is installed at
+`C:\Program Files\Unity\Hub\Editor\6000.3.22f1\Editor\Unity.exe` and can
+run batch jobs against the live project `C:\Users\Folzy\Desktop\DroneStrike`
+- but only while that project is not open in the editor (close it first):
+
+    Unity.exe -batchmode -quit -projectPath C:/Users/Folzy/Desktop/DroneStrike -executeMethod <Method> -logFile <file>
+
+Useful methods: `DroneBuildSetup.BuildEverything` (compile + all scenes;
+check the log for `error CS`, `built with 11/13/14 targets`, `grounding
+check`), `ReviewCapture.Capture` (PNG review shots of props to
+`Builds/Review`, look at them), `DroneBuildSetup.BuildWebGL` (Builds/WebGL;
+zip its contents with index.html at the archive root for Yandex). Flying
+still needs a human in Play Mode or a normal browser. Cheaper checks that
+still apply:
 
 - **Brace/paren/bracket balance** across every `.cs` file — cheap, catches
   the dumbest class of typo. There's a throwaway checker script pattern used

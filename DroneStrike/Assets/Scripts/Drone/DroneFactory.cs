@@ -227,14 +227,23 @@ public static class DroneFactory
         Material band = Resources.Load<Material>("Materials/Mat_WarheadBand");
         Material trim = TintedAccent(accent);
 
-        float scale = warhead == WarheadType.Compact ? 0.80f : 1f;
-        scale *= 1f + tier * 0.08f;
+        // Compact and low in frame. At 0.40 m ahead and full size the charge
+        // filled the bottom quarter of the screen and read as a huge clay
+        // capsule; smaller and set further forward and down, only its nose and
+        // band show along the bottom edge — present, readable, out of the way.
+        float scale = warhead == WarheadType.Compact ? 0.56f
+                    : warhead == WarheadType.Standard ? 0.62f : 0.68f;
+        scale *= 1f + tier * 0.05f;
 
         var root = new GameObject("WarheadView");
         root.transform.SetParent(cameraTransform, false);
-        // Slung close under the housing, nose tipped forward and down — mounted
-        // to the airframe the way the real thing is, not held out in empty air.
-        root.transform.localPosition = new Vector3(0f, -0.22f, 0.40f);
+        // Slung under the housing, nose tipped forward — mounted to the
+        // airframe the way the real thing is, not held out in empty air.
+        // Nose tipped up ~20 deg into the bottom of the frame with the tail
+        // below the lower edge: the pilot sees the ogive point poking in, as
+        // in real FPV footage, not the round tail end of a tube aimed at the
+        // lens. Tail ~42 deg below the view axis, tip ~27 deg (half FOV 46).
+        root.transform.localPosition = new Vector3(0f, -0.395f, 0.49f);
         root.transform.localRotation = Quaternion.Euler(70f, 0f, 0f);
         root.transform.localScale = Vector3.one * scale;
 

@@ -28,6 +28,15 @@ public static class TargetProps
         public Material concrete;
         public Material metal;
         public Material roof;
+
+        // Vehicle surfaces that must not all be the same matte olive.
+        public Material paint;
+        public Material glass;
+        public Material rubber;
+        public Material gap;
+        public Material chrome;
+        public Material headlamp;
+        public Material hazardRed;
     }
 
     // ---------- armoured vehicle ----------
@@ -43,7 +52,14 @@ public static class TargetProps
     /// too big, too small, or facing sideways.
     /// </summary>
     const float ModelScale = 1f;
-    const float ModelYawOffset = 0f;
+
+    /// <summary>
+    /// Tank.glb is authored with its hull along local X and the gun toward +X.
+    /// Everything else assumes +Z is forward — above all Target.IsWeakHit and
+    /// the weak-rear strip at local -Z — so at 0 the "rear" was really the
+    /// left flank. Confirmed from the Capture Review Shots render.
+    /// </summary>
+    const float ModelYawOffset = -90f;
 
     /// <summary>Length a real main battle tank comes out at, in metres.</summary>
     const float TankFootprint = 7.2f;
@@ -122,85 +138,217 @@ public static class TargetProps
     // ---------- truck ----------
 
     /// <summary>
-    /// Six-wheeled cargo truck: chassis, cab, bonnet and a tarped bed.
-    /// Tall and square, so it never gets confused with the armour from above.
+    /// Six-wheeled army cargo truck.
+    ///
+    /// The previous one read as "two boxes on wheels": a cab block, a tarp
+    /// block, one matte olive over everything. This one is built the way the
+    /// real thing is put together — a ladder frame on three axles, a separate
+    /// cab with a bonnet, glass, grille and bumper, arches over every wheel,
+    /// and a slatted cargo bed under a tarp on hoops — and each surface has its
+    /// own material: satin paint on the cab, matte canvas, dark glossy glass,
+    /// matte rubber tyres with metal hubs, near-black in the seams.
+    ///
+    /// Every height is derived from the part below it (wheel → frame → cab
+    /// floor / bed floor), so nothing floats and nothing sinks into the frame.
+    /// Local +Z is forward.
     /// </summary>
     public static Target Truck(Transform parent, Vector3 position, float yaw, Palette palette)
     {
         GameObject root = CreateRoot(parent, "Truck", position, yaw,
                                      Target.Kind.LightVehicle,
-                                     new Vector3(2.7f, 3.4f, 7.2f), new Vector3(0f, 1.7f, 0f));
+                                     new Vector3(2.7f, 3.1f, 7.4f), new Vector3(0f, 1.55f, 0f));
 
-        const float wheelDiameter = 1.15f;
-        const float axleHeight = wheelDiameter * 0.5f;      // 0.575
-        const float chassisHeight = 0.32f;
-        const float chassisTop = axleHeight + chassisHeight * 0.5f;
+        Material paint = palette.paint != null ? palette.paint : palette.vehicle;
+        Material canvas = palette.vehicle;
+        Material dark = palette.vehicleDark;
+        Material gap = palette.gap != null ? palette.gap : dark;
+        Material glass = palette.glass != null ? palette.glass : dark;
+        Material rubber = palette.rubber != null ? palette.rubber : dark;
+        Material chrome = palette.chrome != null ? palette.chrome : palette.metal;
+        Material lamp = palette.headlamp != null ? palette.headlamp : chrome;
+        Material tail = palette.hazardRed != null ? palette.hazardRed : dark;
 
-        AddPart(root, "Chassis", new Vector3(0f, axleHeight + 0.1f, 0f),
-                new Vector3(2.1f, chassisHeight, 6.8f), palette.vehicleDark);
+        const float wheelDiameter = 1.1f;
+        const float wheelWidth = 0.42f;
+        const float axle = wheelDiameter * 0.5f;          // 0.55
+        const float track = 1.08f;                          // wheel centre from the middle
+        const float frameHeight = 0.24f;
+        const float frameBottom = 0.66f;
+        const float frameTop = frameBottom + frameHeight;   // 0.90
+        const float front = 3.55f;                          // bumper face
 
-        // Bonnet, then the cab behind it, both resting on the chassis.
-        AddPart(root, "Bonnet", new Vector3(0f, chassisTop + 0.45f, 2.75f),
-                new Vector3(2.2f, 0.9f, 1.5f), palette.vehicle);
+        // Ladder frame: two rails and cross members, visible between the wheels.
+        foreach (float x in new[] { -0.55f, 0.55f })
+            AddPart(root, "FrameRail", new Vector3(x, frameBottom + frameHeight * 0.5f, -0.15f),
+                    new Vector3(0.16f, frameHeight, 6.7f), gap);
+        foreach (float z in new[] { 2.6f, 0.9f, -0.9f, -2.7f })
+            AddPart(root, "CrossMember", new Vector3(0f, frameBottom + frameHeight * 0.5f, z),
+                    new Vector3(1.1f, frameHeight * 0.7f, 0.14f), gap);
 
-        AddPart(root, "Cab", new Vector3(0f, chassisTop + 0.85f, 1.35f),
-                new Vector3(2.3f, 1.7f, 1.5f), palette.vehicle);
-
-        AddPart(root, "Windscreen", new Vector3(0f, chassisTop + 1.35f, 2.12f),
-                new Vector3(2.0f, 0.75f, 0.08f), palette.vehicleDark);
-
-        // Cargo bed with a tarp over it, sitting on the chassis behind the cab.
-        AddPart(root, "BedFloor", new Vector3(0f, chassisTop + 0.12f, -1.5f),
-                new Vector3(2.4f, 0.2f, 4.0f), palette.vehicleDark);
-
-        AddPart(root, "Tarp", new Vector3(0f, chassisTop + 1.05f, -1.5f),
-                new Vector3(2.5f, 1.7f, 4.0f), palette.vehicle);
-
-        AddPart(root, "TarpRear", new Vector3(0f, chassisTop + 1.05f, -3.52f),
-                new Vector3(2.4f, 1.6f, 0.1f), palette.vehicleDark);
-
-        // Grille and bumper on the nose — the detail that stops the front from
-        // reading as a plain box with headlamps painted on.
-        AddPart(root, "Grille", new Vector3(0f, chassisTop + 0.4f, 3.48f),
-                new Vector3(1.9f, 0.7f, 0.1f), palette.vehicleDark);
-        AddPart(root, "Bumper", new Vector3(0f, axleHeight - 0.05f, 3.5f),
-                new Vector3(2.2f, 0.2f, 0.2f), palette.vehicleDark);
-
-        // Mirrors on stalks either side of the cab.
-        foreach (float side in new[] { -1.2f, 1.2f })
-        {
-            AddPart(root, "MirrorArm", new Vector3(side, chassisTop + 1.55f, 1.85f),
-                    new Vector3(0.05f, 0.05f, 0.3f), palette.vehicleDark);
-            AddPart(root, "Mirror", new Vector3(side * 1.12f, chassisTop + 1.55f, 1.85f),
-                    new Vector3(0.06f, 0.28f, 0.2f), palette.vehicleDark);
-        }
-
-        // An exhaust stack behind the cab — a common silhouette on a real cargo
-        // truck and the last thing that keeps the chassis from reading as bare.
-        AddPart(root, "Exhaust", new Vector3(-1.3f, chassisTop + 1.1f, 0.9f),
-                new Vector3(0.12f, 1.6f, 0.12f), palette.vehicleDark, PrimitiveType.Cylinder);
-
-        // Three axles a side. Front axle under the bonnet, two under the bed —
-        // each pair skirted by a fender, so the wheel wells read as part of the
-        // body instead of the wheels hanging exposed underneath a flat floor.
-        float[] axleZ = { 2.5f, -1.1f, -2.6f };
-        foreach (float z in axleZ)
-        {
-            AddWheel(root, "Wheel", new Vector3(-1.12f, axleHeight, z),
-                     wheelDiameter, 0.42f, palette.vehicleDark);
-            AddWheel(root, "Wheel", new Vector3(1.12f, axleHeight, z),
-                     wheelDiameter, 0.42f, palette.vehicleDark);
-
-            foreach (float side in new[] { -1.12f, 1.12f })
+        // Wheels: rubber tyre, metal hub, dark hub cap.
+        float[] axles = { 2.75f, -1.25f, -2.55f };
+        foreach (float z in axles)
+            foreach (float side in new[] { -1f, 1f })
             {
-                var fender = AddPart(root, "Fender", new Vector3(side, axleHeight + 0.32f, z),
-                                     new Vector3(0.5f, 0.16f, 0.62f), palette.vehicleDark,
-                                     PrimitiveType.Cylinder);
-                fender.transform.localRotation = Quaternion.Euler(0f, 0f, 90f);
+                Vector3 centre = new Vector3(side * track, axle, z);
+                AddWheel(root, "Tyre", centre, wheelDiameter, wheelWidth, rubber);
+                AddWheel(root, "Hub", centre + new Vector3(side * 0.13f, 0f, 0f), 0.5f, 0.2f, chrome);
+                AddWheel(root, "HubCap", centre + new Vector3(side * 0.24f, 0f, 0f), 0.2f, 0.04f, gap);
             }
+
+        // Front arches are part of the cab's wings; rear arches hang off the bed.
+        foreach (float z in axles)
+            foreach (float side in new[] { -1f, 1f })
+                AddArch(root, new Vector3(side * track, axle, z), wheelDiameter,
+                        z > 0f ? paint : dark);
+
+        // Cab: floor on the frame, a separate body with glass on three sides,
+        // door seams, and a roof with a little overhang.
+        // Cab and bed ride on mounts above the arches (tyre top 1.10, arch
+        // 1.20), the way a six-wheeled army truck does - otherwise the tyres
+        // cut straight through the floor.
+        const float bodyFloor = 1.22f;
+        const float cabFloor = bodyFloor;
+        const float cabHeight = 1.62f;
+        const float cabBack = 1.05f;
+        const float cabFront = 2.72f;
+        float cabDepth = cabFront - cabBack;
+        float cabMidZ = (cabFront + cabBack) * 0.5f;
+        AddPart(root, "CabMount", new Vector3(0f, (frameTop + cabFloor) * 0.5f, cabMidZ),
+                new Vector3(1.4f, cabFloor - frameTop, cabDepth - 0.2f), gap);
+        AddPart(root, "Cab", new Vector3(0f, cabFloor + cabHeight * 0.5f, cabMidZ),
+                new Vector3(2.3f, cabHeight, cabDepth), paint);
+        AddPart(root, "CabRoof", new Vector3(0f, cabFloor + cabHeight + 0.05f, cabMidZ + 0.04f),
+                new Vector3(2.38f, 0.1f, cabDepth + 0.12f), paint);
+
+        float glassY = cabFloor + cabHeight - 0.45f;
+        AddPart(root, "Windscreen", new Vector3(0f, glassY, cabFront + 0.005f),
+                new Vector3(2.0f, 0.62f, 0.04f), glass);
+        AddPart(root, "WindscreenPillar", new Vector3(0f, glassY, cabFront + 0.02f),
+                new Vector3(0.07f, 0.62f, 0.03f), paint);
+        foreach (float side in new[] { -1f, 1f })
+        {
+            AddPart(root, "SideWindow", new Vector3(side * 1.152f, glassY, cabMidZ + 0.25f),
+                    new Vector3(0.04f, 0.55f, 0.85f), glass);
+            AddPart(root, "DoorSeam", new Vector3(side * 1.153f, cabFloor + cabHeight * 0.45f, cabBack + 0.12f),
+                    new Vector3(0.03f, cabHeight * 0.85f, 0.03f), gap);
+            AddPart(root, "DoorHandle", new Vector3(side * 1.16f, cabFloor + 0.75f, cabMidZ - 0.1f),
+                    new Vector3(0.04f, 0.04f, 0.18f), chrome);
+            AddPart(root, "Step", new Vector3(side * 1.12f, frameBottom - 0.02f, cabMidZ),
+                    new Vector3(0.3f, 0.05f, 0.5f), gap);
         }
+        AddPart(root, "RearWindow", new Vector3(0f, glassY, cabBack - 0.005f),
+                new Vector3(1.0f, 0.38f, 0.04f), glass);
+
+        // Bonnet ahead of the cab, grille, headlamps and bumper on the nose.
+        const float bonnetHeight = 0.82f;
+        float bonnetDepth = front - 0.12f - cabFront;
+        float bonnetZ = cabFront + bonnetDepth * 0.5f;
+        AddPart(root, "Bonnet", new Vector3(0f, frameTop + bonnetHeight * 0.5f, bonnetZ),
+                new Vector3(1.7f, bonnetHeight, bonnetDepth), paint);
+        AddPart(root, "BonnetSeam", new Vector3(0f, frameTop + bonnetHeight + 0.005f, bonnetZ),
+                new Vector3(0.03f, 0.01f, bonnetDepth - 0.1f), gap);
+
+        float grilleZ = cabFront + bonnetDepth + 0.01f;
+        float grilleY = frameTop + bonnetHeight * 0.48f;
+        AddPart(root, "GrilleBack", new Vector3(0f, grilleY, grilleZ),
+                new Vector3(1.3f, 0.62f, 0.03f), gap);
+        for (int i = 0; i < 7; i++)
+            AddPart(root, "GrilleBar", new Vector3(-0.54f + i * 0.18f, grilleY, grilleZ + 0.02f),
+                    new Vector3(0.05f, 0.6f, 0.03f), chrome);
+        foreach (float side in new[] { -1f, 1f })
+        {
+            GameObject lampPart = AddPart(root, "Headlamp", new Vector3(side * 0.78f, grilleY + 0.04f, grilleZ + 0.02f),
+                                          new Vector3(0.24f, 0.04f, 0.24f), lamp, PrimitiveType.Cylinder);
+            lampPart.transform.localRotation = Quaternion.Euler(90f, 0f, 0f);
+        }
+
+        AddPart(root, "Bumper", new Vector3(0f, frameBottom + 0.08f, front - 0.1f),
+                new Vector3(2.42f, 0.26f, 0.2f), gap);
+        foreach (float side in new[] { -1f, 1f })
+            AddPart(root, "TowHook", new Vector3(side * 0.6f, frameBottom - 0.02f, front + 0.02f),
+                    new Vector3(0.1f, 0.12f, 0.12f), chrome);
+
+        // Mirrors on stalks, and the exhaust stack behind the cab.
+        foreach (float side in new[] { -1f, 1f })
+        {
+            AddPart(root, "MirrorArm", new Vector3(side * 1.28f, glassY + 0.1f, cabFront - 0.1f),
+                    new Vector3(0.28f, 0.04f, 0.04f), gap);
+            AddPart(root, "Mirror", new Vector3(side * 1.43f, glassY + 0.05f, cabFront - 0.1f),
+                    new Vector3(0.05f, 0.3f, 0.2f), gap);
+        }
+        AddPart(root, "Exhaust", new Vector3(-1.02f, cabFloor + cabHeight * 0.55f, cabBack - 0.12f),
+                new Vector3(0.13f, cabHeight * 0.6f, 0.13f), chrome, PrimitiveType.Cylinder);
+        AddPart(root, "FuelTank", new Vector3(1.0f, frameBottom + 0.02f, 0.25f),
+                new Vector3(0.44f, 0.38f, 0.44f), chrome, PrimitiveType.Cylinder)
+            .transform.localRotation = Quaternion.Euler(90f, 0f, 0f);
+
+        // Cargo bed: floor on the frame, drop sides, tailgate, hoops and tarp.
+        const float bedFront = 0.88f;
+        const float bedBack = -3.55f;
+        float bedLength = bedFront - bedBack;
+        float bedZ = (bedFront + bedBack) * 0.5f;
+        const float bedFloorHeight = 0.12f;
+        float bedTop = bodyFloor + bedFloorHeight;          // 1.34
+        foreach (float x in new[] { -0.55f, 0.55f })
+            AddPart(root, "BedRunner", new Vector3(x, (frameTop + bodyFloor) * 0.5f, bedZ),
+                    new Vector3(0.14f, bodyFloor - frameTop, bedLength - 0.2f), gap);
+        const float sideHeight = 0.5f;
+        AddPart(root, "BedFloor", new Vector3(0f, bodyFloor + bedFloorHeight * 0.5f, bedZ),
+                new Vector3(2.44f, bedFloorHeight, bedLength), dark);
+        foreach (float side in new[] { -1f, 1f })
+        {
+            AddPart(root, "DropSide", new Vector3(side * 1.19f, bedTop + sideHeight * 0.5f, bedZ),
+                    new Vector3(0.06f, sideHeight, bedLength), paint);
+            for (int i = 1; i < 4; i++)
+                AddPart(root, "SideSeam", new Vector3(side * 1.222f, bedTop + sideHeight * 0.5f, bedBack + i * bedLength / 4f),
+                        new Vector3(0.01f, sideHeight, 0.03f), gap);
+            AddPart(root, "TailLight", new Vector3(side * 1.0f, frameBottom + 0.1f, bedBack - 0.02f),
+                    new Vector3(0.18f, 0.1f, 0.04f), tail);
+        }
+        AddPart(root, "Tailgate", new Vector3(0f, bedTop + sideHeight * 0.5f, bedBack - 0.03f),
+                new Vector3(2.44f, sideHeight, 0.06f), paint);
+        AddPart(root, "Headboard", new Vector3(0f, bedTop + 0.6f, bedFront - 0.03f),
+                new Vector3(2.44f, 1.2f, 0.06f), dark);
+
+        // Canvas tarp over hoops: the hoop ribs stand just proud of the canvas,
+        // so the roof reads as fabric on a frame rather than one more box.
+        const float tarpHeight = 1.05f;
+        float tarpBottom = bedTop + sideHeight;             // 1.84
+        AddPart(root, "Tarp", new Vector3(0f, tarpBottom + tarpHeight * 0.5f, bedZ - 0.05f),
+                new Vector3(2.38f, tarpHeight, bedLength - 0.2f), canvas);
+        for (int i = 0; i < 4; i++)
+        {
+            float z = bedFront - 0.4f - i * (bedLength - 0.8f) / 3f;
+            AddPart(root, "Hoop", new Vector3(0f, tarpBottom + tarpHeight + 0.015f, z),
+                    new Vector3(2.4f, 0.04f, 0.08f), dark);
+            foreach (float side in new[] { -1f, 1f })
+                AddPart(root, "HoopLeg", new Vector3(side * 1.195f, tarpBottom + tarpHeight * 0.5f, z),
+                        new Vector3(0.03f, tarpHeight, 0.08f), dark);
+        }
+        AddPart(root, "TarpRearFlap", new Vector3(0f, tarpBottom + tarpHeight * 0.5f, bedBack + 0.14f),
+                new Vector3(2.3f, tarpHeight * 0.95f, 0.04f), dark);
 
         return root.GetComponent<Target>();
+    }
+
+    /// <summary>
+    /// A wheel arch from three plates: a flat top over the tyre and two
+    /// angled skirts, so the wheel reads as sitting in a well, not under a lid.
+    /// </summary>
+    static void AddArch(GameObject root, Vector3 wheelCentre, float wheelDiameter, Material material)
+    {
+        float radius = wheelDiameter * 0.5f + 0.1f;
+        float side = Mathf.Sign(wheelCentre.x);
+        Vector3 top = wheelCentre + new Vector3(side * 0.02f, radius, 0f);
+        AddPart(root, "Arch", top, new Vector3(0.5f, 0.05f, wheelDiameter * 0.55f), material);
+        foreach (float dir in new[] { -1f, 1f })
+        {
+            GameObject skirt = AddPart(root, "Arch",
+                wheelCentre + new Vector3(side * 0.02f, radius * 0.72f, dir * radius * 0.72f),
+                new Vector3(0.5f, 0.05f, wheelDiameter * 0.42f), material);
+            skirt.transform.localRotation = Quaternion.Euler(dir * 45f, 0f, 0f);
+        }
     }
 
     // ---------- supply depot ----------
