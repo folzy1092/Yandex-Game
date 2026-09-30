@@ -1,5 +1,7 @@
 using System;
+using System.Collections;
 using UnityEngine;
+using UnityEngine.SceneManagement;
 
 /// <summary>
 /// Central playback for DroneStrike. Imported clips are preferred; the small
@@ -109,6 +111,101 @@ public class GameAudio : MonoBehaviour
         LoadClips();
         CreateVoices();
         ApplyListenerGain();
+        CreateMusic();
+        SceneManager.sceneLoaded += OnSceneLoaded;
+    }
+
+    // ---------- music ----------
+
+    const string MusicKey = "DroneStrike.Audio.Music";
+
+    /// <summary>
+    /// Background music on/off (pause menu). Instrumental orchestral tracks by
+    /// Kevin MacLeod, CC BY 4.0 — attribution in CREDITS.txt and on the menu.
+    /// </summary>
+    public static bool MusicEnabled
+    {
+        get { return PlayerPrefs.GetInt(MusicKey, 1) == 1; }
+        set
+        {
+            PlayerPrefs.SetInt(MusicKey, value ? 1 : 0);
+            PlayerPrefs.Save();
+            if (Instance != null) Instance.RefreshMusic();
+        }
+    }
+
+    AudioSource musicA;
+    AudioSource musicB;
+    string currentTrack;
+    float musicLevel;
+    Coroutine musicFade;
+
+    void CreateMusic()
+    {
+        musicA = CreateMusicSource("MusicA");
+        musicB = CreateMusicSource("MusicB");
+    }
+
+    AudioSource CreateMusicSource(string name)
+    {
+        var go = new GameObject(name);
+        go.transform.SetParent(transform, false);
+        var source = go.AddComponent<AudioSource>();
+        source.loop = true;
+        source.playOnAwake = false;
+        source.spatialBlend = 0f;
+        source.priority = 0;
+        source.volume = 0f;
+        return source;
+    }
+
+    void OnSceneLoaded(Scene scene, LoadSceneMode mode)
+    {
+        // A solemn post-war theme in the menu, a snare-driven march in the field.
+        bool menu = scene.name == "MainMenu";
+        PlayMusic(menu ? "menu_theme" : "mission_theme", menu ? 0.34f : 0.2f);
+    }
+
+    /// <summary>Crossfades to <paramref name="track"/> (Resources/Audio/Music) over 1.5 s.</summary>
+    public void PlayMusic(string track, float level)
+    {
+        musicLevel = level;
+        if (track == currentTrack) { RefreshMusic(); return; }
+        AudioClip clip = Resources.Load<AudioClip>("Audio/Music/" + track);
+        if (clip == null) return;
+        currentTrack = track;
+
+        AudioSource incoming = musicA.isPlaying && musicA.volume > 0f ? musicB : musicA;
+        AudioSource outgoing = incoming == musicA ? musicB : musicA;
+        incoming.clip = clip;
+        incoming.volume = 0f;
+        incoming.Play();
+        if (musicFade != null) StopCoroutine(musicFade);
+        musicFade = StartCoroutine(Crossfade(incoming, outgoing));
+    }
+
+    IEnumerator Crossfade(AudioSource incoming, AudioSource outgoing)
+    {
+        float start = outgoing.volume;
+        for (float t = 0f; t < 1f; t += Time.unscaledDeltaTime / 1.5f)
+        {
+            incoming.volume = Mathf.Lerp(0f, TargetMusicLevel, t);
+            outgoing.volume = Mathf.Lerp(start, 0f, t);
+            yield return null;
+        }
+        incoming.volume = TargetMusicLevel;
+        outgoing.volume = 0f;
+        outgoing.Stop();
+        musicFade = null;
+    }
+
+    float TargetMusicLevel { get { return MusicEnabled ? musicLevel : 0f; } }
+
+    void RefreshMusic()
+    {
+        if (musicFade != null) return;
+        AudioSource playing = musicA.isPlaying ? musicA : musicB;
+        playing.volume = TargetMusicLevel;
     }
 
     void LoadClips()

@@ -110,3 +110,18 @@ Assets/Resources/Audio/Drone/fpv_real_low.wav, fpv_real_high.wav
   https://freesound.org/people/qubodup/sounds/854466/
   License: CC0 1.0 (public domain). Looped and levelled for the game;
   details and hashes in Assets/Resources/Audio/SOURCE_MANIFEST.md.
+
+
+Explosion sounds (added 2026-10-01)
+------------------------------------
+Assets/Resources/Audio/Explosions/*.wav, built by Tools/BuildExplosionClips.py
+from CC0 Freesound recordings by qubodup (182432, 182797, 855898, 840510 —
+the first three from US-government footage) and areniporgen (693421).
+License: CC0 1.0. Details in Assets/Resources/Audio/SOURCE_MANIFEST.md.
+
+Music (added 2026-10-01)
+-------------------------
+"For the Fallen" (menu) and "At Launch" (missions)
+Kevin MacLeod (incompetech.com)
+Licensed under Creative Commons: By Attribution 4.0 License
+http://creativecommons.org/licenses/by/4.0/

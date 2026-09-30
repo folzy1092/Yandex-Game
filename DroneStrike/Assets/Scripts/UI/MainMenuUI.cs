@@ -298,6 +298,12 @@ public class MainMenuUI : MonoBehaviour
             Localization.T("menu.controls"),
             22, ControlsHeight, 40f, new Color(0.50f, 0.56f, 0.58f));
 
+        // CC BY requires visible attribution; CREDITS.txt has the full list.
+        TopTextBottom(parent, "Credits",
+            "Music: \"At Launch\", \"For the Fallen\" — Kevin MacLeod (incompetech.com), CC BY 4.0 · " +
+            "Truck model: \"M939 Truck\" — J-Toastie (Poly Pizza), CC BY",
+            14, 24f, 10f, new Color(0.42f, 0.46f, 0.48f));
+
         float launchBottom = controlsTop + GapAboveLaunch;
 
         Button launch = UIFactory.CreateButton(parent, "Launch", Localization.T("menu.launch"), 40, bottom, bottom,

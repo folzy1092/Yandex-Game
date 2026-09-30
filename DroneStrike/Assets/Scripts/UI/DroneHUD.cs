@@ -40,6 +40,7 @@ public class DroneHUD : MonoBehaviour
     Text invertLabel;
     Text fovLabel;
     Text lensLabel;
+    Text musicLabel;
 
     Text signalLostBanner;
     float signalLostUntil;
@@ -748,6 +749,12 @@ public class DroneHUD : MonoBehaviour
                 GameAudio.SetMasterVolume(value > 1f ? 0f : value);
                 RefreshCameraSettings();
             }).GetComponentInChildren<Text>();
+        musicLabel = UIFactory.CreateButton(pausePanel.transform, "Music", "", 23,
+            centre, centre, new Vector2(-340f, -320f), new Vector2(300f, 62f), () =>
+            {
+                GameAudio.MusicEnabled = !GameAudio.MusicEnabled;
+                RefreshCameraSettings();
+            }).GetComponentInChildren<Text>();
         lensLabel = UIFactory.CreateButton(pausePanel.transform, "LensFx", "", 23,
             centre, centre, new Vector2(340f, -320f), new Vector2(300f, 62f), () =>
             {
@@ -829,6 +836,8 @@ public class DroneHUD : MonoBehaviour
         if (invertLabel != null) invertLabel.text =
             (english ? "INVERT Y " : "ИНВЕРСИЯ Y ") + (DroneCameraGimbal.InvertY ? "ON" : "OFF");
         if (fovLabel != null) fovLabel.text = "FOV " + DroneCameraGimbal.FieldOfView.ToString("0");
+        if (musicLabel != null) musicLabel.text =
+            (english ? "MUSIC " : "МУЗЫКА ") + (GameAudio.MusicEnabled ? "ON" : "OFF");
         if (lensLabel != null) lensLabel.text =
             (english ? "LENS FX " : "ОБЪЕКТИВ ") + (FpvCameraFx.Enabled ? "ON" : "OFF");
         if (volumeLabel != null) volumeLabel.text =

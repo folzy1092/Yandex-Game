@@ -59,6 +59,8 @@ public static class DroneBuildSetup
             Debug.Log("Drone Strike: removed the retired scene " + retired + ".");
         }
 
+        ConfigureMusicImport();
+
         // Yandex Games serves the plain uncompressed WebGL layout most reliably.
         PlayerSettings.WebGL.compressionFormat = WebGLCompressionFormat.Disabled;
         PlayerSettings.runInBackground = true;
@@ -73,6 +75,28 @@ public static class DroneBuildSetup
 
         Debug.Log("Drone Strike: build settings applied — " + scenes.Count
                   + " scenes, WebGL, compression off, Yandex template.");
+    }
+
+    /// <summary>
+    /// Music ships as mono, compressed, streamed: two stereo MP3s would
+    /// otherwise add ~11 MB to a browser download for a background bed.
+    /// </summary>
+    static void ConfigureMusicImport()
+    {
+        foreach (string guid in AssetDatabase.FindAssets("t:AudioClip", new[] { "Assets/Resources/Audio/Music" }))
+        {
+            string path = AssetDatabase.GUIDToAssetPath(guid);
+            var importer = AssetImporter.GetAtPath(path) as AudioImporter;
+            if (importer == null) continue;
+            importer.forceToMono = true;
+            importer.loadInBackground = true;
+            AudioImporterSampleSettings settings = importer.defaultSampleSettings;
+            settings.loadType = AudioClipLoadType.Streaming;
+            settings.compressionFormat = AudioCompressionFormat.Vorbis;
+            settings.quality = 0.4f;
+            importer.defaultSampleSettings = settings;
+            importer.SaveAndReimport();
+        }
     }
 
     [MenuItem("Tools/Drone Strike/4 - Build WebGL")]

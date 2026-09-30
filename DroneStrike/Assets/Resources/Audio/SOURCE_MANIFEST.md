@@ -2,8 +2,11 @@
 
 ## Original DroneStrike assets
 
-`Drone`, `Explosions`, `signal_weak.wav` and `battery_low.wav` are original
-project audio generated offline by `Tools/GenerateDroneStrikeAudio.py`.
+`Drone/motor_*.wav`, `Drone/wind_*.wav`, `signal_weak.wav` and
+`battery_low.wav` are original project audio generated offline by
+`Tools/GenerateDroneStrikeAudio.py`. (`Explosions` used to be generated
+there too; since 2026-10-01 they are built from recordings — see below.
+Do not regenerate them with that script.)
 They are imported into Unity as normal clips. The game does not synthesize
 those assets at runtime.
 
@@ -75,3 +78,32 @@ SHA-256:
   `d85b07ba2f8d7522cc87c4e7cb3b3945fc43bac1a1936beb2ec2435dca7e9b17`,
   `fpv_real_high.wav`
   `75e7877300fcdeb9dcaa0a7ebe738128ef1b9e293089a4aa1bea054fed0804fa`.
+
+
+## Explosions (recorded, CC0)
+
+`Explosions/explosion_{compact,standard,heavy}_0{1,2,3}.wav` are built by
+`Tools/BuildExplosionClips.py` from five CC0 Freesound recordings (HQ
+previews): qubodup 182432 "Explosive 1 v1 [DOD 130303]", 182797 "Windy
+Explosion" and 855898 "Fire Explosion" (all extracted from US-government
+footage, public domain), qubodup 840510 "Loud Firewords Bang Cut Off", and
+areniporgen 693421 "CTS 7290" (a real flashbang). URLs and the exact
+processing are in the script header. Compact = sharp crack, standard = the
+DOD detonation, heavy = the forced ammunition explosion, each in three
+pitch/layer variants.
+
+## Music (Kevin MacLeod, CC BY 4.0)
+
+| Final file | Track |
+| --- | --- |
+| `Music/menu_theme.mp3` | "For the Fallen", https://incompetech.com/music/royalty-free/mp3-royaltyfree/For%20the%20Fallen.mp3 |
+| `Music/mission_theme.mp3` | "At Launch", https://incompetech.com/music/royalty-free/mp3-royaltyfree/At%20Launch.mp3 |
+
+- Author: Kevin MacLeod (incompetech.com)
+- License: Creative Commons Attribution 4.0,
+  https://creativecommons.org/licenses/by/4.0/ — attribution is shown on the
+  main menu and in CREDITS.txt.
+- Unmodified MP3s (renamed). Imported as mono, Vorbis q0.4, streamed
+  (DroneBuildSetup.ConfigureMusicImport).
+- SHA-256: menu_theme `1c73f6cc23b746942ddcc6b56ef24542d42dbb2ba1a6932848848bfb10d17849`,
+  mission_theme `52215f8ad85bfbced05752052adadd58bffa5caef16696f6cea4d9d49a647a8e`.
