@@ -43,9 +43,19 @@ public static class ReviewCapture
         {
             Shoot(camera, "truck_close", truck.transform, new Vector3(6f, 3.2f, 9f), 1.4f);
             Shoot(camera, "truck_rear", truck.transform, new Vector3(-6f, 4f, -9f), 1.4f);
+            Shoot(camera, "truck_side", truck.transform, new Vector3(11f, 2.2f, 0.5f), 1.4f);
             Prime(truck);
             Shoot(camera, "truck_outline_40m", truck.transform, new Vector3(22f, 22f, 26f), 1.2f);
         }
+
+        GameObject stack = GameObject.Find("CrateStack");
+        if (stack != null)
+        {
+            Shoot(camera, "crates_close", stack.transform, new Vector3(3.2f, 2.2f, 3.8f), 0.6f);
+            Shoot(camera, "crates_15m", stack.transform, new Vector3(9f, 7f, 10f), 0.6f);
+        }
+        Target depot = targets.Find(t => t.kind == Target.Kind.SupplyDepot);
+        if (depot != null) Shoot(camera, "depot", depot.transform, new Vector3(9f, 5f, 11f), 1.2f);
 
         if (tank != null)
         {
@@ -98,6 +108,54 @@ public static class ReviewCapture
 
         EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
         Debug.Log("Drone Strike: review shots written to " + Path.GetFullPath(Folder));
+    }
+
+    /// <summary>
+    /// Photographs every model dropped into Assets/Resources/Models/_Candidates
+    /// (not shipped; a scratch folder) on a plain ground plane, normalised to
+    /// a 1 m or real-world footprint, from two angles - for choosing a
+    /// downloaded model by how it actually renders here, not by a site preview.
+    /// </summary>
+    [MenuItem("Tools/Drone Strike/Capture Model Candidates")]
+    public static void CaptureCandidates()
+    {
+        Directory.CreateDirectory(Folder);
+        EditorSceneManager.OpenScene("Assets/Scenes/Mission1.unity", OpenSceneMode.Single);
+        foreach (Target target in Object.FindObjectsByType<Target>(FindObjectsSortMode.None))
+            target.gameObject.SetActive(false);
+
+        var camera = new GameObject("ReviewCamera").AddComponent<Camera>();
+        camera.fieldOfView = 40f;
+        camera.farClipPlane = 900f;
+
+        Vector3 stage = new Vector3(0f, 0f, 0f);
+        foreach (GameObject prefab in Resources.LoadAll<GameObject>("Models/_Candidates"))
+        {
+            GameObject instance = Object.Instantiate(prefab);
+            Renderer[] renderers = instance.GetComponentsInChildren<Renderer>();
+            if (renderers.Length == 0) { Object.DestroyImmediate(instance); continue; }
+            Bounds bounds = renderers[0].bounds;
+            foreach (Renderer r in renderers) bounds.Encapsulate(r.bounds);
+            float longest = Mathf.Max(bounds.size.x, bounds.size.y, bounds.size.z);
+            bool vehicle = prefab.name.StartsWith("Truck");
+            float wanted = vehicle ? 7.2f : 1.2f;
+            instance.transform.localScale *= wanted / Mathf.Max(0.0001f, longest);
+            bounds = renderers[0].bounds;
+            foreach (Renderer r in renderers) bounds.Encapsulate(r.bounds);
+            instance.transform.position += stage - new Vector3(bounds.center.x, bounds.min.y, bounds.center.z);
+
+            float d = wanted * 1.6f;
+            foreach (var view in new[] { new Vector3(d, d * 0.55f, d), new Vector3(-d, d * 0.7f, -d * 0.4f) })
+            {
+                camera.transform.position = stage + view;
+                camera.transform.LookAt(stage + Vector3.up * wanted * 0.2f);
+                Render(camera, "cand_" + prefab.name + (view.x > 0 ? "_a" : "_b"));
+            }
+            Debug.Log("Drone Strike candidate " + prefab.name + ": raw longest " + longest.ToString("0.000")
+                      + ", size after " + bounds.size);
+            Object.DestroyImmediate(instance);
+        }
+        EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
     }
 
     static MissionDefinition FindDefinition(ChallengeKind kind)

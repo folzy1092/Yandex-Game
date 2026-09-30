@@ -1305,13 +1305,21 @@ public static class MissionBuilder
         }
     }
 
+    /// <summary>Real-world edge of a supply crate, and the pallet it sits on.</summary>
+    const float CrateSize = 0.95f;
+    const float PalletSize = 1.15f;
+
+    /// <summary>
+    /// Wooden crates (downloaded CC0 models, two designs) on pallets, a few
+    /// stacked two high. Each crate is placed on the measured top of what is
+    /// under it, so the stack stays grounded whatever the model's pivot.
+    /// </summary>
     static void CrateStack(Transform parent, Material crate, float x, float z)
     {
-        var size = new Vector3(0.9f, 0.85f, 1.25f);
         Vector2[] slots =
         {
-            new Vector2(-0.5f, -0.7f), new Vector2(0.5f, -0.7f),
-            new Vector2(-0.5f, 0.7f), new Vector2(0.5f, 0.7f)
+            new Vector2(-0.6f, -0.6f), new Vector2(0.6f, -0.6f),
+            new Vector2(-0.6f, 0.6f), new Vector2(0.6f, 0.6f)
         };
 
         int count = Random.Range(2, 6);
@@ -1320,6 +1328,7 @@ public static class MissionBuilder
         group.transform.position = OnGround(x, z);
 
         int bases = 0;
+        var tops = new float[slots.Length];
         var hasTop = new bool[slots.Length];
         for (int i = 0; i < count; i++)
         {
@@ -1331,35 +1340,30 @@ public static class MissionBuilder
 
             // A top crate only ever goes on a base crate that has nothing on
             // it yet; anything else becomes a new base in the next free slot.
-            int slot;
-            int layer;
             int stackOn = -1;
             if (wantsTop && bases > 0)
                 for (int s = 0; s < bases; s++)
                     if (!hasTop[s]) { stackOn = s; break; }
+
+            string model = (i + Mathf.RoundToInt(jitterX * 10f)) % 2 == 0 ? "CrateA" : "CrateB";
+            float yaw = (jitterX - jitterZ) * 3f + (jitterZ > 0f ? 90f : 0f);
             if (stackOn >= 0)
             {
-                slot = stackOn;
-                layer = 1;
                 hasTop[stackOn] = true;
+                var foot = new Vector3(slots[stackOn].x, tops[stackOn], slots[stackOn].y);
+                PropModels.Place(model, "Crate", group.transform, foot, yaw, CrateSize * 0.92f, crate, true);
             }
             else if (bases < slots.Length)
             {
-                slot = bases++;
-                layer = 0;
+                int slot = bases++;
+                var footing = new Vector3(slots[slot].x + jitterX * 0.02f, 0f, slots[slot].y + jitterZ * 0.02f);
+                GameObject pallet = PropModels.Place("Pallet", "Pallet", group.transform, footing,
+                                                     jitterZ * 2f, PalletSize, crate, true);
+                footing.y = PropModels.TopOf(pallet);
+                GameObject box = PropModels.Place(model, "Crate", group.transform, footing, yaw,
+                                                  CrateSize, crate, true);
+                tops[slot] = PropModels.TopOf(box);
             }
-            else continue;
-
-            var box = GameObject.CreatePrimitive(PrimitiveType.Cube);
-            box.name = "Crate";
-            box.transform.SetParent(group.transform, false);
-            box.transform.localPosition = new Vector3(
-                slots[slot].x + jitterX * 0.02f,
-                size.y * (layer + 0.5f),
-                slots[slot].y + jitterZ * 0.02f);
-            box.transform.localRotation = Quaternion.Euler(0f, (jitterX - jitterZ) * 2f, 0f);
-            box.transform.localScale = size;
-            box.GetComponent<Renderer>().sharedMaterial = crate;
         }
     }
 
@@ -1401,35 +1405,44 @@ public static class MissionBuilder
     /// </summary>
     static void ValidateGrounding(Transform root)
     {
-        var props = new List<Renderer>();
-        foreach (Renderer renderer in root.GetComponentsInChildren<Renderer>())
+        // Prop roots: a named object whose renderers are measured together
+        // (a downloaded crate is several meshes under one holder).
+        var names = new HashSet<string> { "Crate", "Drum", "Block", "Bag", "Pallet" };
+        var props = new List<Bounds>();
+        var labels = new List<string>();
+        foreach (Transform t in root.GetComponentsInChildren<Transform>())
         {
-            string name = renderer.gameObject.name;
-            if (name == "Crate" || name == "Drum" || name == "Block" || name == "Bag" || name == "Pallet")
-                props.Add(renderer);
+            if (!names.Contains(t.name)) continue;
+            if (t.parent != null && names.Contains(t.parent.name)) continue;
+            Renderer[] parts = t.GetComponentsInChildren<Renderer>();
+            if (parts.Length == 0) continue;
+            Bounds b = parts[0].bounds;
+            for (int i = 1; i < parts.Length; i++) b.Encapsulate(parts[i].bounds);
+            props.Add(b);
+            labels.Add(t.name);
         }
 
         int floating = 0, sunk = 0;
         var examples = new List<string>();
-        foreach (Renderer prop in props)
+        for (int p = 0; p < props.Count; p++)
         {
-            Bounds bounds = prop.bounds;
+            Bounds bounds = props[p];
             float ground = GroundAt(bounds.center.x, bounds.center.z);
             float bottom = bounds.min.y;
 
             if (bottom < ground - 0.15f)
             {
                 sunk++;
-                if (examples.Count < 6) examples.Add(prop.name + " sunk " + (ground - bottom).ToString("0.00") + " m at " + bounds.center);
+                if (examples.Count < 6) examples.Add(labels[p] + " sunk " + (ground - bottom).ToString("0.00") + " m at " + bounds.center);
                 continue;
             }
             if (bottom <= ground + 0.05f) continue;
 
             bool supported = false;
-            foreach (Renderer other in props)
+            for (int o = 0; o < props.Count; o++)
             {
-                if (other == prop) continue;
-                Bounds below = other.bounds;
+                if (o == p) continue;
+                Bounds below = props[o];
                 if (below.max.y < bottom - 0.06f || below.min.y >= bottom) continue;
                 if (below.max.x < bounds.min.x || below.min.x > bounds.max.x) continue;
                 if (below.max.z < bounds.min.z || below.min.z > bounds.max.z) continue;
@@ -1439,7 +1452,7 @@ public static class MissionBuilder
             if (supported) continue;
 
             floating++;
-            if (examples.Count < 6) examples.Add(prop.name + " floats " + (bottom - ground).ToString("0.00") + " m at " + bounds.center);
+            if (examples.Count < 6) examples.Add(labels[p] + " floats " + (bottom - ground).ToString("0.00") + " m at " + bounds.center);
         }
 
         string summary = "Drone Strike: " + profile.sceneName + " grounding check - " + props.Count

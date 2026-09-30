@@ -55,7 +55,8 @@ public static class ModelLibrary
 
         // The two hero targets need a contact cue on the ground. Trench
         // segments remain unshadowed because there can be many per scene.
-        bool heroTarget = modelName == "Tank" || modelName == "SupplyTent";
+        bool heroTarget = modelName == "Tank" || modelName == "SupplyTent" || modelName == "Truck"
+            || modelName == "CrateA" || modelName == "CrateB" || modelName == "Pallet";
         foreach (Renderer renderer in instance.GetComponentsInChildren<Renderer>())
         {
             renderer.shadowCastingMode = heroTarget

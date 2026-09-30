@@ -70,3 +70,33 @@ along local X. MissionBuilder rotates it 90 degrees to align with the wall.
 Everything else — every other texture, material and 3D shape in the
 game — is generated procedurally at build or run time from code, and carries
 no external licence.
+
+
+Truck and crate models (added 2026-09-30)
+------------------------------------------
+Chosen by rendering each candidate in the game's own lighting
+(Tools > Drone Strike > Capture Model Candidates), then measured and placed
+by their real bounds (TargetProps.NormalizeModelSize / PropModels.Place).
+
+Assets/Resources/Models/Truck.glb
+  "M939 Truck" by J-Toastie
+  Source:  https://poly.pizza/m/y8lBpvMlim
+  License: Creative Commons Attribution (CC BY), as listed on the Poly
+           Pizza page. Attribution: "M939 Truck" by J-Toastie, Poly Pizza.
+  Unmodified. Authored along +X (cab forward), ~7.26 m long;
+  TargetProps.TruckYawOffset = -90 turns the cab to +Z.
+
+Assets/Resources/Models/CrateA.glb
+  "Cube Crate" by Quaternius
+  Source:  https://poly.pizza/m/YAghI6GBls
+  License: Public Domain (CC0 1.0)
+
+Assets/Resources/Models/CrateB.glb
+  "crate" by cg_world
+  Source:  https://poly.pizza/m/A9ZprpRVU8
+  License: Public Domain (CC0 1.0)
+
+Assets/Resources/Models/Pallet.glb
+  "Pallet" by Quaternius
+  Source:  https://poly.pizza/m/cUAsYHDqfD
+  License: Public Domain (CC0 1.0)

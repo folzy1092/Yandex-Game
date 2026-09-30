@@ -19,6 +19,7 @@
 | `Assets/Editor/DroneBuildSetup.cs` | Главные команды Unity: генерация материалов, все сцены и WebGL-сборка. |
 | `Assets/Editor/MissionBuilder.cs` | Рельеф, дороги, цели, укрытия, навесы, пруд и стартовые площадки трёх миссий. |
 | `Assets/Editor/TargetProps.cs` | Построение техники, палаток, ящиков и других целевых объектов. Грузовик процедурный; `ModelYawOffset = -90` разворачивает `Tank.glb` носом в +Z. |
+| `Assets/Editor/PropModels.cs` | Установка мелких моделей (ящики, поддоны) по измеренным границам, штабелирование по верху нижнего. |
 | `Assets/Editor/ReviewCapture.cs` | `Capture Review Shots`: рендер контрольных кадров реквизита в `Builds/Review` без Play (работает в batch). |
 | `Assets/Scripts/World/FieldProps.cs` | Runtime-реквизит заданий: станция помех, топливный тайник, круг радиуса взрыва, волна помех. |
 | `Assets/Scripts/World/TargetOutline.cs` + `Assets/Shaders/TargetOutline.shader` | Неоновая обводка силуэта живых целей (пиксельная ширина, цвета по состоянию). |

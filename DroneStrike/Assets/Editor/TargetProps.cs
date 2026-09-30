@@ -137,6 +137,16 @@ public static class TargetProps
 
     // ---------- truck ----------
 
+    /// <summary>Length of the cargo truck, metres.</summary>
+    const float TruckFootprint = 7.2f;
+
+    /// <summary>
+    /// Truck.glb (M939) is authored along local X with the cab toward +X,
+    /// like Tank.glb — rotated so the cab faces +Z, which is what patrol
+    /// headings and parking layouts assume.
+    /// </summary>
+    const float TruckYawOffset = -90f;
+
     /// <summary>
     /// Six-wheeled army cargo truck.
     ///
@@ -157,6 +167,17 @@ public static class TargetProps
         GameObject root = CreateRoot(parent, "Truck", position, yaw,
                                      Target.Kind.LightVehicle,
                                      new Vector3(2.7f, 3.1f, 7.4f), new Vector3(0f, 1.55f, 0f));
+
+        // The downloaded M939 (CC-BY, see CREDITS.txt) when present; the
+        // procedural truck below is the fallback for a project without it.
+        GameObject truckModel = ModelLibrary.Instantiate("Truck", root.transform, 1f, TruckYawOffset);
+        if (truckModel != null)
+        {
+            NormalizeModelSize(root, truckModel, TruckFootprint);
+            RecentreModelOnGround(root, truckModel);
+            FitColliderToModel(root, truckModel);
+            return root.GetComponent<Target>();
+        }
 
         Material paint = palette.paint != null ? palette.paint : palette.vehicle;
         Material canvas = palette.vehicle;
@@ -380,23 +401,29 @@ public static class TargetProps
 
     static void BuildSupplyDepotPrimitives(GameObject root, Palette palette, float postHeight)
     {
-        const float crateHeight = 1.2f;
-
-        // Two rows of crates, the back row stacked two high.
+        // Crates on pallets in two rows, the back row stacked two high on the
+        // outer columns so the stack has a profile. Same crate models as the
+        // loose stacks outside; each sits on the measured top of the one below.
+        const float crate = 1.15f;
+        const float pallet = 1.3f;
         for (int column = 0; column < 3; column++)
         {
             float x = -2.4f + column * 2.4f;
-
-            AddPart(root, "Crate", new Vector3(x, crateHeight * 0.5f, 1.6f),
-                    new Vector3(2.1f, crateHeight, 2.8f), palette.crate);
-
-            AddPart(root, "Crate", new Vector3(x, crateHeight * 0.5f, -1.6f),
-                    new Vector3(2.1f, crateHeight, 2.8f), palette.crate);
-
-            // Second layer on the back row only, so the stack has a profile.
-            if (column == 1) continue;
-            AddPart(root, "Crate", new Vector3(x, crateHeight * 1.5f, -1.6f),
-                    new Vector3(2.0f, crateHeight, 2.6f), palette.crate);
+            foreach (float row in new[] { 1.6f, -1.6f })
+                for (int pair = 0; pair < 2; pair++)
+                {
+                    var foot = new Vector3(x, 0f, row + (pair == 0 ? -0.66f : 0.66f));
+                    string model = (column + pair) % 2 == 0 ? "CrateA" : "CrateB";
+                    GameObject base_ = PropModels.Place("Pallet", "Pallet", root.transform, foot,
+                                                        pair * 90f, pallet, palette.crate, false);
+                    foot.y = PropModels.TopOf(base_);
+                    GameObject lower = PropModels.Place(model, "Crate", root.transform, foot,
+                                                        column * 90f, crate, palette.crate, false);
+                    if (row > 0f || column == 1) continue;
+                    foot.y = PropModels.TopOf(lower);
+                    PropModels.Place(model == "CrateA" ? "CrateB" : "CrateA", "Crate", root.transform,
+                                     foot, pair * 90f + 8f, crate * 0.95f, palette.crate, false);
+                }
         }
 
         // Four fixed posts. There is no conditional model path and no skipped
