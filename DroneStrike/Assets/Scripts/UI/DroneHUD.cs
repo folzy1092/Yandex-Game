@@ -257,33 +257,55 @@ public class DroneHUD : MonoBehaviour
     /// </summary>
     void SetJam(float intensity)
     {
+        int phase = SignalJammer.PhaseOf(intensity);
+        bool english = Localization.Current == Localization.Language.English;
+
         if (jamBanner != null)
         {
-            bool visible = intensity > 0.04f;
+            bool visible = phase > 0;
             if (jamBanner.gameObject.activeSelf != visible) jamBanner.gameObject.SetActive(visible);
             if (visible)
             {
-                float blink = Mathf.PingPong(Time.unscaledTime * 3.5f, 1f);
-                Color colour = JamTint;
-                colour.a = Mathf.Lerp(0.45f, 1f, blink) * Mathf.Lerp(0.6f, 1f, intensity);
+                jamBanner.text = phase == 3 ? (english ? "SIGNAL SUPPRESSED" : "ПОДАВЛЕНИЕ СИГНАЛА")
+                               : phase == 2 ? (english ? "HEAVY JAMMING" : "СИЛЬНЫЕ ПОМЕХИ")
+                               : (english ? "JAMMING" : "ПОМЕХИ");
+                float blink = Mathf.PingPong(Time.unscaledTime * (2.5f + phase * 1.5f), 1f);
+                Color colour = phase == 3 ? new Color(1f, 0.32f, 0.22f) : JamTint;
+                colour.a = Mathf.Lerp(0.5f, 1f, blink);
                 jamBanner.color = colour;
+                jamBanner.fontSize = phase == 3 ? 50 : 44;
             }
         }
 
-        if (staticOverlay != null && intensity > 0.04f && Time.time >= glitchEndTime)
+        // Snow over the picture. The old ceiling (28% alpha) was barely
+        // visible; each phase now steps it up hard, up to a near white-out
+        // with only glimpses of the picture through it.
+        if (staticOverlay != null && phase > 0 && Time.time >= glitchEndTime)
         {
-            Color current = staticOverlay.color;
-            float alpha = Mathf.Max(current.a, intensity * 0.28f
-                * (0.7f + 0.3f * Mathf.PerlinNoise(Time.unscaledTime * 19f, 3.3f)));
-            staticOverlay.color = new Color(JamTint.r, JamTint.g, JamTint.b, alpha);
+            float floor = phase == 1 ? 0.14f : phase == 2 ? 0.34f : 0.58f;
+            float span = phase == 1 ? 0.14f : phase == 2 ? 0.22f : 0.3f;
+            float flicker = Mathf.PerlinNoise(Time.unscaledTime * 21f, 3.3f);
+            float alpha = Mathf.Max(staticOverlay.color.a, floor + span * flicker);
+            staticOverlay.color = new Color(1f, Mathf.Lerp(0.95f, 0.8f, intensity), Mathf.Lerp(0.9f, 0.62f, intensity), alpha);
+            staticOverlay.pixelsPerUnitMultiplier = Mathf.Lerp(0.8f, 1.9f,
+                Mathf.PerlinNoise(Time.unscaledTime * 29f, 1.7f));
+            if (scanlines != null) scanlines.alpha = Mathf.Max(scanlines.alpha, 0.05f + 0.12f * intensity);
+
+            // The feed shakes sideways from phase 2 on, harder when suppressed.
+            if (phase >= 2 && feedRoot != null)
+            {
+                float shake = (Mathf.PerlinNoise(Time.unscaledTime * 23f, 9.1f) - 0.5f) * (phase == 3 ? 46f : 18f);
+                feedRoot.anchoredPosition = new Vector2(shake, 0f);
+            }
         }
 
-        if (jamNoise == null && intensity > 0.04f && GameAudio.Instance != null)
+        if (jamNoise == null && phase > 0 && GameAudio.Instance != null)
             jamNoise = GameAudio.Instance.AttachJamLoop(transform);
         if (jamNoise != null)
         {
             float target = MissionManager.Instance != null &&
-                MissionManager.Instance.PauseReasons != MissionManager.PauseReason.None ? 0f : intensity * 0.22f;
+                MissionManager.Instance.PauseReasons != MissionManager.PauseReason.None ? 0f
+                : phase == 0 ? 0f : 0.1f + intensity * 0.3f;
             jamNoise.volume = Mathf.MoveTowards(jamNoise.volume, target, Time.unscaledDeltaTime * 1.5f);
         }
     }

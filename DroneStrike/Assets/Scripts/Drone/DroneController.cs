@@ -138,6 +138,7 @@ public class DroneController : MonoBehaviour
         Vector3 command = MissionManager.Instance != null && !MissionManager.Instance.CanPilot
             ? Vector3.zero : ReadCommand();
         ApplyThrust(command);
+        ApplyJammingDrift();
         ApplyDrag(command);
         ClampSpeed();
         ApplyOrientation(command);
@@ -201,6 +202,25 @@ public class DroneController : MonoBehaviour
             float correction = error * altitudeHoldStrength - body.linearVelocity.y * altitudeHoldDamping;
             body.AddForce(Vector3.up * correction, ForceMode.Acceleration);
         }
+    }
+
+    /// <summary>
+    /// Inside a live jammer's field the flight controller loses its clean
+    /// control link: the drone wanders off its line, gently in the outer ring
+    /// and hard close to the station, so pushing in costs real piloting.
+    /// </summary>
+    void ApplyJammingDrift()
+    {
+        SignalJammer jammer = SignalJammer.Active;
+        if (jammer == null) return;
+        float intensity = jammer.Intensity(transform.position);
+        if (intensity <= 0.04f) return;
+
+        float t = Time.time * 0.9f;
+        var drift = new Vector3(Mathf.PerlinNoise(t, 1.3f) - 0.5f,
+                                (Mathf.PerlinNoise(t, 5.7f) - 0.5f) * 0.5f,
+                                Mathf.PerlinNoise(t, 9.2f) - 0.5f);
+        body.AddForce(drift * (2f * 9f * intensity * intensity), ForceMode.Acceleration);
     }
 
     void ApplyDrag(Vector3 command)

@@ -234,10 +234,10 @@ public static class DroneFactory
         // below the view axis, half FOV 46): nose tip at ~18 deg, the tail
         // tube runs back past the lower edge of the frame.
         root.transform.localPosition = new Vector3(0f, -0.24f, 0.36f);
-        // Nose tipped ~25 deg up relative to the view: seen from the camera
-        // above and behind, the grenade then shows in three-quarter profile
-        // (cone, band, fuse) instead of end-on as a round head on a stick.
-        root.transform.localRotation = Quaternion.Euler(65f, 0f, 0f);
+        // Nose ~10 deg up from the line of sight: pointed ahead at what the
+        // pilot is flying into, tipped just enough that the cone and band
+        // show. At 25 deg it stood almost upright in the frame.
+        root.transform.localRotation = Quaternion.Euler(80f, 0f, 0f);
         root.transform.localScale = Vector3.one * scale;
 
         // Profile along local +Y (the nose), metres at scale 1. Head

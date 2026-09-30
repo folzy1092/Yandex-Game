@@ -69,6 +69,14 @@ public class TargetOutline : MonoBehaviour
             || name.Contains("DangerRing") || name.Contains("JamWave") || name.Contains("Beacon");
     }
 
+    static bool IsSheet(Renderer renderer)
+    {
+        string name = renderer.gameObject.name;
+        if (name.Contains("Net") || name.Contains("Drape")) return true;
+        Material material = renderer.sharedMaterial;
+        return material != null && material.IsKeywordEnabled("_ALPHATEST_ON");
+    }
+
     void Awake()
     {
         target = GetComponent<Target>();
@@ -147,6 +155,10 @@ public class TargetOutline : MonoBehaviour
             Renderer renderer = filter.GetComponent<Renderer>();
             if (renderer == null || filter.sharedMesh == null || IsOverlay(renderer)) continue;
             if (!(renderer is MeshRenderer)) continue;
+            // Thin double-sided sheets (the anti-drone net) have no inside
+            // for a shell to hide behind: the whole sheet filled solid cyan.
+            // The net is not the target anyway — its posts and cargo are.
+            if (IsSheet(renderer)) continue;
 
             Mesh mesh = filter.sharedMesh;
             Bounds bounds = mesh.bounds;

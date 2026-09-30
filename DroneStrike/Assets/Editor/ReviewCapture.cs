@@ -55,7 +55,11 @@ public static class ReviewCapture
             Shoot(camera, "crates_15m", stack.transform, new Vector3(9f, 7f, 10f), 0.6f);
         }
         Target depot = targets.Find(t => t.kind == Target.Kind.SupplyDepot);
-        if (depot != null) Shoot(camera, "depot", depot.transform, new Vector3(9f, 5f, 11f), 1.2f);
+        if (depot != null)
+        {
+            Prime(depot);
+            Shoot(camera, "depot", depot.transform, new Vector3(9f, 7f, 11f), 1.2f);
+        }
 
         if (tank != null)
         {

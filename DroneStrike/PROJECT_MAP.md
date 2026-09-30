@@ -55,7 +55,7 @@
 `MissionChallengeRunner.Configure` сначала выключает ненужные цели, затем
 ставит реквизит, проверяя свободное место физикой (`Physics.OverlapBox`) и
 расстояние до патрульной дороги. Станция помех: 15–21 м от танка,
-`SignalJammer` (радиус 70 м, связь до ×0.2), танк `ProtectedByJammer` (урон
+`SignalJammer` (радиус 95 м, три фазы по интенсивности 0.04 / 0.4 / 0.72, связь до ×0.06, снос дрона в `DroneController.ApplyJammingDrift`), танк `ProtectedByJammer` (урон
 ×0.1, не опускается ниже 1 HP). Топливо: грузовики по бокам на 6.4 м,
 радиус взрыва `FieldProps.FuelBlastRadius` = 9 м.
 
