@@ -1,0 +1,31 @@
+{
+  "schema": 1,
+  "repository": "folzy1092/Yandex-Game",
+  "project_subdir": "DroneStrike",
+  "files": [
+    {
+      "path": "Assets/Editor/DroneMaterials.cs",
+      "sha256": "66df503e390ea1da9b38232bcd129ab00e6049cc1523d10ee30b783e517eb75b"
+    },
+    {
+      "path": "Assets/Editor/MissionBuilder.cs",
+      "sha256": "a3b17e4c3d4b9b19a428f1c79b16bd6aea194d96f4c13479abe8acc24e4fb215"
+    },
+    {
+      "path": "Assets/Scripts/Drone/Warhead.cs",
+      "sha256": "f8ef3f770d19412ebc0091475d0e996dc641a496a45d362107ea3d563986eaff"
+    },
+    {
+      "path": "Assets/Scripts/World/Target.cs",
+      "sha256": "a19504f79dc0fd5830faa0c9cc3c87bd735caee149f06ba756f1a110b3cd3114"
+    },
+    {
+      "path": "Assets/Scripts/World/TerrainMesh.cs",
+      "sha256": "8fee4c99fa2310296ade5610a200a2e404ce1cd1b58d873b2f1d99cca011486a"
+    },
+    {
+      "path": "Assets/Scripts/World/WaterHazard.cs",
+      "sha256": "4b7ddd597b267bbf1f776f0938ea3bb492bd8acd272bbb7404336d0c05cfb197"
+    }
+  ]
+}

@@ -18,6 +18,9 @@
 `docs/superpowers/specs/2026-08-24-drone-strike-release-pass-design.md`
 (карта, баги, меню, монетизация).
 
+Карта модулей, сборки и правил работы для следующего агента:
+[`PROJECT_MAP.md`](PROJECT_MAP.md).
+
 Стороннее: `CREDITS.txt` — спрайты частиц и звуки Kenney (CC0), шрифт и
 скачанные модели; происхождение аудиоклипов подробно записано в
 `Assets/Resources/Audio/SOURCE_MANIFEST.md`.

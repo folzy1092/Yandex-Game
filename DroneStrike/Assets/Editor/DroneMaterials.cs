@@ -52,7 +52,8 @@ public static class DroneMaterials
             ProceduralTextures.CreateConcrete(512, new Color(0.18f, 0.17f, 0.17f), 0.42f, 4013, 0.5f),
             new Vector2(6f, 6f), 0.08f);
 
-        SaveFlat("Mat_Water", new Color(0.16f, 0.30f, 0.38f), 0.85f);
+        SaveWater();
+        SaveFlat("Mat_PondBottom", new Color(0.10f, 0.13f, 0.10f), 0.02f);
     }
 
     static void SaveGround(string name, Color grass, Color soil)
@@ -70,6 +71,23 @@ public static class DroneMaterials
         material.SetColor("_SoilColor", soil);
         material.SetColor("_RockColor", new Color(0.43f, 0.44f, 0.40f));
         Save(material, "Mat_" + name);
+    }
+
+    static void SaveWater()
+    {
+        var material = new Material(Shader.Find("Standard"));
+        material.color = new Color(0.12f, 0.30f, 0.34f, 0.68f);
+        material.SetFloat("_Glossiness", 0.88f);
+        material.SetFloat("_Metallic", 0.05f);
+        material.SetFloat("_Mode", 3f);
+        material.SetInt("_SrcBlend", (int)UnityEngine.Rendering.BlendMode.SrcAlpha);
+        material.SetInt("_DstBlend", (int)UnityEngine.Rendering.BlendMode.OneMinusSrcAlpha);
+        material.SetInt("_ZWrite", 0);
+        material.DisableKeyword("_ALPHATEST_ON");
+        material.EnableKeyword("_ALPHABLEND_ON");
+        material.DisableKeyword("_ALPHAPREMULTIPLY_ON");
+        material.renderQueue = 3000;
+        Save(material, "Mat_Water");
     }
 
     public static Material BuildSky(string sceneName, Color sky, Color ground)
@@ -129,7 +147,7 @@ public static class DroneMaterials
             new Vector2(3f, 3f), 0.05f);
 
         SaveFlat("Mat_Sandbag", new Color(0.48f, 0.44f, 0.31f), 0.06f);
-        SaveFlat("Mat_CamoNet", new Color(0.19f, 0.24f, 0.15f), 0.05f);
+        SaveCamoNet();
     }
 
     static void BuildVehicleMaterials()
@@ -270,6 +288,63 @@ public static class DroneMaterials
         material.SetFloat("_Metallic", metallic);
 
         Save(material, name);
+    }
+
+    /// <summary>
+    /// Alpha-cut mesh fabric, not an opaque green sheet. The holes are real
+    /// cutouts, so the net keeps its shadow and vehicles remain visible through
+    /// it from the drone camera.
+    /// </summary>
+    static void SaveCamoNet()
+    {
+        Texture2D texture = CreateNetting(256, 14);
+        SaveTexture("CamoNet", texture);
+        texture = AssetDatabase.LoadAssetAtPath<Texture2D>(TextureFolder + "/Tex_CamoNet.asset");
+
+        var material = new Material(Shader.Find("Standard"));
+        material.mainTexture = texture;
+        material.color = new Color(0.31f, 0.37f, 0.21f, 1f);
+        material.SetFloat("_Glossiness", 0.08f);
+        material.SetFloat("_Mode", 1f); // Standard's cutout mode
+        material.SetFloat("_Cutoff", 0.42f);
+        material.SetInt("_SrcBlend", (int)UnityEngine.Rendering.BlendMode.One);
+        material.SetInt("_DstBlend", (int)UnityEngine.Rendering.BlendMode.Zero);
+        material.SetInt("_ZWrite", 1);
+        material.EnableKeyword("_ALPHATEST_ON");
+        material.DisableKeyword("_ALPHABLEND_ON");
+        material.DisableKeyword("_ALPHAPREMULTIPLY_ON");
+        material.renderQueue = 2450;
+        Save(material, "Mat_CamoNet");
+    }
+
+    /// <summary>Olive anti-drone mesh with square cells and reinforced knots.</summary>
+    static Texture2D CreateNetting(int size, int cells)
+    {
+        var texture = new Texture2D(size, size, TextureFormat.RGBA32, false);
+        texture.name = "CamoNet";
+        texture.wrapMode = TextureWrapMode.Repeat;
+        texture.filterMode = FilterMode.Bilinear;
+
+        for (int y = 0; y < size; y++)
+        {
+            for (int x = 0; x < size; x++)
+            {
+                float u = ((x + 0.5f) / size) * cells;
+                float v = ((y + 0.5f) / size) * cells;
+                float fu = Mathf.Abs((u - Mathf.Floor(u)) - 0.5f);
+                float fv = Mathf.Abs((v - Mathf.Floor(v)) - 0.5f);
+
+                // Crossed 7 cm strands with a small knot at every crossing.
+                bool strand = fu > 0.465f || fv > 0.465f;
+                bool knot = fu > 0.41f && fv > 0.41f;
+                float alpha = (strand || knot) ? 1f : 0f;
+                float shade = 0.78f + 0.18f * Mathf.PerlinNoise(u * 0.8f, v * 0.8f);
+                texture.SetPixel(x, y, new Color(shade, shade, shade, alpha));
+            }
+        }
+
+        texture.Apply();
+        return texture;
     }
 
     static void SaveAdditive(string name, Texture2D texture, Color tint)
