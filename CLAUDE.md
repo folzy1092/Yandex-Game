@@ -163,16 +163,16 @@ from the README alone:
   near-identical dark colours at one point and were indistinguishable from
   any real distance, which read as a game bug ("looks dead, keeps fighting")
   rather than a design choice.
-- **Warhead shape settled on procedural, not a downloaded model**
-  (`DroneFactory.BuildWarheadView`): went model → orientation-guessed model
-  (fixed via the glTF-accessor technique above) → stubby procedural pod →
-  back to the original `PrimitiveMesh.Revolve` ogive (tube/flare/point),
-  just shorter. The ogive silhouette was the only one never reported as
-  actually broken, only "phallic" — every other shape (stubby pod, the
-  model at any orientation) read as worse. If a warhead redesign comes up
-  again, don't re-attempt a downloaded model or a flat-nosed pod without a
-  strong reason; the length-to-width ratio of a tapered ogive is the shape
-  that has actually held up across four rounds of user feedback.
+- **Warhead shape (`DroneFactory.BuildWarheadView`) is now an RPG-type
+  grenade (PG-7 profile) built from separate hard-edged frustums**: thin
+  tail tube, boat tail, 92 mm head with a yellow HE band and black tape, a
+  stepped nose cone and a fuse probe (heavy charge: tandem precursor rod).
+  History: downloaded model -> stubby pod -> smooth tube/flare/ogive of
+  revolution, which the user finally judged "a rectal suppository" once it
+  was seen end-on. What reads as ordnance is a head wider than the tail,
+  hard edges, and a probe tip; it sits nose-up ~25 deg so the camera sees it
+  in three-quarter profile. Always judge it from `ReviewCapture` shots
+  (`fpv_charge`, `warhead_side`), never blind.
 - **Balance knobs**: `DroneStrike/README.md` has a full table
   ("Настройка баланса"). The signal range (`SignalLink.cleanRange` /
   `maximumRange`) and the launch-pad ring radius in `MissionBuilder.cs` are

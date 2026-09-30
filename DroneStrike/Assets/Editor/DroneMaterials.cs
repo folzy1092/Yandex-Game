@@ -220,6 +220,13 @@ public static class DroneMaterials
         // Dust, not blood — the targets here are vehicles.
         SaveTransparent("Mat_Blood", RadialGlow(64, Color.white, 0), new Color(0.25f, 0.22f, 0.20f));
         SaveTransparent("Mat_BulletHole", ScorchMark(64), new Color(0.06f, 0.05f, 0.05f));
+
+        // Burn decal for scorched hulls, wreck ground patches and craters.
+        // Mat_BulletHole's alpha falls off quadratically from the centre, so
+        // at the size of a crater it was barely visible; this one has a
+        // solid soot core and a ragged, noisy edge.
+        SaveDecal("Mat_Scorch", SootPatch(128), new Color(0.06f, 0.055f, 0.05f, 1f), 0.45f);
+        SaveDecal("Mat_ScorchFan", SootPatch(128), new Color(0.22f, 0.19f, 0.15f, 1f), 0.25f);
     }
 
     const string ParticleFolder = "Assets/Resources/Textures/Particles";
@@ -418,6 +425,33 @@ public static class DroneMaterials
         Save(material, name);
     }
 
+    /// <summary>
+    /// A lit, alpha-cutout Standard material for flat decals on meshes (soot,
+    /// burn patches). Both the particle shader and Standard's Fade mode came
+    /// out as a washed-out grey smear on a quad; a cutout is solid soot with
+    /// a ragged edge, and the cutoff picks how far out the edge reaches.
+    /// </summary>
+    static void SaveDecal(string name, Texture2D texture, Color tint, float cutoff)
+    {
+        SaveTexture(name, texture);
+        texture = AssetDatabase.LoadAssetAtPath<Texture2D>(TextureFolder + "/Tex_" + name + ".asset");
+
+        var material = new Material(Shader.Find("Standard"));
+        material.mainTexture = texture;
+        material.color = tint;
+        material.SetFloat("_Mode", 1f);
+        material.SetFloat("_Cutoff", cutoff);
+        material.SetFloat("_Glossiness", 0.03f);
+        material.SetInt("_SrcBlend", (int)UnityEngine.Rendering.BlendMode.One);
+        material.SetInt("_DstBlend", (int)UnityEngine.Rendering.BlendMode.Zero);
+        material.SetInt("_ZWrite", 1);
+        material.EnableKeyword("_ALPHATEST_ON");
+        material.DisableKeyword("_ALPHABLEND_ON");
+        material.DisableKeyword("_ALPHAPREMULTIPLY_ON");
+        material.renderQueue = 2450;
+        Save(material, name);
+    }
+
     static Shader EffectShader()
     {
         Shader shader = Shader.Find("Particles/Standard Unlit");
@@ -490,6 +524,28 @@ public static class DroneMaterials
             }
         }
 
+        texture.Apply();
+        return texture;
+    }
+
+    static Texture2D SootPatch(int size)
+    {
+        var texture = new Texture2D(size, size, TextureFormat.RGBA32, false);
+        texture.name = "Soot";
+        texture.wrapMode = TextureWrapMode.Clamp;
+        float centre = (size - 1) * 0.5f;
+        for (int y = 0; y < size; y++)
+            for (int x = 0; x < size; x++)
+            {
+                float dx = (x - centre) / centre;
+                float dy = (y - centre) / centre;
+                float distance = Mathf.Sqrt(dx * dx + dy * dy);
+                float noise = Mathf.PerlinNoise(x * 0.09f + 3.1f, y * 0.09f + 7.7f);
+                float edge = 0.62f + noise * 0.34f;
+                float alpha = 1f - Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(edge * 0.55f, edge, distance));
+                float grain = 0.75f + 0.25f * Mathf.PerlinNoise(x * 0.4f, y * 0.4f);
+                texture.SetPixel(x, y, new Color(grain, grain, grain, alpha * (0.8f + 0.2f * noise)));
+            }
         texture.Apply();
         return texture;
     }

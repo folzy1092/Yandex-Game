@@ -22,6 +22,8 @@
 | `Assets/Editor/PropModels.cs` | Установка мелких моделей (ящики, поддоны) по измеренным границам, штабелирование по верху нижнего. |
 | `Assets/Editor/ReviewCapture.cs` | `Capture Review Shots`: рендер контрольных кадров реквизита в `Builds/Review` без Play (работает в batch). |
 | `Assets/Scripts/World/FieldProps.cs` | Runtime-реквизит заданий: станция помех, топливный тайник, круг радиуса взрыва, волна помех. |
+| `Assets/Scripts/World/Craters.cs` | Воронки от взрывов у земли (вал, гарь), пул на 24 штуки. |
+| `Assets/Scripts/World/TargetHealthBar.cs` | Полоска HP над повреждённой, но живой целью. |
 | `Assets/Scripts/World/TargetOutline.cs` + `Assets/Shaders/TargetOutline.shader` | Неоновая обводка силуэта живых целей (пиксельная ширина, цвета по состоянию). |
 | `Assets/Scripts/Core/` | Загрузка оснащения, локализация, каталог карт и сохранение заданий. |
 | `Assets/Scripts/Drone/` | Управление, камера, батарея, связь, аудио, боевая часть и помехи. |

@@ -71,6 +71,33 @@ public static class ReviewCapture
             Shoot(camera, "tank_from_behind", tank.transform, new Vector3(0f, 6f, -14f), 1.2f);
         }
 
+        // Damage states. Awake does not run in edit mode, so health is set
+        // through SetKind first.
+        if (tank != null)
+        {
+            tank.SetKind(Target.Kind.ArmouredVehicle);
+            Vector3 flank = tank.transform.position + tank.transform.right * 4f + Vector3.up;
+            tank.TakeDamage(60f, flank);
+            Craters.Spawn(tank.transform.position + tank.transform.right * 3.2f + Vector3.up * 0.01f, Vector3.up, 1.3f);
+            TargetHealthBar bar = tank.GetComponent<TargetHealthBar>();
+            camera.transform.position = tank.transform.position + tank.transform.rotation * new Vector3(14f, 8f, 6f);
+            camera.transform.LookAt(tank.transform.position + Vector3.up * 1.5f);
+            if (bar != null) bar.Refresh(camera);
+            Render(camera, "tank_damaged");
+        }
+        if (truck != null)
+        {
+            truck.SetKind(Target.Kind.LightVehicle);
+            truck.TakeDamage(999f, truck.transform.position + truck.transform.forward * 5f);
+            Shoot(camera, "truck_destroyed", truck.transform, new Vector3(9f, 5f, 9f), 1.2f);
+        }
+        if (depot != null)
+        {
+            depot.SetKind(Target.Kind.SupplyDepot);
+            depot.TakeDamage(999f, depot.transform.position + Vector3.up * 6f);
+            Shoot(camera, "depot_destroyed", depot.transform, new Vector3(9f, 5f, 11f), 1.2f);
+        }
+
         // The two challenge layouts, built by the real runner code.
         var runner = new MissionChallengeRunner();
         runner.Configure(FindDefinition(ChallengeKind.Jammer), 0);
@@ -97,13 +124,29 @@ public static class ReviewCapture
             Shoot(camera, "fuel_group_35m", fuel.transform, new Vector3(0f, 26f, -24f), 0.5f);
         }
 
-        // The pilot's view of the charge, from a freshly built drone.
-        DroneRig drone = DroneFactory.Create(new Vector3(0f, 30f, -80f), Quaternion.identity, WarheadType.Standard);
-        Camera fpv = drone.GetComponentInChildren<Camera>();
-        if (fpv != null)
+        // The pilot's view of the charge, and a side view of it, per charge.
+        foreach (WarheadType charge in new[] { WarheadType.Standard, WarheadType.Heavy })
         {
+            DroneRig drone = DroneFactory.Create(new Vector3(0f, 30f, -80f), Quaternion.identity, charge);
+            Camera fpv = drone.GetComponentInChildren<Camera>();
+            if (fpv == null) continue;
+            string suffix = charge == WarheadType.Standard ? "" : "_heavy";
             fpv.transform.rotation = Quaternion.Euler(12f, 0f, 0f);
-            Render(fpv, "fpv_charge");
+            Render(fpv, "fpv_charge" + suffix);
+
+            Transform view = fpv.transform.Find("WarheadView");
+            if (view != null)
+            {
+                var side = new GameObject("SideCamera").AddComponent<Camera>();
+                side.nearClipPlane = 0.01f;
+                side.fieldOfView = 30f;
+                side.transform.position = view.position + fpv.transform.right * 0.75f + fpv.transform.up * 0.12f;
+                side.transform.LookAt(view.position + fpv.transform.forward * 0.03f);
+                fpv.enabled = false;
+                Render(side, "warhead_side" + suffix);
+                Object.DestroyImmediate(side.gameObject);
+            }
+            Object.DestroyImmediate(drone.gameObject);
         }
 
         EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);

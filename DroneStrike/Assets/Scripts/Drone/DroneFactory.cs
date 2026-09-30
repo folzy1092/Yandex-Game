@@ -191,126 +191,108 @@ public static class DroneFactory
     }
 
     /// <summary>
-    /// The payload itself, in view.
+    /// The payload itself, in view: an RPG-type shaped charge, the thing real
+    /// FPV strike drones actually carry, slung under the camera with its nose
+    /// poking into the bottom of the frame.
     ///
-    /// FPV strike footage always shows the warhead's own nose poking into the
-    /// bottom of frame — it is mounted ahead of and below the camera, not out
-    /// of sight — so it is built as a fixture of the camera rather than of the
-    /// airframe: it has to stay framed the same way no matter how the drone is
-    /// tilted, exactly like DroneCameraGimbal keeps the horizon steady.
+    /// History, so the next pass does not repeat it: this was a smooth
+    /// tube-flare-ogive of revolution (and before that a downloaded missile
+    /// and a flat-nosed pod). Rendered, the smooth version read as a candle
+    /// or a suppository — one soft rounded silhouette, as wide at the tail as
+    /// at the head, seen end-on with its flat tail disc toward the lens.
+    /// What makes an RPG grenade read as ordnance is the opposite: a head
+    /// wider than everything behind it, a hard-edged stepped nose cone with
+    /// a thin fuse probe, and a narrow tail tube. So it is built from
+    /// separate hard-edged frustums (no smoothed normals across the joins),
+    /// with a yellow HE band and black tape, and placed so only the nose and
+    /// head are in frame — the tail runs back under the camera out of view.
+    /// Verified with Tools > Drone Strike > Capture Review Shots (fpv_charge,
+    /// warhead_side).
     ///
-    /// The nose is one continuous curved profile — cylindrical tube, a shoulder
-    /// that flares out wider than the tube, then an ogive taper to a point —
-    /// built as a single lofted mesh with PrimitiveMesh.Revolve rather than a
-    /// stack of separate frustums. Separate pieces meeting at mismatched radii
-    /// is what read as a stepped, pancake-like shape when this was tried as a
-    /// stubby flat-nosed pod instead; a shorter tube keeps this version from
-    /// reading as an elongated dart without breaking the one silhouette that
-    /// was never reported as actually broken, only mildly phallic.
-    ///
-    /// A short mounting strap ties the tube to the camera housing above it, so
-    /// it reads as slung underneath the airframe rather than floating loose in
-    /// front of the lens. No downloaded model is used here — a missile GLB was
-    /// tried and pulled off this same mount in a later pass; guessing a
-    /// downloaded model's rest orientation and pivot blind cost two rounds and
-    /// still read as floating.
-    ///
-    /// It also grows with the airframe: a second band on the second drone, a
-    /// tandem precursor and more fins on the third. A number on a menu the
-    /// player has already left does not sell an upgrade — the charge sitting in
-    /// front of them all mission does.
+    /// Charge size scales it; the heavy charge carries a tandem precursor on
+    /// a long probe (PG-7VR-style); the better airframes add tape wraps.
     /// </summary>
     static void BuildWarheadView(Transform cameraTransform, WarheadType warhead, int tier,
                                  Color accent)
     {
         Material body = Resources.Load<Material>("Materials/Mat_Warhead");
-        Material band = Resources.Load<Material>("Materials/Mat_WarheadBand");
-        Material trim = TintedAccent(accent);
+        Material dark = Resources.Load<Material>("Materials/Mat_DroneFrame");
+        Material metal = Resources.Load<Material>("Materials/Mat_Chrome");
+        Material marking = Resources.Load<Material>("Materials/Mat_Hazard");
+        Material tape = Resources.Load<Material>("Materials/Mat_Rubber");
+        if (dark == null) dark = body;
+        if (metal == null) metal = dark;
+        if (marking == null) marking = Resources.Load<Material>("Materials/Mat_WarheadBand");
+        if (tape == null) tape = dark;
 
-        // Compact and low in frame. At 0.40 m ahead and full size the charge
-        // filled the bottom quarter of the screen and read as a huge clay
-        // capsule; smaller and set further forward and down, only its nose and
-        // band show along the bottom edge — present, readable, out of the way.
-        float scale = warhead == WarheadType.Compact ? 0.56f
-                    : warhead == WarheadType.Standard ? 0.62f : 0.68f;
-        scale *= 1f + tier * 0.05f;
+        float scale = warhead == WarheadType.Compact ? 0.8f
+                    : warhead == WarheadType.Standard ? 0.9f : 1f;
 
         var root = new GameObject("WarheadView");
         root.transform.SetParent(cameraTransform, false);
-        // Slung under the housing, nose tipped forward — mounted to the
-        // airframe the way the real thing is, not held out in empty air.
-        // Nose tipped up ~20 deg into the bottom of the frame with the tail
-        // below the lower edge: the pilot sees the ogive point poking in, as
-        // in real FPV footage, not the round tail end of a tube aimed at the
-        // lens. Tail ~42 deg below the view axis, tip ~27 deg (half FOV 46).
-        root.transform.localPosition = new Vector3(0f, -0.395f, 0.49f);
-        root.transform.localRotation = Quaternion.Euler(70f, 0f, 0f);
+        // Head centre 0.36 m ahead of and 0.24 m below the lens (~34 deg
+        // below the view axis, half FOV 46): nose tip at ~18 deg, the tail
+        // tube runs back past the lower edge of the frame.
+        root.transform.localPosition = new Vector3(0f, -0.24f, 0.36f);
+        // Nose tipped ~25 deg up relative to the view: seen from the camera
+        // above and behind, the grenade then shows in three-quarter profile
+        // (cone, band, fuse) instead of end-on as a round head on a stick.
+        root.transform.localRotation = Quaternion.Euler(65f, 0f, 0f);
         root.transform.localScale = Vector3.one * scale;
 
-        const float tubeRadius = 0.072f;
-        // Shortened from -0.17f: the same flare-and-point nose on a shorter
-        // tube softens the length-to-width ratio without touching the one
-        // part of the shape that was ever actually complained about.
-        const float tubeBottom = -0.12f;
-        const float tubeTop = 0.05f;
+        // Profile along local +Y (the nose), metres at scale 1. Head
+        // diameter 92 mm, like a PG-7 grenade.
+        const float headRadius = 0.046f;
+        const float tailRadius = 0.022f;
+        Segment(root, "TailTube", tailRadius, tailRadius, -0.26f, -0.07f, dark);
+        Segment(root, "BoatTail", tailRadius, headRadius, -0.07f, -0.02f, body);
+        Segment(root, "Head", headRadius, headRadius, -0.02f, 0.04f, body);
+        Segment(root, "NoseLower", headRadius, 0.033f, 0.04f, 0.085f, body);
+        Segment(root, "NoseUpper", 0.033f, 0.013f, 0.085f, 0.135f, body);
+        Segment(root, "FuseCap", 0.013f, 0.009f, 0.135f, 0.148f, metal);
 
-        var profile = new[]
+        float tip = 0.148f;
+        if (warhead == WarheadType.Heavy)
         {
-            new Vector2(tubeRadius, tubeBottom),          // tail end of the tube
-            new Vector2(tubeRadius, tubeTop),              // tube meets the shoulder
-            new Vector2(0.100f, tubeTop + 0.045f),          // the flare — wider than the tube,
-                                                             // the silhouette that reads as "warhead"
-            new Vector2(0.086f, tubeTop + 0.095f),
-            new Vector2(0.058f, tubeTop + 0.150f),
-            new Vector2(0.026f, tubeTop + 0.195f),
-            new Vector2(0f, tubeTop + 0.225f)               // the point
-        };
-
-        AddMesh(root.transform, "Nose", Vector3.zero, PrimitiveMesh.Revolve(profile), body);
-
-        // A strap linking the tube to the underside of the camera housing —
-        // the detail that reads as "attached" rather than "hovering nearby".
-        var strap = AddBox(root.transform, "MountStrap", new Vector3(0f, tubeTop - 0.03f, -0.055f),
-                           new Vector3(0.03f, 0.10f, 0.03f), trim);
-        strap.transform.localRotation = Quaternion.Euler(-24f, 0f, 0f);
-
-        // The warning band. A second one on the better charges is the cheapest
-        // possible "this is the stronger one" cue, and it reads at a glance
-        // because it is the only bright ring on an otherwise olive body.
-        AddCylinder(root.transform, "Band", new Vector3(0f, tubeTop - 0.01f, 0f),
-                    new Vector3(tubeRadius * 1.18f, 0.011f, tubeRadius * 1.18f), band);
-
-        if (tier >= 1)
-            AddCylinder(root.transform, "BandLower", new Vector3(0f, tubeTop - 0.06f, 0f),
-                        new Vector3(tubeRadius * 1.1f, 0.008f, tubeRadius * 1.1f), trim);
-
-        // The top airframe carries a tandem precursor on a standoff probe, which
-        // is what a real one looks like and is unmistakable in silhouette.
-        if (tier >= 2)
+            // Tandem precursor: a long rod with a small charge on its end.
+            Segment(root, "PrecursorRod", 0.006f, 0.006f, tip, tip + 0.09f, metal);
+            Segment(root, "Precursor", 0.017f, 0.017f, tip + 0.09f, tip + 0.115f, body);
+            Segment(root, "PrecursorNose", 0.017f, 0.004f, tip + 0.115f, tip + 0.14f, body);
+        }
+        else
         {
-            float tipY = profile[profile.Length - 1].y;
-
-            AddCylinder(root.transform, "Probe", new Vector3(0f, tipY + 0.05f, 0f),
-                        new Vector3(0.012f, 0.05f, 0.012f), body);
-
-            AddMesh(root.transform, "Precursor", new Vector3(0f, tipY + 0.125f, 0f),
-                    PrimitiveMesh.Frustum(0.03f, 0f, 0.07f), trim);
+            Segment(root, "FuseProbe", 0.005f, 0.005f, tip, tip + 0.03f, metal);
+            Segment(root, "FuseTip", 0.005f, 0f, tip + 0.03f, tip + 0.038f, metal);
         }
 
-        // Tail fins, fanned around the tube's rear. The better airframes carry
-        // more of them, so the tail reads differently too.
-        int fins = tier >= 2 ? 6 : 4;
-        float finY = tubeBottom + 0.06f;
+        // Yellow HE band round the head, black tape where it is lashed on.
+        Segment(root, "MarkingBand", headRadius * 1.012f, headRadius * 1.012f, 0.012f, 0.022f, marking);
+        Segment(root, "TapeHead", headRadius * 1.02f, headRadius * 1.02f, -0.015f, -0.004f, tape);
+        Segment(root, "TapeTail", tailRadius * 1.15f, tailRadius * 1.15f, -0.12f, -0.105f, tape);
+        if (tier >= 1)
+            Segment(root, "TapeTail2", tailRadius * 1.15f, tailRadius * 1.15f, -0.2f, -0.185f, tape);
 
-        for (int i = 0; i < fins; i++)
+        // Zip-tie strap up to the airframe, and tail fins (both mostly
+        // behind the frame edge; they keep the silhouette honest if the
+        // field of view is widened).
+        AddBox(root.transform, "MountStrap", new Vector3(0f, -0.16f, -0.03f),
+               new Vector3(0.01f, 0.03f, 0.02f), tape);
+        for (int i = 0; i < 4; i++)
         {
-            Quaternion spin = Quaternion.Euler(0f, i * (360f / fins), 0f);
-            Vector3 offset = spin * new Vector3(0f, 0f, tubeRadius * 0.72f);
-
-            var fin = AddBox(root.transform, "Fin" + i, new Vector3(0f, finY, 0f) + offset,
-                             new Vector3(0.008f, 0.085f, 0.075f), body);
+            Quaternion spin = Quaternion.Euler(0f, i * 90f + 45f, 0f);
+            var fin = AddBox(root.transform, "Fin" + i,
+                             new Vector3(0f, -0.23f, 0f) + spin * new Vector3(0f, 0f, tailRadius + 0.012f),
+                             new Vector3(0.003f, 0.05f, 0.024f), dark);
             fin.transform.localRotation = spin;
         }
+    }
+
+    /// <summary>A hard-edged frustum between two heights along local +Y.</summary>
+    static void Segment(GameObject root, string name, float bottomRadius, float topRadius,
+                        float bottom, float top, Material material)
+    {
+        AddMesh(root.transform, name, new Vector3(0f, (bottom + top) * 0.5f, 0f),
+                PrimitiveMesh.Frustum(bottomRadius, topRadius, top - bottom, 24), material);
     }
 
     // ---------- helpers ----------

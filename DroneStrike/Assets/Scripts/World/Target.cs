@@ -137,12 +137,12 @@ public class Target : MonoBehaviour
     // ---------- damaged, not dead ----------
 
     /// <summary>
-    /// Repaints every material slot to the scorched look, the same reliable
-    /// technique <see cref="Explode"/> uses for the wrecked state — a
-    /// MaterialPropertyBlock tint was tried here first and silently did nothing
-    /// on some shaders, because the colour property a PropertyBlock overwrites
-    /// is not the same name on every shader a downloaded model can arrive with.
-    /// Swapping the whole material asset does not depend on knowing that name.
+    /// A hit the target survived. It used to repaint every slot orange, which
+    /// read as a texture error and told the player nothing about hitting it
+    /// again. Now the vehicle keeps its own colours, darkened with soot; a
+    /// dark smoke column rises (smoke without flame keeps "wounded" apart
+    /// from the burning wreck); and a health bar appears over it, which is
+    /// what actually says "still alive — finish it".
     /// </summary>
     void ApplyBattleDamage()
     {
@@ -154,26 +154,47 @@ public class Target : MonoBehaviour
         if (GameAudio.Instance != null)
             GameAudio.Instance.PlayHardImpact(transform.position);
 
-        Material damaged = Resources.Load<Material>("Materials/Mat_Damaged");
-        if (damaged != null)
-        {
-            foreach (Renderer renderer in GetComponentsInChildren<Renderer>())
-            {
-                // Markers and outline shells keep their own materials.
-                if (TargetOutline.IsOverlay(renderer)) continue;
-                int slotCount = renderer.sharedMaterials.Length;
-                var slots = new Material[slotCount];
-                for (int i = 0; i < slotCount; i++) slots[i] = damaged;
-                renderer.sharedMaterials = slots;
-            }
-        }
-
-        // A light plume, not a fire — smoke without flame is what keeps
-        // "wounded" from being confused with "dead" at a glance.
-        SpawnSmokePlume(0.6f);
+        Soot(0.55f);
+        SpawnSmokePlume(0.75f);
+        TargetHealthBar.Attach(this);
 
         transform.rotation *= Quaternion.Euler(
-            UnityEngine.Random.Range(-3f, 3f), 0f, UnityEngine.Random.Range(-3f, 3f));
+            UnityEngine.Random.Range(-2f, 2f), 0f, UnityEngine.Random.Range(-2f, 2f));
+    }
+
+    /// <summary>
+    /// Darkens every material with per-target copies. The colour is set under
+    /// every name a shader here might use for it — Standard's _Color, the
+    /// glTF importer's baseColorFactor, URP-style _BaseColor — which is why a
+    /// single MaterialPropertyBlock tint did nothing on the downloaded models.
+    /// </summary>
+    void Soot(float factor)
+    {
+        var copies = new System.Collections.Generic.Dictionary<Material, Material>();
+        foreach (Renderer renderer in GetComponentsInChildren<Renderer>())
+        {
+            if (TargetOutline.IsOverlay(renderer) || renderer is ParticleSystemRenderer) continue;
+            Material[] slots = renderer.sharedMaterials;
+            for (int i = 0; i < slots.Length; i++)
+            {
+                Material original = slots[i];
+                if (original == null) continue;
+                if (!copies.TryGetValue(original, out Material copy))
+                {
+                    copy = new Material(original) { name = original.name + " (soot)" };
+                    foreach (string property in new[] { "_Color", "baseColorFactor", "_BaseColor" })
+                    {
+                        if (!copy.HasProperty(property)) continue;
+                        Color colour = copy.GetColor(property);
+                        copy.SetColor(property, new Color(colour.r * factor, colour.g * factor,
+                                                          colour.b * factor, colour.a));
+                    }
+                    copies[original] = copy;
+                }
+                slots[i] = copy;
+            }
+            renderer.sharedMaterials = slots;
+        }
     }
 
     /// <summary>
@@ -190,29 +211,87 @@ public class Target : MonoBehaviour
         if (GameAudio.Instance != null)
             GameAudio.Instance.PlayTargetDestroyed();
 
-        Material burnt = Resources.Load<Material>("Materials/Mat_Burnt");
-        if (burnt != null)
-        {
-            foreach (Renderer renderer in GetComponentsInChildren<Renderer>())
-            {
-                if (TargetOutline.IsOverlay(renderer)) continue;
-                // A downloaded model typically has several material slots (hull,
-                // tracks, glass...). Setting sharedMaterial alone only replaces
-                // slot 0, leaving the rest showing their original texture — every
-                // slot has to be overwritten for the whole thing to read as burnt.
-                int slotCount = renderer.sharedMaterials.Length;
-                var burntSlots = new Material[slotCount];
-                for (int i = 0; i < slotCount; i++) burntSlots[i] = burnt;
-                renderer.sharedMaterials = burntSlots;
-            }
-        }
+        // Burnt, but still recognisably the same vehicle: darken the
+        // existing materials rather than flood every slot with one flat black,
+        // which erased every panel line and read as a hole in the picture.
+        Soot(IsDamaged ? 0.3f : 0.18f);
 
-        // Settle and lean the wreck so it reads as destroyed at a glance.
-        transform.position += Vector3.down * 0.25f;
-        transform.rotation *= Quaternion.Euler(
-            UnityEngine.Random.Range(-8f, 8f), 0f, UnityEngine.Random.Range(-8f, 8f));
+        // The wreck stays exactly where it stood. Tilting the whole object a
+        // random few degrees and sinking it 25 cm lifted a depot's posts off
+        // the ground on one side and buried them on the other - the destroyed
+        // state looked like a physics bug. Damage is shown on the object and
+        // around it instead: soot, heavier smoke, a burn patch on the ground
+        // and debris thrown out on the grass. (Decals on the hull were tried
+        // and dropped: placed on the collider box, they floated off the
+        // actual model surface.)
+        ScorchGround();
+        ScatterDebris();
 
         SpawnFire();
+    }
+
+    /// <summary>A large burn patch on the ground under and around the wreck.</summary>
+    void ScorchGround()
+    {
+        Material scorch = ScorchMaterial();
+        if (scorch == null) return;
+        Vector3 point = GroundBelow(transform.position);
+        GameObject quad = GameObject.CreatePrimitive(PrimitiveType.Quad);
+        quad.name = "ScorchMarkerGround";
+        Collider collider = quad.GetComponent<Collider>();
+        if (collider != null) FieldProps.Discard(collider);
+        quad.transform.SetParent(transform, true);
+        quad.transform.position = point + Vector3.up * 0.03f;
+        quad.transform.rotation = Quaternion.Euler(90f, UnityEngine.Random.Range(0f, 360f), 0f);
+        float size = FootprintRadius * 5f;
+        quad.transform.localScale = new Vector3(size, size, 1f);
+        quad.GetComponent<Renderer>().sharedMaterial = scorch;
+    }
+
+    /// <summary>
+    /// Charred chunks lying on the grass round the wreck. Each one is set on
+    /// the ground by its own half-height, so none floats or sinks.
+    /// </summary>
+    void ScatterDebris()
+    {
+        Material burnt = Resources.Load<Material>("Materials/Mat_Burnt");
+        float reach = FootprintRadius + 1.5f;
+        int pieces = kind == Kind.ArmouredVehicle ? 9 : 7;
+        for (int i = 0; i < pieces; i++)
+        {
+            float angle = UnityEngine.Random.Range(0f, Mathf.PI * 2f);
+            float distance = UnityEngine.Random.Range(reach * 0.8f, reach * 1.8f);
+            Vector3 around = transform.position + new Vector3(Mathf.Cos(angle), 0f, Mathf.Sin(angle)) * distance;
+            var size = new Vector3(UnityEngine.Random.Range(0.25f, 0.8f), UnityEngine.Random.Range(0.08f, 0.25f),
+                                   UnityEngine.Random.Range(0.25f, 0.7f));
+
+            GameObject chunk = GameObject.CreatePrimitive(PrimitiveType.Cube);
+            chunk.name = "DebrisMarker";
+            Collider collider = chunk.GetComponent<Collider>();
+            if (collider != null) FieldProps.Discard(collider);
+            chunk.transform.SetParent(transform, true);
+            chunk.transform.position = GroundBelow(around) + Vector3.up * (size.y * 0.45f);
+            chunk.transform.rotation = Quaternion.Euler(UnityEngine.Random.Range(-6f, 6f),
+                UnityEngine.Random.Range(0f, 360f), UnityEngine.Random.Range(-6f, 6f));
+            chunk.transform.localScale = size;
+            if (burnt != null) chunk.GetComponent<Renderer>().sharedMaterial = burnt;
+        }
+    }
+
+    static Material ScorchMaterial()
+    {
+        Material material = Resources.Load<Material>("Materials/Mat_Scorch");
+        return material != null ? material : Resources.Load<Material>("Materials/Mat_BulletHole");
+    }
+
+    static Vector3 GroundBelow(Vector3 position)
+    {
+        GameObject terrain = GameObject.Find("Terrain");
+        Collider ground = terrain != null ? terrain.GetComponent<Collider>() : null;
+        RaycastHit hit;
+        if (ground != null && ground.Raycast(new Ray(position + Vector3.up * 30f, Vector3.down), out hit, 80f))
+            return hit.point;
+        return new Vector3(position.x, 0f, position.z);
     }
 
     // ---------- fire ----------
@@ -253,6 +332,7 @@ public class Target : MonoBehaviour
 
         BuildFlames(holder.transform, radius);
         SpawnSmokePlume(radius / 0.8f, holder.transform);
+        SpawnSmokePlume(radius / 0.55f, holder.transform);
 
         var lightGO = new GameObject("FireLight");
         lightGO.transform.SetParent(holder.transform, false);

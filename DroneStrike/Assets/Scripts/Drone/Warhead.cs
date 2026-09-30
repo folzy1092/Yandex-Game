@@ -142,6 +142,10 @@ public class Warhead : MonoBehaviour
 
         if (GameAudio.Instance != null) GameAudio.Instance.PlayExplosion(origin, type);
 
+        // A blast near the ground leaves a crater — including a hit low on a
+        // vehicle, which leaves one beside it. Airbursts leave nothing.
+        Craters.TrySpawn(origin, Profile.blastRadius);
+
         DroneCameraGimbal gimbal = GetComponent<DroneCameraGimbal>();
         if (gimbal != null)
             gimbal.Shake(Mathf.Lerp(1.8f, 2.8f, Mathf.InverseLerp(3f, 9f, Profile.blastRadius)));
