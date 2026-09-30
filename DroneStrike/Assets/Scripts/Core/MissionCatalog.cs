@@ -1,6 +1,12 @@
 using System;
 using UnityEngine;
 
+public struct MissionComposition
+{
+    public int armour, trucks, tents, patrols, antennas;
+    public int TargetCount { get { return armour + trucks + tents + patrols; } }
+}
+
 /// <summary>One mission the player can fly.</summary>
 public struct MissionMap
 {
@@ -31,6 +37,15 @@ public static class MissionCatalog
     const string ClearedKeyPrefix = "map_cleared_";
     const string SelectedKey = "map_selected";
 
+    static readonly MissionComposition[] compositions =
+    {
+        new MissionComposition { armour = 3, trucks = 3, tents = 3, patrols = 2, antennas = 2 },
+        new MissionComposition { armour = 4, trucks = 4, tents = 3, patrols = 2, antennas = 1 },
+        new MissionComposition { armour = 5, trucks = 3, tents = 3, patrols = 3, antennas = 2 }
+    };
+
+    public static MissionComposition CompositionFor(int index) { return compositions[index]; }
+
     public static readonly MissionMap[] Maps =
     {
         new MissionMap
@@ -39,7 +54,7 @@ public static class MissionCatalog
             sceneName = "Mission1",
             displayName = "ОПОРНЫЙ ПУНКТ",
             tagline = "Ровное поле, кольцевая дорога, техника под сетями.",
-            targetCount = 13,
+            targetCount = compositions[0].TargetCount,
             accent = new Color(0.35f, 0.60f, 0.45f)
         },
         new MissionMap
@@ -48,7 +63,7 @@ public static class MissionCatalog
             sceneName = "Mission2",
             displayName = "ЛЕСНАЯ ДОРОГА",
             tagline = "Холмы и плотный лес. Цели прячутся, подлёт низкий.",
-            targetCount = 14,
+            targetCount = compositions[1].TargetCount,
             accent = new Color(0.45f, 0.52f, 0.25f)
         },
         new MissionMap
@@ -57,7 +72,7 @@ public static class MissionCatalog
             sceneName = "Mission3",
             displayName = "ПЕРЕКРЁСТОК",
             tagline = "Сумерки, широкая развязка, самая насыщенная карта.",
-            targetCount = 16,
+            targetCount = compositions[2].TargetCount,
             accent = new Color(0.62f, 0.38f, 0.28f)
         }
     };

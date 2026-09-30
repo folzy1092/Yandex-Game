@@ -76,10 +76,14 @@ public class SignalLink : MonoBehaviour
             ? 1f
             : Mathf.Clamp01(1f - (distance - cleanRange) / (maximumRange - cleanRange));
 
+        if (SignalJammer.Active != null)
+            Strength *= SignalJammer.Active.SignalMultiplier(transform.position);
+
         if (Strength > 0f) return;
 
         IsLost = true;
         if (drone != null) drone.CutPower();
+        if (GameAudio.Instance != null) GameAudio.Instance.PlaySignalLost();
         if (OnLost != null) OnLost();
 
         StartCoroutine(SelfDestruct());

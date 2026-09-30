@@ -1,6 +1,18 @@
 using System;
 using UnityEngine;
 
+public struct AttackReport
+{
+    public Target target;
+    public float damage;
+    public float healthRemaining;
+    public float speed;
+    public float speedMultiplier;
+    public int targetsHit;
+    public int targetsDestroyed;
+    public bool weakSpot;
+}
+
 /// <summary>
 /// The drone's payload. Detonates on impact above a threshold speed, or on
 /// command from the pilot.
@@ -27,8 +39,10 @@ public class Warhead : MonoBehaviour
 
     /// <summary>Fired once, when the warhead goes off.</summary>
     public event Action OnDetonated;
+    public event Action<AttackReport> OnImpactReport;
 
     public bool HasDetonated { get; private set; }
+    public bool WasSubmerged { get; private set; }
 
     /// <summary>
     /// Read from <see cref="type"/> every time rather than cached in Awake.
@@ -115,28 +129,61 @@ public class Warhead : MonoBehaviour
 
         if (GameEffects.Instance != null)
         {
-            GameEffects.Instance.MuzzleFlash(origin, Vector3.up);
-            GameEffects.Instance.HardImpact(origin, Vector3.up);
+            GameEffects.Instance.Explosion(origin, Profile.blastRadius);
         }
 
-        if (GameAudio.Instance != null) GameAudio.Instance.PlayExplosion(origin);
+        if (GameAudio.Instance != null) GameAudio.Instance.PlayExplosion(origin, type);
 
-        ApplyBlast(origin, impactSpeed);
+        DroneCameraGimbal gimbal = GetComponent<DroneCameraGimbal>();
+        if (gimbal != null)
+            gimbal.Shake(Mathf.Lerp(1.8f, 2.8f, Mathf.InverseLerp(3f, 9f, Profile.blastRadius)));
+
+        AttackReport report = ApplyBlast(origin, impactSpeed);
+        if (OnImpactReport != null) OnImpactReport(report);
 
         if (drone != null) drone.CutPower();
         if (OnDetonated != null) OnDetonated();
 
+        RetireDrone();
+    }
+
+    /// <summary>Water consumes the drone without a dry-land blast.</summary>
+    public void Submerge()
+    {
+        if (HasDetonated) return;
+        HasDetonated = true;
+        WasSubmerged = true;
+        if (drone != null) drone.CutPower();
+        if (OnDetonated != null) OnDetonated();
+        RetireDrone();
+    }
+
+    void RetireDrone()
+    {
         // The drone is gone; hide it rather than destroying it this frame, so
         // anything still reading its transform this frame stays valid.
         foreach (Renderer renderer in GetComponentsInChildren<Renderer>())
             renderer.enabled = false;
 
+        // Clear any optional trails or local particles immediately. Without
+        // this, a detached trail can remain visible until its lifetime expires
+        // while the next drone is already launching.
+        foreach (TrailRenderer trail in GetComponentsInChildren<TrailRenderer>(true))
+        {
+            trail.emitting = false;
+            trail.Clear();
+            trail.enabled = false;
+        }
+        foreach (ParticleSystem particles in GetComponentsInChildren<ParticleSystem>(true))
+            particles.Stop(true, ParticleSystemStopBehavior.StopEmittingAndClear);
+
         body.detectCollisions = false;
         body.isKinematic = true;
     }
 
-    void ApplyBlast(Vector3 origin, float impactSpeed)
+    AttackReport ApplyBlast(Vector3 origin, float impactSpeed)
     {
+        AttackReport report = new AttackReport { speed = Mathf.Max(0f, impactSpeed) };
         // A drone that barely bumps a target and one flown into it at full
         // speed used to deal identical damage — the charge alone decided the
         // outcome, and there was no reason to fly a fast, committed run over
@@ -148,22 +195,53 @@ public class Warhead : MonoBehaviour
         float speedBonus = impactSpeed >= 0f
             ? 1f + Mathf.Clamp01((impactSpeed - armingSpeed) / 40f) * 0.5f
             : 1f;
+        report.speedMultiplier = speedBonus;
 
         Collider[] caught = Physics.OverlapSphere(origin, Profile.blastRadius);
-        var alreadyHit = new System.Collections.Generic.HashSet<Target>();
+        var nearestHits = new System.Collections.Generic.Dictionary<Target, float>();
 
         foreach (Collider collider in caught)
         {
             Target target = collider.GetComponentInParent<Target>();
             if (target == null || target.IsDestroyed) continue;
 
-            // A target with several colliders must not be damaged once per collider.
-            if (!alreadyHit.Add(target)) continue;
-
+            // Collider iteration order is undefined. Use the nearest surface
+            // across ALL colliders before applying damage once per target.
             float distance = Vector3.Distance(origin, collider.ClosestPoint(origin));
-            float falloff = Mathf.Clamp01(1f - distance / Profile.blastRadius);
-
-            target.TakeDamage(Profile.damage * damageMultiplier * falloff * speedBonus);
+            if (!nearestHits.TryGetValue(target, out float nearest) || distance < nearest)
+                nearestHits[target] = distance;
         }
+        foreach (var hit in nearestHits)
+        {
+            Target target = hit.Key;
+            float distance = hit.Value;
+            float falloff = Mathf.Clamp01(1f - distance / Profile.blastRadius);
+            float damage = Profile.damage * damageMultiplier * falloff * speedBonus;
+
+            // A solid wall takes most of the blast. Netting remains permeable;
+            // its thin mesh is visual cover, not a concrete blast shield.
+            RaycastHit cover;
+            Vector3 destination = target.transform.position + Vector3.up;
+            if (Physics.Linecast(origin, destination, out cover, ~0, QueryTriggerInteraction.Ignore)
+                && cover.collider.GetComponentInParent<Target>() != target
+                && !cover.collider.name.Contains("Net")
+                && !cover.collider.name.Contains("Drape"))
+                damage *= 0.3f;
+
+            float before = target.Health;
+            bool weak = target.IsWeakHit(origin);
+            target.TakeDamage(damage, origin);
+            float applied = before - target.Health;
+            report.targetsHit++;
+            if (target.IsDestroyed) report.targetsDestroyed++;
+            if (applied > report.damage)
+            {
+                report.target = target;
+                report.damage = applied;
+                report.healthRemaining = target.Health;
+                report.weakSpot = weak;
+            }
+        }
+        return report;
     }
 }

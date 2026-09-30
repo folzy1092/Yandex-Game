@@ -22,6 +22,7 @@ public struct DroneModel
 
     /// <summary>Multiplies how long the battery lasts.</summary>
     public float enduranceFactor;
+    public float dragFactor;
 
     /// <summary>Multiplies blast damage — a bigger airframe carries a bigger charge.</summary>
     public float damageFactor;
@@ -29,7 +30,7 @@ public struct DroneModel
     /// <summary>Body colour, so the three read differently on the loadout screen.</summary>
     public Color accent;
 
-    /// <summary>False for the starter airframe, true for anything behind an ad.</summary>
+    /// <summary>False for the starter airframe, true for later unlocks.</summary>
     public bool needsUnlock;
 
     /// <summary>
@@ -43,17 +44,12 @@ public struct DroneModel
 /// The drone roster, which one is selected, and which ones the player has
 /// unlocked.
 ///
-/// Unlocks are bought with attention rather than money: watching a rewarded ad
-/// unlocks an airframe permanently. That is the whole monetisation model, so it
-/// has to be honest — the starter drone can clear every mission on its own, and
-/// the unlocks are faster and harder-hitting rather than the only way to win.
-/// A paywall the player cannot pay is worse than no paywall at all.
+/// Mission medals unlock airframes through play. Rewarded ads can unlock them
+/// earlier, while the starter can clear every mission without an ad.
 ///
-/// The roster is a ladder rather than a set of side-grades: each airframe is
-/// faster AND harder-hitting than the one before it. A trade-off between two
-/// unlocks reads as a choice, which is right for a shop and wrong for
-/// progression — the player watching a second ad wants the next rung, not a
-/// different flavour of the same rung.
+/// Each airframe has a role: Scout brakes and lasts longer, Hornet intercepts,
+/// Hammer carries the hardest hit. Mission medals unlock them through play;
+/// existing rewarded unlock keys remain valid as an optional shortcut.
 ///
 /// State lives in PlayerPrefs, which on a WebGL build is browser storage, so an
 /// unlock survives a reload the way the player expects it to.
@@ -74,7 +70,8 @@ public static class DroneLoadout
                      + "зарядом бронетехнику может понадобиться подбить дважды.",
             thrustFactor = 1f,
             speedFactor = 1f,
-            enduranceFactor = 1f,
+            enduranceFactor = 1.15f,
+            dragFactor = 1.3f,
             damageFactor = 1f,
             accent = new Color(0.15f, 0.45f, 0.75f),
             needsUnlock = false
@@ -84,10 +81,11 @@ public static class DroneLoadout
             id = "hornet",
             displayName = "ШЕРШЕНЬ",
             tagline = "Резче на разгоне, быстрее в пикировании, заряд плотнее.",
-            thrustFactor = 1.28f,
-            speedFactor = 1.22f,
-            enduranceFactor = 1.05f,
-            damageFactor = 1.25f,
+            thrustFactor = 1.25f,
+            speedFactor = 1.35f,
+            enduranceFactor = 0.85f,
+            dragFactor = 0.95f,
+            damageFactor = 1.1f,
             accent = new Color(0.85f, 0.55f, 0.12f),
             needsUnlock = true,
             requiresId = null
@@ -96,11 +94,12 @@ public static class DroneLoadout
         {
             id = "hammer",
             displayName = "МОЛОТ",
-            tagline = "Топовый дрон: быстрее всех и бьёт сильнее всех.",
-            thrustFactor = 1.55f,
-            speedFactor = 1.42f,
-            enduranceFactor = 1.15f,
-            damageFactor = 1.6f,
+            tagline = "Тяжёлый удар по укреплениям; ниже скорость и меньше запас батареи.",
+            thrustFactor = 0.9f,
+            speedFactor = 0.92f,
+            enduranceFactor = 0.8f,
+            dragFactor = 0.85f,
+            damageFactor = 1.7f,
             accent = new Color(0.72f, 0.22f, 0.20f),
             needsUnlock = true,
 
@@ -119,7 +118,9 @@ public static class DroneLoadout
     public static bool IsUnlocked(DroneModel model)
     {
         if (!model.needsUnlock) return true;
-        return PlayerPrefs.GetInt(UnlockKeyPrefix + model.id, 0) == 1;
+        if (PlayerPrefs.GetInt(UnlockKeyPrefix + model.id, 0) == 1) return true;
+        return model.id == "hornet" ? MissionChallenges.TotalStars >= 2
+            : model.id == "hammer" && MissionChallenges.TotalStars >= 7;
     }
 
     /// <summary>
@@ -186,20 +187,18 @@ public static class DroneLoadout
 
     // ---------- charges ----------
 
-    // A three-rung ladder, the same shape as the airframes: compact is free,
-    // standard is one ad, heavy is a second ad and requires standard already
-    // unlocked. One free tier and one ad tier gave the player nothing left
-    // to want after a single rewarded view — a compact charge on the fastest
-    // unlocked airframe already clears the whole game, so "watch an ad for
-    // standard" was the entire monetisation loop for ordnance. A third rung
-    // keeps there being a next thing to unlock.
+    // The same ladder as the airframes: compact is free, standard opens after
+    // the first medal, and heavy after six stars. Rewarded ads are shortcuts;
+    // the old keys still grant the same unlocks for returning players.
 
     const string WarheadUnlockKeyPrefix = "warhead_unlocked_";
 
     public static bool IsWarheadUnlocked(WarheadType charge)
     {
         if (charge == WarheadType.Compact) return true;
-        return PlayerPrefs.GetInt(WarheadUnlockKeyPrefix + charge, 0) == 1;
+        if (PlayerPrefs.GetInt(WarheadUnlockKeyPrefix + charge, 0) == 1) return true;
+        return charge == WarheadType.Standard ? MissionChallenges.TotalStars >= 1
+            : charge == WarheadType.Heavy && MissionChallenges.TotalStars >= 6;
     }
 
     /// <summary>Whether this charge's unlock can even be offered yet — the same idea as DroneLoadout.IsAvailable.</summary>

@@ -74,6 +74,7 @@ public static class MissionBuilder
 
     public static Profile Outpost()
     {
+        MissionComposition targets = MissionCatalog.CompositionFor(0);
         return new Profile
         {
             sceneName = "Mission1",
@@ -87,7 +88,8 @@ public static class MissionBuilder
             roadMaterial = "Mat_Asphalt",
             paintedLines = true,
             hasPond = false,
-            armour = 3, trucks = 3, tents = 3, antennas = 2, patrols = 2,
+            armour = targets.armour, trucks = targets.trucks, tents = targets.tents,
+            antennas = targets.antennas, patrols = targets.patrols,
             treeAttempts = 520,
             sunColour = new Color(1f, 0.96f, 0.88f),
             sunIntensity = 1.25f,
@@ -100,6 +102,7 @@ public static class MissionBuilder
 
     public static Profile Woodline()
     {
+        MissionComposition targets = MissionCatalog.CompositionFor(1);
         return new Profile
         {
             sceneName = "Mission2",
@@ -113,7 +116,8 @@ public static class MissionBuilder
             roadMaterial = "Mat_Dirt",     // a graded track, not a painted road
             paintedLines = false,
             hasPond = true,
-            armour = 4, trucks = 4, tents = 3, antennas = 1, patrols = 2,
+            armour = targets.armour, trucks = targets.trucks, tents = targets.tents,
+            antennas = targets.antennas, patrols = targets.patrols,
             treeAttempts = 1100,          // the woods are the point of this one
             sunColour = new Color(0.96f, 0.94f, 0.86f),
             sunIntensity = 1.05f,
@@ -126,6 +130,7 @@ public static class MissionBuilder
 
     public static Profile Crossroads()
     {
+        MissionComposition targets = MissionCatalog.CompositionFor(2);
         return new Profile
         {
             sceneName = "Mission3",
@@ -139,7 +144,8 @@ public static class MissionBuilder
             roadMaterial = "Mat_AsphaltWorn",
             paintedLines = true,
             hasPond = false,
-            armour = 5, trucks = 3, tents = 3, antennas = 2, patrols = 3,
+            armour = targets.armour, trucks = targets.trucks, tents = targets.tents,
+            antennas = targets.antennas, patrols = targets.patrols,
             treeAttempts = 620,
             sunColour = new Color(1f, 0.78f, 0.58f),   // low sun, long shadows
             sunIntensity = 1.05f,
@@ -194,6 +200,7 @@ public static class MissionBuilder
 
         Random.state = previous;
 
+        SceneVisualAssets.PersistMeshes(scene, profile.sceneName);
         Directory.CreateDirectory("Assets/Scenes");
         EditorSceneManager.SaveScene(scene, "Assets/Scenes/" + profile.sceneName + ".unity");
         Debug.Log("Drone Strike: " + profile.sceneName + " built with " + targetCount + " targets.");
@@ -231,8 +238,14 @@ public static class MissionBuilder
         sun.intensity = profile.sunIntensity;
         sun.color = profile.sunColour;
         sun.shadows = LightShadows.Soft;
-        sun.shadowStrength = 0.6f;
+        sun.shadowStrength = 0.72f;
+        sun.shadowBias = 0.035f;
+        sun.shadowNormalBias = 0.25f;
         sunGO.transform.rotation = Quaternion.Euler(profile.sunAngles);
+        RenderSettings.sun = sun;
+        RenderSettings.skybox = DroneMaterials.BuildSky(profile.sceneName,
+            Color.Lerp(new Color(0.50f, 0.55f, 0.62f), profile.fogColour, 0.35f),
+            profile.fogColour * 0.65f);
 
         RenderSettings.ambientMode = UnityEngine.Rendering.AmbientMode.Trilight;
         RenderSettings.ambientSkyColor = profile.fogColour * 0.9f;
@@ -252,8 +265,10 @@ public static class MissionBuilder
     {
         var ground = new GameObject("Terrain");
 
-        Mesh mesh = TerrainMesh.Build(profile.mapSize, 129, profile.hillAmplitude,
-                                      profile.seed, FlatRadius);
+        int terrainResolution = profile.hasPond ? 193 : 129;
+        Mesh mesh = TerrainMesh.Build(profile.mapSize, terrainResolution, profile.hillAmplitude,
+                                      profile.seed, FlatRadius, profile.hasPond,
+                                      new Vector2(PondX, PondZ), PondRadius, PondDepth);
 
         ground.AddComponent<MeshFilter>().sharedMesh = mesh;
         ground.AddComponent<MeshRenderer>().sharedMaterial = DroneMaterials.Load(profile.groundMaterial);
@@ -269,23 +284,42 @@ public static class MissionBuilder
     /// exactly one of it, on one map, so a whole rejection-sampling pass would
     /// be more code than the thing is worth.
     /// </summary>
+    const float PondX = 10f;
+    const float PondZ = -40f;
+    const float PondRadius = 14f;
+    const float PondDepth = 3.2f;
+    const float PondSurfaceDrop = 0.72f;
+
     static void BuildPond()
     {
-        const float x = 10f;
-        const float z = -40f;
-        const float radius = 14f;
-
-        if (!ClearOfRoad(x, z, radius + RoadClearance))
+        if (!ClearOfRoad(PondX, PondZ, PondRadius + RoadClearance))
             Debug.LogWarning("Drone Strike: the pond overlaps the road.");
 
-        Claim(x, z, radius + 4f);
+        Claim(PondX, PondZ, PondRadius + 4f);
 
         var pond = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
         pond.name = "Pond";
-        pond.transform.position = OnGround(x, z, 0.12f);
-        pond.transform.localScale = new Vector3(radius * 2f, 0.05f, radius * 2f);
+        pond.transform.position = OnGround(PondX, PondZ, -PondSurfaceDrop);
+        float waterRadius = PondRadius * 0.82f;
+        pond.transform.localScale = new Vector3(waterRadius * 2f, 0.08f, waterRadius * 2f);
         pond.GetComponent<Renderer>().sharedMaterial = DroneMaterials.Load("Mat_Water");
         Object.DestroyImmediate(pond.GetComponent<Collider>());
+
+        // Exact circular trigger on the visible water. Touching the surface
+        // floods the electronics and immediately costs the current drone.
+        var waterCollider = pond.AddComponent<MeshCollider>();
+        waterCollider.sharedMesh = pond.GetComponent<MeshFilter>().sharedMesh;
+        waterCollider.convex = true;
+        waterCollider.isTrigger = true;
+        pond.AddComponent<WaterHazard>();
+
+        // Dark floor beneath transparent water gives a visible depth cue.
+        var bottom = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
+        bottom.name = "PondBottom";
+        bottom.transform.position = OnGround(PondX, PondZ, -PondDepth + 0.05f);
+        bottom.transform.localScale = new Vector3(PondRadius * 2f, 0.10f, PondRadius * 2f);
+        bottom.GetComponent<Renderer>().sharedMaterial = DroneMaterials.Load("Mat_PondBottom");
+        Object.DestroyImmediate(bottom.GetComponent<Collider>());
     }
 
     static float GroundAt(float x, float z)
@@ -852,13 +886,12 @@ public static class MissionBuilder
 
     /// <summary>A long low mound of earth. Solid: the drone has to fly over it.</summary>
     /// <summary>
-    /// Its own real-world length has never been seen in an editor — the same
-    /// situation every other downloaded model in this project started in.
-    /// This is the number to change if the segments come in overlapping or
-    /// leaving visible gaps once the trench is actually visible in a build.
+    /// The GLB's position bounds, after its node transform, measure roughly
+    /// 3.16 m along local X and 0.78 m along local Z. Rotate that X axis onto
+    /// the claimed line's Z axis before repeating sections along the line.
     /// </summary>
     const float TrenchSegmentSpan = 4.5f;
-    const float TrenchModelYawOffset = 0f;
+    const float TrenchModelYawOffset = 90f;
 
     /// <summary>
     /// A dug-in sandbag line: a row of the same trench-wall model repeated
@@ -880,16 +913,13 @@ public static class MissionBuilder
         {
             float along = -length * 0.5f + (i + 0.5f) * (length / segments);
 
-            // A perfectly even, perfectly aligned row of identical objects is
-            // what read as "an assembly line", not sandbags someone actually
-            // stacked — every segment gets its own jitter along the line, a
-            // sideways nudge off the centreline, and its own facing and
-            // height, so no two sit exactly the same way.
-            float alongJitter = Random.Range(-0.6f, 0.6f);
-            float sidewaysJitter = Random.Range(-0.5f, 0.5f);
-            float yawJitter = Random.Range(-14f, 14f);
-            float heightJitter = Random.Range(-0.05f, 0.08f);
-            float scaleJitter = Random.Range(0.9f, 1.12f);
+            // Keep adjacent sections touching while varying their silhouette.
+            // The old broad jitter left gaps between already misoriented rows.
+            float alongJitter = Random.Range(-0.08f, 0.08f);
+            float sidewaysJitter = Random.Range(-0.12f, 0.12f);
+            float yawJitter = Random.Range(-5f, 5f);
+            float heightJitter = Random.Range(-0.03f, 0.04f);
+            float scaleJitter = Random.Range(1.06f, 1.10f);
 
             Vector3 segmentPos = OnGround(
                 x + direction.x * (along + alongJitter) + sideways.x * sidewaysJitter,
@@ -900,7 +930,7 @@ public static class MissionBuilder
                                                           yaw + TrenchModelYawOffset + yawJitter);
             if (trench == null) break;
 
-            NormalizeTrenchSegment(trench, TrenchSegmentSpan * scaleJitter);
+            NormalizeTrenchSegment(trench, (length / segments) * scaleJitter);
             trench.transform.position = segmentPos;
             anyPlaced = true;
         }
@@ -977,67 +1007,128 @@ public static class MissionBuilder
     }
 
     /// <summary>
-    /// Camouflage netting: a dark sheet on four poles, high enough for a drone
-    /// to fly under and low enough to hide what is parked beneath it from above.
+    /// Anti-drone netting: a fully supported six-post frame with a sagging,
+    /// alpha-cut mesh. It is deliberately all-or-nothing: a pole that cannot
+    /// be placed cancels the entire structure instead of leaving a floating
+    /// canopy on three legs.
     /// </summary>
     static void CamoNet(Transform parent, Material net, float x, float z, float size, float yaw)
     {
+        const float poleRadius = 0.9f;
+        float halfWidth = size * 0.5f;
+        float halfDepth = size * 0.35f;
+        Quaternion rotation = Quaternion.Euler(0f, yaw, 0f);
+        Vector3 centre = OnGround(x, z);
+        Vector2[] supports =
+        {
+            new Vector2(-halfWidth, -halfDepth),
+            new Vector2(-halfWidth, 0f),
+            new Vector2(-halfWidth, halfDepth),
+            new Vector2(halfWidth, -halfDepth),
+            new Vector2(halfWidth, 0f),
+            new Vector2(halfWidth, halfDepth)
+        };
+
+        // Validate every foot before touching claims or creating any object.
+        // The previous per-pole loop could skip one occupied corner and still
+        // build the sheet, which was the source of incomplete canopies.
+        foreach (Vector2 support in supports)
+        {
+            Vector3 world = centre + rotation * new Vector3(support.x, 0f, support.y);
+            if (!IsFree(world.x, world.z, poleRadius)) return;
+            if (!ClearOfRoad(world.x, world.z, RoadClearance)) return;
+        }
+
         var group = new GameObject("CamoNet");
         group.transform.SetParent(parent, false);
-        group.transform.position = OnGround(x, z);
-        group.transform.rotation = Quaternion.Euler(0f, yaw, 0f);
+        group.transform.position = centre;
+        group.transform.rotation = rotation;
 
         const float poleHeight = 5.2f;
         Material metal = DroneMaterials.Load("Mat_RustMetal");
 
-        foreach (float px in new[] { -size * 0.5f, size * 0.5f })
+        foreach (Vector2 support in supports)
         {
-            foreach (float pz in new[] { -size * 0.35f, size * 0.35f })
-            {
-                Vector3 world = group.transform.TransformPoint(new Vector3(px, 0f, pz));
-                if (!IsFree(world.x, world.z, 0.9f)) continue;
-                if (!ClearOfRoad(world.x, world.z, RoadClearance)) continue;
+            float px = support.x;
+            float pz = support.y;
+            Vector3 world = group.transform.TransformPoint(new Vector3(px, 0f, pz));
+            Claim(world.x, world.z, poleRadius);
 
-                Claim(world.x, world.z, 0.9f);
+            var pole = new GameObject("Pole");
+            pole.transform.SetParent(group.transform, false);
+            pole.transform.localPosition = new Vector3(px, poleHeight * 0.5f, pz);
 
-                // Tapered rather than a uniform cylinder, and leaning a couple
-                // of degrees off true — a driven post is never perfectly
-                // upright, and a uniform column read as moulded plastic rather
-                // than something hammered into the ground.
-                var pole = new GameObject("Pole");
-                pole.transform.SetParent(group.transform, false);
-                pole.transform.localPosition = new Vector3(px, 0f, pz);
-                pole.transform.localRotation =
-                    Quaternion.Euler(Random.Range(-3f, 3f), Random.Range(0f, 360f), Random.Range(-3f, 3f));
+            var poleMesh = pole.AddComponent<MeshFilter>();
+            poleMesh.sharedMesh = PrimitiveMesh.Frustum(0.14f, 0.08f, poleHeight);
+            var poleRenderer = pole.AddComponent<MeshRenderer>();
+            poleRenderer.sharedMaterial = metal;
+            poleRenderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.On;
+            var poleCollider = pole.AddComponent<CapsuleCollider>();
+            poleCollider.direction = 1;
+            poleCollider.height = poleHeight;
+            poleCollider.radius = 0.14f;
 
-                var poleMesh = pole.AddComponent<MeshFilter>();
-                poleMesh.sharedMesh = PrimitiveMesh.Frustum(0.14f, 0.08f, poleHeight);
-                var poleRenderer = pole.AddComponent<MeshRenderer>();
-                poleRenderer.sharedMaterial = metal;
-                poleRenderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
-                pole.transform.localPosition += Vector3.up * (poleHeight * 0.5f);
-            }
+            var foot = new GameObject("Foot");
+            foot.transform.SetParent(group.transform, false);
+            foot.transform.localPosition = new Vector3(px, 0.05f, pz);
+            foot.transform.localScale = new Vector3(0.55f, 0.10f, 0.55f);
+            var footFilter = foot.AddComponent<MeshFilter>();
+            footFilter.sharedMesh = PrimitiveMesh.Frustum(0.32f, 0.22f, 1f);
+            var footRenderer = foot.AddComponent<MeshRenderer>();
+            footRenderer.sharedMaterial = metal;
+            footRenderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.On;
         }
 
+        // Perimeter rope plus one centre support. Huge diagonal bars made the
+        // previous version look like a broken steel truss from underneath.
+        Vector3 nw = new Vector3(-halfWidth, poleHeight, halfDepth);
+        Vector3 ne = new Vector3(halfWidth, poleHeight, halfDepth);
+        Vector3 sw = new Vector3(-halfWidth, poleHeight, -halfDepth);
+        Vector3 se = new Vector3(halfWidth, poleHeight, -halfDepth);
+        Vector3 mw = new Vector3(-halfWidth, poleHeight, 0f);
+        Vector3 me = new Vector3(halfWidth, poleHeight, 0f);
+        AddNetCable(group.transform, metal, nw, ne);
+        AddNetCable(group.transform, metal, ne, se);
+        AddNetCable(group.transform, metal, se, sw);
+        AddNetCable(group.transform, metal, sw, nw);
+        AddNetCable(group.transform, metal, mw, me);
+
         // A sagging mesh rather than a flat cube: a taut, perfectly planar
-        // rhombus over a vehicle read as a solid painted roof, not fabric.
+        // rhombus over a vehicle reads as a cardboard roof, not flexible mesh.
         var sheet = new GameObject("Net");
         sheet.transform.SetParent(group.transform, false);
         sheet.transform.localPosition = new Vector3(0f, poleHeight, 0f);
 
-        // A 0.6 m dip across a sixteen-plus-metre sheet is under 4% of the
-        // span — invisible at any distance a drone actually sees it from, so
-        // even with the lighting bug fixed it still read as a flat plate
-        // rather than netting. A real sag deep enough to actually show up as
-        // shading, on a finer grid so the curve looks smooth rather than
-        // faceted.
+        // A shallow, smooth sag reads as flexible mesh without hanging down
+        // into the vehicle park like a crumpled solid roof.
         var sheetFilter = sheet.AddComponent<MeshFilter>();
-        sheetFilter.sharedMesh = PrimitiveMesh.Drape(size + 1f, size * 0.7f + 1f, 2.4f, 10,
+        sheetFilter.sharedMesh = PrimitiveMesh.Drape(size, size * 0.7f, 1.1f, 16,
                                                      Mathf.RoundToInt(x * 13f + z * 7f));
 
         var sheetRenderer = sheet.AddComponent<MeshRenderer>();
         sheetRenderer.sharedMaterial = net;
-        sheetRenderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.TwoSided;
+        sheetRenderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.On;
+
+        // A static non-convex mesh collider follows the actual sag. The drone
+        // now hits the net surface instead of passing through a visual-only prop.
+        var sheetCollider = sheet.AddComponent<MeshCollider>();
+        sheetCollider.sharedMesh = sheetFilter.sharedMesh;
+        sheet.AddComponent<CamoNetMotion>();
+    }
+
+    static void AddNetCable(Transform parent, Material material, Vector3 from, Vector3 to)
+    {
+        Vector3 span = to - from;
+        var cable = new GameObject("TensionLine");
+        cable.transform.SetParent(parent, false);
+        cable.transform.localPosition = (from + to) * 0.5f;
+        cable.transform.localRotation = Quaternion.FromToRotation(Vector3.up, span.normalized);
+
+        var filter = cable.AddComponent<MeshFilter>();
+        filter.sharedMesh = PrimitiveMesh.Frustum(0.045f, 0.045f, span.magnitude);
+        var renderer = cable.AddComponent<MeshRenderer>();
+        renderer.sharedMaterial = material;
+        renderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.On;
     }
 
     // ---------- clutter ----------
@@ -1082,6 +1173,7 @@ public static class MissionBuilder
 
             BuildGrassTuft(group.transform, foliage, x, z);
         }
+        SceneVisualAssets.CombineGrass(group.transform);
     }
 
     /// <summary>
@@ -1360,7 +1452,11 @@ public static class MissionBuilder
         // hold at least one per target plus a margin for crashes and misses. A
         // flat count regardless of the map's actual targets is what makes a
         // mission unwinnable.
-        mission.droneCount = Mathf.Max(4, Mathf.CeilToInt(targetCount * 1.3f));
+        int tankCount = 0;
+        foreach (Target target in Object.FindObjectsByType<Target>(FindObjectsSortMode.None))
+            if (target.kind == Target.Kind.ArmouredVehicle) tankCount++;
+        int requiredHits = targetCount + tankCount;
+        mission.droneCount = requiredHits + Mathf.Max(3, Mathf.CeilToInt(requiredHits * 0.25f));
 
         managers.AddComponent<DroneHUD>();
     }

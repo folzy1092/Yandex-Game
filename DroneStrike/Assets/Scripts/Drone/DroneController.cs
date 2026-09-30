@@ -80,10 +80,6 @@ public class DroneController : MonoBehaviour
     public float altitudeHoldStrength = 6f;
     public float altitudeHoldDamping = 4f;
 
-    [Header("Look")]
-    public float yawRate = 130f;
-    public float mouseSensitivity = 2.5f;
-
     [Header("Airframe")]
     /// <summary>How far the body leans into its own acceleration. Cosmetic only.</summary>
     public float leanAngle = 28f;
@@ -91,7 +87,7 @@ public class DroneController : MonoBehaviour
 
     public float SpeedKmh { get { return body.linearVelocity.magnitude * 3.6f; } }
     public float AltitudeMetres { get; private set; }
-    public float Heading { get { return transform.eulerAngles.y; } }
+    public float Heading { get { return gimbal != null ? gimbal.Yaw : transform.eulerAngles.y; } }
 
     /// <summary>0..1, drives battery drain and rotor speed.</summary>
     public float ThrottleLevel { get; private set; }
@@ -99,7 +95,8 @@ public class DroneController : MonoBehaviour
     public bool IsPowered { get; private set; }
 
     Rigidbody body;
-    float yaw;
+    DroneCameraGimbal gimbal;
+    Collider terrainCollider;
     Vector3 leanVelocity;
     Quaternion leanRotation = Quaternion.identity;
 
@@ -120,20 +117,15 @@ public class DroneController : MonoBehaviour
         body.interpolation = RigidbodyInterpolation.Interpolate;
         body.collisionDetectionMode = CollisionDetectionMode.ContinuousDynamic;
 
-        yaw = transform.eulerAngles.y;
+        gimbal = GetComponent<DroneCameraGimbal>();
+        GameObject terrain = GameObject.Find("Terrain");
+        if (terrain != null) terrainCollider = terrain.GetComponent<Collider>();
         IsPowered = true;
-    }
-
-    void Update()
-    {
-        if (!IsPowered) return;
-
-        float mouseX = Input.GetAxis("Mouse X") * mouseSensitivity;
-        yaw += mouseX * yawRate * Time.deltaTime;
     }
 
     void FixedUpdate()
     {
+        if (gimbal == null) gimbal = GetComponent<DroneCameraGimbal>();
         MeasureAltitude();
 
         if (!IsPowered)
@@ -143,7 +135,8 @@ public class DroneController : MonoBehaviour
             return;
         }
 
-        Vector3 command = ReadCommand();
+        Vector3 command = MissionManager.Instance != null && !MissionManager.Instance.CanPilot
+            ? Vector3.zero : ReadCommand();
         ApplyThrust(command);
         ApplyDrag(command);
         ClampSpeed();
@@ -160,26 +153,26 @@ public class DroneController : MonoBehaviour
         float forwardInput = Input.GetAxisRaw("Vertical");     // W / S
         float strafeInput = Input.GetAxisRaw("Horizontal");    // A / D
 
-        // Shift climbs too, alongside Space — some players reach for one,
-        // some the other, and there is no sprint mechanic here to conflict with.
-        bool up = Input.GetKey(KeyCode.Space)
-                 || Input.GetKey(KeyCode.LeftShift) || Input.GetKey(KeyCode.RightShift);
-        bool down = Input.GetKey(KeyCode.LeftControl) || Input.GetKey(KeyCode.RightControl);
+        bool up = Input.GetKey(KeyCode.Space);
+        bool down = Input.GetKey(KeyCode.LeftShift) || Input.GetKey(KeyCode.RightShift);
         float climbInput = (up ? 1f : 0f) - (down ? 1f : 0f);
 
-        // Releasing the throttle keys re-arms the hold at whatever altitude the
-        // drone is at that instant, rather than snapping back to an old one.
-        if (climbInput != 0f) holdingAltitude = false;
+        Vector3 forward = gimbal != null ? gimbal.LookDirection
+            : aimReference != null ? aimReference.forward : transform.forward;
+
+        // World height is the hold reference. A roof beneath the drone can
+        // change the HUD clearance, but must never kick the flight controller.
+        bool commandedVertical = Mathf.Abs(climbInput) > 0.001f
+            || Mathf.Abs(forwardInput * forward.y) > 0.02f;
+        if (commandedVertical) holdingAltitude = false;
         else if (!holdingAltitude)
         {
-            heldAltitude = AltitudeMetres;
+            heldAltitude = transform.position.y;
             holdingAltitude = true;
         }
 
         // Aim including its vertical component: this is the whole point — looking
         // down and pushing forward has to dive, not fly level.
-        Vector3 forward = aimReference != null ? aimReference.forward : transform.forward;
-
         // Strafing stays horizontal. Rolling the sideways axis with the camera
         // would make a dive slide the drone sideways into the ground.
         Vector3 right = Vector3.Cross(Vector3.up, forward);
@@ -198,14 +191,13 @@ public class DroneController : MonoBehaviour
 
     void ApplyThrust(Vector3 command)
     {
-        // Hold altitude: the drone hovers on its own, so the throttle keys are
-        // for climbing and descending rather than for not falling.
-        body.AddForce(-Physics.gravity, ForceMode.Acceleration);
+        // The Rigidbody does not use gravity while powered. Adding a gravity
+        // compensation here would be a constant, unintended upward thrust.
         body.AddForce(command, ForceMode.Acceleration);
 
         if (holdingAltitude)
         {
-            float error = heldAltitude - AltitudeMetres;
+            float error = heldAltitude - transform.position.y;
             float correction = error * altitudeHoldStrength - body.linearVelocity.y * altitudeHoldDamping;
             body.AddForce(Vector3.up * correction, ForceMode.Acceleration);
         }
@@ -237,7 +229,7 @@ public class DroneController : MonoBehaviour
     /// </summary>
     void ApplyOrientation(Vector3 command)
     {
-        Quaternion heading = Quaternion.Euler(0f, yaw, 0f);
+        Quaternion heading = Quaternion.Euler(0f, Heading, 0f);
 
         Vector3 local = Quaternion.Inverse(heading) * command;
         var targetLean = new Vector3(
@@ -254,9 +246,9 @@ public class DroneController : MonoBehaviour
     void MeasureAltitude()
     {
         RaycastHit hit;
-        AltitudeMetres = Physics.Raycast(transform.position, Vector3.down, out hit, 500f)
-            ? hit.distance
-            : transform.position.y;
+        Ray ray = new Ray(transform.position, Vector3.down);
+        AltitudeMetres = terrainCollider != null && terrainCollider.Raycast(ray, out hit, 500f)
+            ? hit.distance : transform.position.y;
     }
 
     /// <summary>

@@ -10,11 +10,16 @@ public class TargetHighlight : MonoBehaviour
 
     Renderer marker;
     float seed;
+    MaterialPropertyBlock properties;
+    Color baseColour;
+    static readonly int ColourId = Shader.PropertyToID("_Color");
 
     void Awake()
     {
         marker = GetComponent<Renderer>();
         seed = Random.value * 100f;
+        properties = new MaterialPropertyBlock();
+        baseColour = marker != null && marker.sharedMaterial != null ? marker.sharedMaterial.color : Color.white;
     }
 
     void Update()
@@ -28,8 +33,10 @@ public class TargetHighlight : MonoBehaviour
         }
 
         float breathe = Mathf.PerlinNoise(seed, Time.time * 0.35f);
-        Color colour = marker.material.color;
+        Color colour = baseColour;
         colour.a = Mathf.Lerp(0.12f, 0.32f, breathe);
-        marker.material.color = colour;
+        marker.GetPropertyBlock(properties);
+        properties.SetColor(ColourId, colour);
+        marker.SetPropertyBlock(properties);
     }
 }

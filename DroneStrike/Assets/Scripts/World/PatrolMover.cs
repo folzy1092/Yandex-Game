@@ -1,3 +1,4 @@
+using System;
 using UnityEngine;
 
 /// <summary>
@@ -35,6 +36,8 @@ public class PatrolMover : MonoBehaviour
     /// points along it rather than all beginning at index 0.
     /// </summary>
     public int startWaypoint;
+    public int maxWaypointsPassed;
+    public event Action OnEscaped;
 
     /// <summary>How far ahead to check for something blocking the road.</summary>
     public float obstacleCheckDistance = 9f;
@@ -49,6 +52,8 @@ public class PatrolMover : MonoBehaviour
     int direction = 1;
 
     float cooldownRemaining;
+    int waypointsPassed;
+    bool escaped;
 
     Rigidbody body;
     Target target;
@@ -61,12 +66,19 @@ public class PatrolMover : MonoBehaviour
 
         target = GetComponent<Target>();
 
+    }
+
+    void Start()
+    {
+        // The editor builder assigns waypoints after AddComponent has already
+        // invoked Awake, so the starting leg must be resolved in Start.
         nextWaypoint = waypoints.Length > 0 ? startWaypoint % waypoints.Length : 0;
     }
 
     void FixedUpdate()
     {
         if (waypoints.Length < 2) return;
+        if (escaped) return;
         if (target != null && target.IsDestroyed) return;
 
         if (cooldownRemaining > 0f) cooldownRemaining -= Time.fixedDeltaTime;
@@ -104,6 +116,13 @@ public class PatrolMover : MonoBehaviour
 
     void Advance()
     {
+        waypointsPassed++;
+        if (maxWaypointsPassed > 0 && waypointsPassed >= maxWaypointsPassed)
+        {
+            escaped = true;
+            if (OnEscaped != null) OnEscaped();
+            return;
+        }
         nextWaypoint = (nextWaypoint + direction + waypoints.Length) % waypoints.Length;
     }
 

@@ -17,6 +17,7 @@ public static class DroneFactory
 {
     const float ArmLength = 0.34f;
     const float PropRadius = 0.16f;
+    const int HiddenFromFpvLayer = 30;
 
     public static DroneRig Create(Vector3 position, Quaternion rotation, WarheadType warhead)
     {
@@ -47,6 +48,13 @@ public static class DroneFactory
         BuildArmsAndRotors(drone.transform, frameMaterial, propMaterial);
         Transform view = BuildCamera(drone.transform, accentMaterial);
         BuildWarheadView(view, warhead, tier, model.accent);
+        // The wide FPV lens otherwise catches the nearby arms and spinning
+        // blades as large black wedges when the pilot looks down. Keep the
+        // payload in view while excluding only the airframe's visual pieces.
+        foreach (Renderer renderer in drone.GetComponentsInChildren<Renderer>())
+            if (!renderer.transform.IsChildOf(view))
+                renderer.gameObject.layer = HiddenFromFpvLayer;
+        view.GetComponent<Camera>().cullingMask &= ~(1 << HiddenFromFpvLayer);
 
         var controller = drone.AddComponent<DroneController>();
         // Forward is measured from the camera, so the controller needs it before
@@ -59,6 +67,7 @@ public static class DroneFactory
         controller.thrust *= model.thrustFactor;
         controller.maxSpeed *= model.speedFactor;
         controller.climbThrust *= model.thrustFactor;
+        controller.drag *= model.dragFactor;
 
         // Fit() rather than assigning the fields: the charge changes how the
         // drone handles, and that has to happen after the type is known.
@@ -171,7 +180,10 @@ public static class DroneFactory
         var camera = cameraGO.AddComponent<Camera>();
         camera.fieldOfView = 92f;      // wide, like the lens on a real FPV rig
         camera.nearClipPlane = 0.04f;
-        camera.farClipPlane = 600f;
+        camera.farClipPlane = 850f; // Beyond the longest map's fog end, avoiding a visible cut-off.
+        camera.clearFlags = CameraClearFlags.Skybox;
+        camera.allowHDR = false;
+        camera.allowMSAA = true;
 
         cameraGO.AddComponent<AudioListener>();
 

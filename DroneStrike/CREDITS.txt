@@ -19,6 +19,22 @@ Files used (Assets/Resources/Textures/Particles/):
 
 CC0 requires no attribution, but Kenney's work is worth crediting anyway.
 
+Kenney Impact Sounds and Interface Sounds
+-----------------------------------------
+Source:  https://kenney.nl/assets/impact-sounds
+         https://kenney.nl/assets/interface-sounds
+Author:  Kenney Vleugels / Kenney.nl
+License: Creative Commons CC0 1.0 Universal (public domain)
+         https://creativecommons.org/publicdomain/zero/1.0/
+
+Files used: Assets/Resources/Audio/Impacts/*.ogg and
+            Assets/Resources/Audio/UI/*.wav. They were renamed but the audio
+            samples are unchanged. Exact source files and hashes are listed in
+            Assets/Resources/Audio/SOURCE_MANIFEST.md.
+
+Other clips under Assets/Resources/Audio/ were generated for DroneStrike by
+Tools/GenerateDroneStrikeAudio.py and are original project assets.
+
 
 PT Sans
 --------
@@ -47,10 +63,10 @@ Assets/Resources/Models/Trench.glb — "Sack Trench" by Quaternius
 Source:  https://poly.pizza/m/LW3jwpPfiN
 License: Creative Commons CC0 1.0 Universal (public domain)
          https://creativecommons.org/publicdomain/zero/1.0/
-Scale and segment length are unverified — see TrenchSegmentSpan and
-TrenchModelYawOffset at the top of MissionBuilder's Berm() method.
+The GLB accessor bounds and node transform place its long horizontal axis
+along local X. MissionBuilder rotates it 90 degrees to align with the wall.
 
 
-Everything else — every other texture, material, sound and 3D shape in the
+Everything else — every other texture, material and 3D shape in the
 game — is generated procedurally at build or run time from code, and carries
 no external licence.

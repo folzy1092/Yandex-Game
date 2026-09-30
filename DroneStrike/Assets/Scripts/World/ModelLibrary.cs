@@ -53,8 +53,16 @@ public static class ModelLibrary
             else Object.DestroyImmediate(collider);
         }
 
+        // The two hero targets need a contact cue on the ground. Trench
+        // segments remain unshadowed because there can be many per scene.
+        bool heroTarget = modelName == "Tank" || modelName == "SupplyTent";
         foreach (Renderer renderer in instance.GetComponentsInChildren<Renderer>())
-            renderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+        {
+            renderer.shadowCastingMode = heroTarget
+                ? UnityEngine.Rendering.ShadowCastingMode.On
+                : UnityEngine.Rendering.ShadowCastingMode.Off;
+            renderer.receiveShadows = heroTarget;
+        }
 
         return instance;
     }

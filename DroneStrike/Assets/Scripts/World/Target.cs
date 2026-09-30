@@ -14,7 +14,9 @@ public class Target : MonoBehaviour
     {
         LightVehicle,
         ArmouredVehicle,
-        SupplyDepot
+        SupplyDepot,
+        SignalJammer,
+        FuelDepot
     }
 
     public Kind kind = Kind.LightVehicle;
@@ -26,6 +28,11 @@ public class Target : MonoBehaviour
 
     /// <summary>True once this target has taken a hit it did not die to.</summary>
     public bool IsDamaged { get; private set; }
+    public bool WeakRear { get; set; }
+    public bool ProtectedByJammer { get; set; }
+    public bool IsPriority { get; set; }
+    public bool DestroyedViaWeakSpot { get; private set; }
+    public float Health { get { return Mathf.Max(0f, health); } }
 
     public int Points
     {
@@ -35,6 +42,8 @@ public class Target : MonoBehaviour
             {
                 case Kind.ArmouredVehicle: return 300;
                 case Kind.SupplyDepot: return 250;
+                case Kind.SignalJammer: return 200;
+                case Kind.FuelDepot: return 150;
                 default: return 100;
             }
         }
@@ -51,6 +60,8 @@ public class Target : MonoBehaviour
             {
                 case Kind.ArmouredVehicle: return 140f;
                 case Kind.SupplyDepot: return 60f;
+                case Kind.SignalJammer: return 70f;
+                case Kind.FuelDepot: return 50f;
                 default: return 80f;
             }
         }
@@ -61,9 +72,30 @@ public class Target : MonoBehaviour
         health = MaxHealth;
     }
 
+    public void SetKind(Kind value)
+    {
+        kind = value;
+        health = MaxHealth;
+    }
+
     public void TakeDamage(float amount)
     {
+        TakeDamage(amount, transform.position);
+    }
+
+    public void TakeDamage(float amount, Vector3 source)
+    {
         if (IsDestroyed || amount <= 0f) return;
+
+        if (ProtectedByJammer) amount *= 0.1f;
+
+        bool weakHit = IsWeakHit(source);
+        if (weakHit)
+        {
+            // The marker is on the rear (-Z) face. Front and flank attacks
+            // still work, but a rear approach saves a drone with the free kit.
+            amount *= 2f;
+        }
 
         health -= amount;
 
@@ -77,9 +109,17 @@ public class Target : MonoBehaviour
         }
 
         IsDestroyed = true;
+        DestroyedViaWeakSpot = weakHit;
         Explode();
 
         if (OnDestroyed != null) OnDestroyed(this, Points);
+    }
+
+    public bool IsWeakHit(Vector3 source)
+    {
+        if (!WeakRear || kind != Kind.ArmouredVehicle) return false;
+        Vector3 localSource = transform.InverseTransformPoint(source);
+        return localSource.z < -0.5f && Mathf.Abs(localSource.z) > Mathf.Abs(localSource.x);
     }
 
     // ---------- damaged, not dead ----------
@@ -107,6 +147,8 @@ public class Target : MonoBehaviour
         {
             foreach (Renderer renderer in GetComponentsInChildren<Renderer>())
             {
+                // The transparent target marker must keep its own material.
+                if (renderer.GetComponent<TargetHighlight>() != null) continue;
                 int slotCount = renderer.sharedMaterials.Length;
                 var slots = new Material[slotCount];
                 for (int i = 0; i < slotCount; i++) slots[i] = damaged;
@@ -132,14 +174,16 @@ public class Target : MonoBehaviour
         if (GameEffects.Instance != null)
             GameEffects.Instance.HardImpact(transform.position + Vector3.up, Vector3.up);
 
+        // The warhead plays the blast; this is only the target confirmation.
         if (GameAudio.Instance != null)
-            GameAudio.Instance.PlayHardImpact(transform.position);
+            GameAudio.Instance.PlayTargetDestroyed();
 
         Material burnt = Resources.Load<Material>("Materials/Mat_Burnt");
         if (burnt != null)
         {
             foreach (Renderer renderer in GetComponentsInChildren<Renderer>())
             {
+                if (renderer.GetComponent<TargetHighlight>() != null) continue;
                 // A downloaded model typically has several material slots (hull,
                 // tracks, glass...). Setting sharedMaterial alone only replaces
                 // slot 0, leaving the rest showing their original texture — every

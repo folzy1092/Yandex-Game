@@ -41,6 +41,13 @@ public static class TerrainMesh
     /// </param>
     public static Mesh Build(float size, int resolution, float amplitude, int seed, float flatRadius)
     {
+        return Build(size, resolution, amplitude, seed, flatRadius,
+            false, Vector2.zero, 0f, 0f);
+    }
+
+    public static Mesh Build(float size, int resolution, float amplitude, int seed, float flatRadius,
+                             bool hasPond, Vector2 pondCentre, float pondRadius, float pondDepth)
+    {
         resolution = Mathf.Clamp(resolution, 2, 250);
 
         var vertices = new Vector3[resolution * resolution];
@@ -68,6 +75,18 @@ public static class TerrainMesh
                     float blend = Mathf.SmoothStep(0f, 1f,
                         Mathf.InverseLerp(flatRadius, flatRadius * 2f, distance));
                     height *= blend;
+                }
+
+                if (hasPond && pondRadius > 0f)
+                {
+                    // Keep the water footprint below the surface and raise a
+                    // smooth bank outside it. The ground and its collider use
+                    // this same mesh, so the drone meets the visible shore.
+                    float pondDistance = Vector2.Distance(
+                        new Vector2(worldX, worldZ), pondCentre);
+                    float bank = Mathf.SmoothStep(0f, 1f,
+                        Mathf.InverseLerp(pondRadius * 0.75f, pondRadius, pondDistance));
+                    height -= pondDepth * (1f - bank);
                 }
 
                 vertices[index] = new Vector3(worldX, height, worldZ);
@@ -99,6 +118,18 @@ public static class TerrainMesh
         mesh.uv = uvs;
         mesh.triangles = triangles;
         mesh.RecalculateNormals();
+        var normals = mesh.normals;
+        var colours = new Color[vertices.Length];
+        float colourSeed = (seed % 8191) * 0.173f;
+        for (int i = 0; i < vertices.Length; i++)
+        {
+            Vector3 p = vertices[i];
+            float patches = Mathf.PerlinNoise(colourSeed + p.x * 0.028f, colourSeed + p.z * 0.028f);
+            float variation = Mathf.PerlinNoise(colourSeed + p.x * 0.009f, colourSeed + p.z * 0.009f);
+            colours[i] = new Color(Mathf.SmoothStep(0f, 0.85f, Mathf.InverseLerp(0.4f, 0.7f, patches)),
+                Mathf.InverseLerp(0.96f, 0.72f, normals[i].y), variation, 1f);
+        }
+        mesh.colors = colours;
         mesh.RecalculateBounds();
 
         return mesh;

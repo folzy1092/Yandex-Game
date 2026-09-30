@@ -16,19 +16,29 @@ public class DroneHUD : MonoBehaviour
     Text batteryText;
     Text headingText;
     Text missionText;
+    Text objectiveText;
+    Text targetHintText;
+    Text attackText;
+    float attackTextUntil;
     Image batteryFill;
     Image signalFill;
     Image staticOverlay;
+    CanvasGroup scanlines;
     RectTransform compassStrip;
 
     GameObject resultPanel;
     Text resultTitle;
     Text resultDetail;
     Button reviveButton;
+    Button nextButton;
     Text reviveLabel;
 
     GameObject pausePanel;
     Text pauseSummary;
+    Text volumeLabel;
+    Text sensitivityLabel;
+    Text invertLabel;
+    Text fovLabel;
 
     Text signalLostBanner;
     float signalLostUntil;
@@ -68,8 +78,10 @@ public class DroneHUD : MonoBehaviour
         if (MissionManager.Instance != null)
         {
             MissionManager.Instance.OnStateChanged += RefreshMission;
+            MissionManager.Instance.OnPauseChanged += RefreshPausePanel;
             MissionManager.Instance.OnMissionEnded += ShowResult;
             MissionManager.Instance.OnSignalLost += ShowSignalLost;
+            MissionManager.Instance.OnDroneReported += ShowDroneReport;
             RefreshMission();
         }
 
@@ -80,21 +92,33 @@ public class DroneHUD : MonoBehaviour
     {
         if (MissionManager.Instance == null) return;
         MissionManager.Instance.OnStateChanged -= RefreshMission;
+        MissionManager.Instance.OnPauseChanged -= RefreshPausePanel;
         MissionManager.Instance.OnMissionEnded -= ShowResult;
         MissionManager.Instance.OnSignalLost -= ShowSignalLost;
+        MissionManager.Instance.OnDroneReported -= ShowDroneReport;
     }
 
     void Update()
     {
         HandleEscape();
         UpdateSignalLostBanner();
+        if (attackText != null && attackText.gameObject.activeSelf && Time.unscaledTime > attackTextUntil)
+            attackText.gameObject.SetActive(false);
 
         MissionManager mission = MissionManager.Instance;
         DroneRig drone = mission != null ? mission.ActiveDrone : null;
 
         if (drone == null || drone.Controller == null)
         {
-            if (staticOverlay != null) staticOverlay.color = new Color(1f, 1f, 1f, 0.35f);
+            // There is no camera feed between launches. A bright static layer
+            // here was the source of the white flash on a restart, before the
+            // next drone had been created and supplied a healthy signal.
+            if (staticOverlay != null)
+            {
+                staticOverlay.color = new Color(1f, 1f, 1f, 0f);
+                staticOverlay.pixelsPerUnitMultiplier = 1f;
+            }
+            if (scanlines != null) scanlines.alpha = 0f;
             // No drone to lose signal to, so nothing should be mid-glitch —
             // otherwise the next drone could launch into a leftover jolt.
             if (feedRoot != null) feedRoot.anchoredPosition = Vector2.zero;
@@ -104,6 +128,7 @@ public class DroneHUD : MonoBehaviour
 
         UpdateTelemetry(drone);
         UpdateSignal(drone);
+        UpdateObjective(mission, drone);
     }
 
     /// <summary>
@@ -114,7 +139,7 @@ public class DroneHUD : MonoBehaviour
     /// </summary>
     void HandleEscape()
     {
-        if (!Input.GetKeyDown(KeyCode.Escape)) return;
+        if (!Input.GetKeyDown(KeyCode.Escape) || YandexAds.IsBusy) return;
 
         MissionManager mission = MissionManager.Instance;
         if (mission == null || !mission.IsRunning) return;
@@ -125,27 +150,29 @@ public class DroneHUD : MonoBehaviour
 
     void TogglePause()
     {
-        if (pausePanel == null) return;
-
-        if (pausePanel.activeSelf)
-        {
-            ClosePause();
-            return;
-        }
-
-        Time.timeScale = 0f;
-        RefreshPauseSummary();
-        pausePanel.SetActive(true);
-        Cursor.lockState = CursorLockMode.None;
-        Cursor.visible = true;
+        MissionManager mission = MissionManager.Instance;
+        if (mission == null) return;
+        // Browser Esc may itself release pointer lock before the mission has
+        // seen the key. A focus pause needs an explicit Continue click.
+        if ((mission.PauseReasons & MissionManager.PauseReason.Focus) != 0) return;
+        if ((mission.PauseReasons & MissionManager.PauseReason.Manual) != 0) ClosePause();
+        else mission.SetPause(MissionManager.PauseReason.Manual, true);
     }
 
     void ClosePause()
     {
-        Time.timeScale = 1f;
-        pausePanel.SetActive(false);
-        Cursor.lockState = CursorLockMode.Locked;
-        Cursor.visible = false;
+        if (MissionManager.Instance != null) MissionManager.Instance.ResumeFromPlayer();
+    }
+
+    void RefreshPausePanel()
+    {
+        MissionManager mission = MissionManager.Instance;
+        if (mission == null || pausePanel == null) return;
+        bool visible = mission.IsRunning &&
+            (mission.PauseReasons & (MissionManager.PauseReason.Manual |
+                                     MissionManager.PauseReason.Focus)) != 0;
+        if (visible) RefreshPauseSummary();
+        pausePanel.SetActive(visible);
     }
 
     void UpdateTelemetry(DroneRig drone)
@@ -171,6 +198,26 @@ public class DroneHUD : MonoBehaviour
                 new Vector2(-heading * CompassScale, compassStrip.anchoredPosition.y);
     }
 
+    void UpdateObjective(MissionManager mission, DroneRig drone)
+    {
+        if (objectiveText != null)
+            objectiveText.text = mission.HasChallenge ? mission.ObjectiveHint : string.Empty;
+
+        if (targetHintText == null) return;
+        targetHintText.text = string.Empty;
+        if (mission.TargetsTotal - mission.TargetsDestroyed > 2) return;
+        Target target = mission.ClosestRemainingTarget(drone.transform.position);
+        if (target == null) return;
+        Vector3 offset = target.transform.position - drone.transform.position;
+        Vector3 local = drone.View != null
+            ? drone.View.transform.InverseTransformDirection(offset.normalized)
+            : offset.normalized;
+        string arrow = Mathf.Abs(local.x) < 0.2f && local.z > 0f ? "↑"
+            : local.x < 0f ? "←" : "→";
+        string prefix = Localization.Current == Localization.Language.English ? "TARGET" : "ЦЕЛЬ";
+        targetHintText.text = prefix + " " + arrow + " " + Mathf.RoundToInt(offset.magnitude) + " м";
+    }
+
     void UpdateSignal(DroneRig drone)
     {
         float strength = drone.SignalLink != null ? drone.SignalLink.Strength : 1f;
@@ -179,11 +226,15 @@ public class DroneHUD : MonoBehaviour
             ? new Color(0.8f, 0.85f, 0.9f)
             : new Color(0.95f, 0.35f, 0.3f);
 
-        // Static grows as the link weakens, and flickers so it does not look
-        // like a flat grey sheet laid over the screen.
-        float noise = (1f - strength) * 0.5f;
+        // Keep a healthy feed clean. Starting from zero at 72% means the
+        // player sees the warning only near the actual range limit, not a
+        // permanent white veil at 94% signal.
+        float severity = Mathf.InverseLerp(0.72f, 0f, strength);
+        float noise = severity * severity * 0.42f;
         float flicker = Mathf.PerlinNoise(Time.time * 14f, 0f) * 0.35f + 0.65f;
         staticOverlay.color = new Color(1f, 1f, 1f, noise * flicker);
+        if (scanlines != null)
+            scanlines.alpha = Mathf.Lerp(0.012f, 0.085f, severity * severity);
 
         UpdateGlitch(strength);
     }
@@ -215,6 +266,7 @@ public class DroneHUD : MonoBehaviour
             // fires immediately if the link degrades again, rather than
             // waiting out an interval that was rolled while it was still bad.
             nextGlitchTime = Time.time;
+            staticOverlay.pixelsPerUnitMultiplier = 1f;
             return;
         }
 
@@ -226,18 +278,24 @@ public class DroneHUD : MonoBehaviour
         float severity = Mathf.InverseLerp(GlitchThreshold, 0f, strength);
         float interval = Mathf.Lerp(1.1f, 0.06f, severity);
 
-        nextGlitchTime = Time.time + interval * (0.5f + Random.value);
+        // UI must not consume UnityEngine.Random: that state also controls
+        // gameplay choices such as the next launch pad. Perlin samples give
+        // varied-looking interference without changing the mission.
+        float variation = Mathf.PerlinNoise(Time.unscaledTime * 5.1f, 12.7f);
+        nextGlitchTime = Time.time + interval * (0.5f + variation);
         glitchEndTime = Time.time + Mathf.Lerp(0.03f, 0.12f, severity);
         glitchAlpha = Mathf.Lerp(0.85f, 1f, severity);
 
-        feedRoot.anchoredPosition = new Vector2(Random.Range(-16f, 16f) * (0.35f + severity), 0f);
+        float offset = Mathf.PerlinNoise(Time.unscaledTime * 17.3f, 4.2f) * 32f - 16f;
+        feedRoot.anchoredPosition = new Vector2(offset * (0.35f + severity), 0f);
         staticOverlay.color = new Color(1f, 1f, 1f, glitchAlpha);
 
         // Cheap stand-in for a UV jump: Image has no exposed tile offset, but
         // rescaling how large each tile reads makes the same noise texture
         // jump to a different-looking pattern without touching the texture
         // itself.
-        staticOverlay.pixelsPerUnitMultiplier = Random.Range(0.7f, 1.8f);
+        staticOverlay.pixelsPerUnitMultiplier = Mathf.Lerp(0.7f, 1.8f,
+            Mathf.PerlinNoise(Time.unscaledTime * 23.9f, 8.4f));
     }
 
     // ---------- construction ----------
@@ -315,6 +373,18 @@ public class DroneHUD : MonoBehaviour
                                            Color.white, topLeft, topLeft,
                                            new Vector2(50f, -50f), new Vector2(600f, 100f));
 
+        objectiveText = UIFactory.CreateText(root, "Objective", "", 24, TextAnchor.UpperLeft,
+                                             new Color(0.95f, 0.82f, 0.42f), topLeft, topLeft,
+                                             new Vector2(50f, -205f), new Vector2(720f, 70f));
+        targetHintText = UIFactory.CreateText(root, "TargetDirection", "", 26, TextAnchor.UpperLeft,
+                                              Color.white, topLeft, topLeft,
+                                              new Vector2(50f, -280f), new Vector2(500f, 45f));
+        attackText = UIFactory.CreateText(root, "AttackReport", "", 29, TextAnchor.MiddleCenter,
+                                          new Color(1f, 0.85f, 0.55f),
+                                          new Vector2(0.5f, 0f), new Vector2(0.5f, 0f),
+                                          new Vector2(0f, 160f), new Vector2(1100f, 125f));
+        attackText.gameObject.SetActive(false);
+
         signalLostBanner = UIFactory.CreateText(root, "SignalLost", Localization.T("hud.signal_lost"), 54,
                                                 TextAnchor.MiddleCenter,
                                                 new Color(0.95f, 0.35f, 0.3f),
@@ -335,6 +405,8 @@ public class DroneHUD : MonoBehaviour
         var holder = new GameObject("Scanlines");
         holder.transform.SetParent(root, false);
         UIFactory.Stretch(holder);
+        scanlines = holder.AddComponent<CanvasGroup>();
+        scanlines.alpha = 0.012f;
 
         const int lines = 90;
         for (int i = 0; i < lines; i++)
@@ -344,7 +416,7 @@ public class DroneHUD : MonoBehaviour
 
             var image = line.AddComponent<Image>();
             image.sprite = UIFactory.BlankSprite;
-            image.color = new Color(0f, 0f, 0f, 0.10f);
+            image.color = Color.black;
             image.raycastTarget = false;
 
             var rect = line.GetComponent<RectTransform>();
@@ -382,7 +454,9 @@ public class DroneHUD : MonoBehaviour
         {
             for (int x = 0; x < size; x++)
             {
-                float value = Random.value;
+                // A fixed hash keeps this visual texture stable and avoids
+                // consuming the global gameplay RNG while the HUD is built.
+                float value = Mathf.Repeat(Mathf.Sin(x * 12.9898f + y * 78.233f) * 43758.5453f, 1f);
                 texture.SetPixel(x, y, new Color(value, value, value, value * 0.85f));
             }
         }
@@ -486,9 +560,9 @@ public class DroneHUD : MonoBehaviour
                                            TextAnchor.MiddleCenter, Color.white,
                                            centre, centre, new Vector2(0f, 160f), new Vector2(900f, 90f));
 
-        resultDetail = UIFactory.CreateText(resultPanel.transform, "ResultDetail", "", 32,
+        resultDetail = UIFactory.CreateText(resultPanel.transform, "ResultDetail", "", 27,
                                             TextAnchor.MiddleCenter, Color.white,
-                                            centre, centre, new Vector2(0f, 40f), new Vector2(900f, 160f));
+                                            centre, centre, new Vector2(0f, 35f), new Vector2(1000f, 195f));
 
         // The revive offer sits above the restart button, because it is the one
         // the player actually wants after a loss — running the rack dry one
@@ -502,6 +576,16 @@ public class DroneHUD : MonoBehaviour
         var reviveImage = reviveButton.targetGraphic as Image;
         if (reviveImage != null) reviveImage.color = new Color(0.72f, 0.48f, 0.12f);
         reviveLabel = reviveButton.GetComponentInChildren<Text>();
+
+        nextButton = UIFactory.CreateButton(resultPanel.transform, "NextChallenge",
+                                            Localization.T("hud.next"), 30,
+                                            centre, centre, new Vector2(0f, -100f),
+                                            new Vector2(460f, 74f), () =>
+                                            {
+                                                if (MissionManager.Instance != null)
+                                                    MissionManager.Instance.NextChallenge();
+                                            });
+        nextButton.gameObject.SetActive(false);
 
         UIFactory.CreateButton(resultPanel.transform, "RetryButton", Localization.T("hud.retry"), 30,
                                centre, centre, new Vector2(-180f, -196f), new Vector2(330f, 66f),
@@ -555,9 +639,38 @@ public class DroneHUD : MonoBehaviour
                                {
                                    // The mission scene is paused, but the menu is not — it must not
                                    // inherit a frozen clock from the screen it was opened over.
-                                   Time.timeScale = 1f;
                                    if (MissionManager.Instance != null) MissionManager.Instance.ReturnToMenu();
                                });
+
+        sensitivityLabel = UIFactory.CreateButton(pausePanel.transform, "Sensitivity", "", 23,
+            centre, centre, new Vector2(-340f, -245f), new Vector2(300f, 62f), () =>
+            {
+                float value = DroneCameraGimbal.Sensitivity + 0.5f;
+                DroneCameraGimbal.Sensitivity = value > 5f ? 0.5f : value;
+                RefreshCameraSettings();
+            }).GetComponentInChildren<Text>();
+        invertLabel = UIFactory.CreateButton(pausePanel.transform, "InvertY", "", 23,
+            centre, centre, new Vector2(0f, -245f), new Vector2(300f, 62f), () =>
+            {
+                DroneCameraGimbal.InvertY = !DroneCameraGimbal.InvertY;
+                RefreshCameraSettings();
+            }).GetComponentInChildren<Text>();
+        fovLabel = UIFactory.CreateButton(pausePanel.transform, "FOV", "", 23,
+            centre, centre, new Vector2(340f, -245f), new Vector2(300f, 62f), () =>
+            {
+                float value = DroneCameraGimbal.FieldOfView;
+                DroneCameraGimbal.FieldOfView = value < 80f ? 85f : value < 90f ? 92f
+                    : value < 98f ? 100f : 75f;
+                RefreshCameraSettings();
+            }).GetComponentInChildren<Text>();
+        volumeLabel = UIFactory.CreateButton(pausePanel.transform, "Volume", "", 23,
+            centre, centre, new Vector2(0f, -320f), new Vector2(300f, 62f), () =>
+            {
+                float value = GameAudio.MasterVolume + 0.25f;
+                GameAudio.SetMasterVolume(value > 1f ? 0f : value);
+                RefreshCameraSettings();
+            }).GetComponentInChildren<Text>();
+        RefreshCameraSettings();
 
         pausePanel.SetActive(false);
     }
@@ -624,6 +737,56 @@ public class DroneHUD : MonoBehaviour
         pauseSummary.text = BuildMissionSummary(mission);
     }
 
+    void RefreshCameraSettings()
+    {
+        bool english = Localization.Current == Localization.Language.English;
+        if (sensitivityLabel != null) sensitivityLabel.text =
+            (english ? "SENSITIVITY " : "ЧУВСТВИТ. ") + DroneCameraGimbal.Sensitivity.ToString("0.0");
+        if (invertLabel != null) invertLabel.text =
+            (english ? "INVERT Y " : "ИНВЕРСИЯ Y ") + (DroneCameraGimbal.InvertY ? "ON" : "OFF");
+        if (fovLabel != null) fovLabel.text = "FOV " + DroneCameraGimbal.FieldOfView.ToString("0");
+        if (volumeLabel != null) volumeLabel.text =
+            (english ? "VOLUME " : "ГРОМКОСТЬ ") + Mathf.RoundToInt(GameAudio.MasterVolume * 100f) + "%";
+    }
+
+    void ShowDroneReport(DroneLossReport report)
+    {
+        if (attackText == null) return;
+        bool english = Localization.Current == Localization.Language.English;
+        string cause = LossCauseLabel(report.cause, english);
+        AttackReport attack = report.attack;
+        if (attack.target != null)
+        {
+            string state = attack.target.IsDestroyed
+                ? (english ? "DESTROYED" : "УНИЧТОЖЕНА")
+                : (english ? "REMAINING " : "ОСТАЛОСЬ ") + Mathf.CeilToInt(attack.healthRemaining) + " HP";
+            attackText.text = cause + " · " + attack.target.kind + " · " +
+                Mathf.RoundToInt(attack.damage) + " DMG · " + state + "\n" +
+                Mathf.RoundToInt(attack.speed * 3.6f) + " KM/H" +
+                (attack.speedMultiplier > 1.01f
+                    ? (english ? " · SPEED +" : " · СКОРОСТЬ +") +
+                      Mathf.RoundToInt((attack.speedMultiplier - 1f) * 100f) + "%"
+                    : "") +
+                (attack.weakSpot ? (english ? " · WEAK SPOT" : " · СЛАБОЕ МЕСТО") : "") +
+                (attack.targetsDestroyed > 1 ? " · ×" + attack.targetsDestroyed : "");
+        }
+        else attackText.text = cause;
+        attackTextUntil = Time.unscaledTime + 2f;
+        attackText.gameObject.SetActive(true);
+    }
+
+    static string LossCauseLabel(DroneLossCause cause, bool english)
+    {
+        switch (cause)
+        {
+            case DroneLossCause.Battery: return english ? "BATTERY EMPTY" : "ЗАРЯД ИСЧЕРПАН";
+            case DroneLossCause.Signal: return english ? "SIGNAL LOST" : "ПОТЕРЯ СВЯЗИ";
+            case DroneLossCause.Water: return english ? "WATER" : "ВОДА";
+            case DroneLossCause.Obstacle: return english ? "OBSTACLE" : "ПРЕПЯТСТВИЕ";
+            default: return english ? "IMPACT" : "УДАР";
+        }
+    }
+
     void ShowResult(bool won)
     {
         MissionManager mission = MissionManager.Instance;
@@ -633,13 +796,44 @@ public class DroneHUD : MonoBehaviour
         // but if that ever changes, the pause panel must not be left sitting
         // on top of the result screen.
         if (pausePanel != null) pausePanel.SetActive(false);
-        Time.timeScale = 1f;
-
         resultTitle.text = won ? Localization.T("hud.win") : Localization.T("hud.lose");
         resultTitle.color = won ? new Color(0.5f, 0.9f, 0.5f) : new Color(0.95f, 0.4f, 0.35f);
 
         resultDetail.text = Localization.F("hud.result",
             mission.TargetsDestroyed, mission.TargetsTotal, mission.Score);
+        if (mission.HasChallenge)
+        {
+            int medal = won ? MissionChallenges.MedalFor(mission.ChallengeIndex,
+                mission.ElapsedTime, mission.DronesUsed) : 0;
+            bool english = Localization.Current == Localization.Language.English;
+            string medalName = medal == 3 ? (english ? "GOLD" : "ЗОЛОТО")
+                : medal == 2 ? (english ? "SILVER" : "СЕРЕБРО")
+                : medal == 1 ? (english ? "BRONZE" : "БРОНЗА") : "—";
+            float best = MissionChallenges.BestTime(mission.ChallengeIndex);
+            int bestDrones = MissionChallenges.BestDrones(mission.ChallengeIndex);
+            resultDetail.text = mission.Challenge.Title + "\n" + medalName + " · " +
+                Mathf.CeilToInt(mission.ElapsedTime) + " s · " + mission.DronesUsed +
+                (english ? " drones" : " дронов") + "\n" +
+                (english ? "This layout/kit best: " : "Рекорд варианта/комплекта: ") +
+                (best > 0f ? Mathf.CeilToInt(best) + " s / " + bestDrones +
+                    (english ? " drones" : " дронов") : "—");
+            if (won && medal < 3)
+            {
+                float threshold = medal == 1 ? mission.Challenge.silverSeconds : mission.Challenge.goldSeconds;
+                int drones = medal == 1 ? mission.Challenge.silverDrones : mission.Challenge.goldDrones;
+                resultDetail.text += "\n" + (english ? "Next medal: ≤" : "Следующая медаль: ≤") +
+                    Mathf.CeilToInt(threshold) + " s, ≤" + drones +
+                    (english ? " drones" : " дронов");
+            }
+        }
+        if (!won)
+        {
+            bool english = Localization.Current == Localization.Language.English;
+            resultDetail.text += "\n" + (!string.IsNullOrEmpty(mission.FailureHint)
+                ? mission.FailureHint
+                : (english ? "Last drone: " : "Последний дрон: ") +
+                  LossCauseLabel(mission.LastDroneReport.cause, english));
+        }
 
         // Nothing to revive into once every target is down, and no offer left
         // once the per-mission cap is spent.
@@ -648,6 +842,8 @@ public class DroneHUD : MonoBehaviour
             reviveButton.gameObject.SetActive(!won && mission.CanRequestExtraDrone);
             reviveButton.interactable = true;
         }
+        if (nextButton != null) nextButton.gameObject.SetActive(won && mission.HasChallenge &&
+            mission.ChallengeIndex + 1 < MissionChallenges.Definitions.Length);
 
         if (reviveLabel != null) reviveLabel.text = Localization.T("hud.revive");
 

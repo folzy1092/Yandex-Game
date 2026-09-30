@@ -38,12 +38,13 @@ public class DroneBattery : MonoBehaviour
 
     void Update()
     {
-        if (reported) return;
+        if (reported || (drone != null && !drone.IsPowered)) return;
 
-        // Hovering sits at half throttle, so that is the baseline the endurance
-        // figure is quoted against.
-        float throttle = drone != null ? drone.ThrottleLevel : 0.5f;
-        float effort = 1f + Mathf.Abs(throttle - 0.5f) * 2f * throttleDrainFactor;
+        // The hover draw is the minimum positive drain. Commanded acceleration
+        // increases consumption monotonically instead of making half input
+        // inexplicably cheaper than hovering.
+        float throttle = drone != null ? drone.ThrottleLevel : 0f;
+        float effort = 1f + Mathf.Clamp01(throttle) * throttleDrainFactor;
 
         Charge -= Time.deltaTime / hoverEndurance * effort;
 

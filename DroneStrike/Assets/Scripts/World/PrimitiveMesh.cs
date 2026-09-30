@@ -207,13 +207,13 @@ public static class PrimitiveMesh
                 float px = (u - 0.5f) * width;
                 float pz = (v - 0.5f) * depth;
 
-                // 0 at the edge, 1 in the middle — the sheet is pinned at its
-                // corners and sags furthest from them.
-                float edgeFactor = Mathf.Min(Mathf.Min(u, 1f - u), Mathf.Min(v, 1f - v)) * 2f;
-                float bowl = edgeFactor * edgeFactor;
-
-                float jitter = (Mathf.PerlinNoise(seed + x * 0.6f, seed + z * 0.6f) - 0.5f) * sag * 0.3f;
-                float py = -bowl * sag + jitter;
+                // Three transverse ropes are tied to six poles at v=0, .5, 1.
+                // Both long side edges are also tied. The free spans between
+                // ropes sag; every real attachment stays exactly at rope height.
+                float freedom = Mathf.Sin(u * Mathf.PI) * Mathf.Abs(Mathf.Sin(v * 2f * Mathf.PI));
+                float jitter = (Mathf.PerlinNoise(seed + x * 0.6f, seed + z * 0.6f) - 0.5f)
+                    * sag * 0.12f * freedom;
+                float py = -freedom * sag + jitter;
 
                 grid[x, z] = new Vector3(px, py, pz);
             }

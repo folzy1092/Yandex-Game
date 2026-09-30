@@ -4,6 +4,14 @@ using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 
+public enum DroneLossCause { Impact, Obstacle, Battery, Signal, Water }
+
+public struct DroneLossReport
+{
+    public DroneLossCause cause;
+    public AttackReport attack;
+}
+
 /// <summary>
 /// Runs the mission: tracks the targets, hands out drones, and decides when it
 /// is won or lost.
@@ -15,6 +23,9 @@ using UnityEngine.SceneManagement;
 /// </summary>
 public class MissionManager : MonoBehaviour
 {
+    [Flags]
+    public enum PauseReason { None = 0, Manual = 1, Focus = 2, Advertisement = 4, Result = 8 }
+
     public static MissionManager Instance { get; private set; }
 
     [Header("Setup")]
@@ -48,7 +59,7 @@ public class MissionManager : MonoBehaviour
 
     public const int MaxExtraDrones = 3;
 
-    public bool CanRequestExtraDrone { get { return ExtraDronesGranted < MaxExtraDrones; } }
+    public bool CanRequestExtraDrone { get { return challenge == null && ExtraDronesGranted < MaxExtraDrones; } }
 
     /// <summary>Seconds between losing a drone and the next one launching.</summary>
     public float relaunchDelay = 2.5f;
@@ -57,18 +68,33 @@ public class MissionManager : MonoBehaviour
     public int TargetsDestroyed { get; private set; }
     public int DronesRemaining { get; private set; }
     public int Score { get; private set; }
+    public int DronesUsed { get; private set; }
+    public float ElapsedTime { get; private set; }
+    public float ActiveFlightTime { get; private set; }
+    public float WaitingTime { get; private set; }
+    public DroneLossReport LastDroneReport { get; private set; }
+    public bool HasChallenge { get { return challenge != null; } }
+    public MissionDefinition Challenge { get { return challenge != null ? challenge.Definition : default(MissionDefinition); } }
+    public int ChallengeIndex { get; private set; }
+    public string ObjectiveHint { get { return challenge != null ? challenge.TutorialPrompt : string.Empty; } }
+    public string FailureHint { get { return challenge != null ? challenge.FailureHint : string.Empty; } }
     public bool IsRunning { get; private set; }
+    public PauseReason PauseReasons { get; private set; }
+    public bool CanPilot { get { return IsRunning && PauseReasons == PauseReason.None
+        && Cursor.lockState == CursorLockMode.Locked && !YandexAds.IsBusy; } }
 
     /// <summary>The drone currently being flown, or null between launches.</summary>
     public DroneRig ActiveDrone { get; private set; }
 
     public event Action OnStateChanged;
+    public event Action OnPauseChanged;
 
     /// <summary>Fired with (won) when the mission ends.</summary>
     public event Action<bool> OnMissionEnded;
 
     /// <summary>Fired when the active drone loses its link, for the on-screen warning.</summary>
     public event Action OnSignalLost;
+    public event Action<DroneLossReport> OnDroneReported;
 
     readonly List<Target> targets = new List<Target>();
 
@@ -79,6 +105,11 @@ public class MissionManager : MonoBehaviour
     /// times over from a single loss.
     /// </summary>
     bool activeDroneLost;
+    bool signalLostOnActiveDrone;
+    bool victoryPending;
+    AttackReport activeAttack;
+    bool firstHitLogged;
+    MissionChallengeRunner challenge;
 
     void Awake()
     {
@@ -87,7 +118,11 @@ public class MissionManager : MonoBehaviour
 
     void OnDestroy()
     {
-        if (Instance == this) Instance = null;
+        if (Instance == this)
+        {
+            Instance = null;
+            Time.timeScale = 1f;
+        }
     }
 
     void Start()
@@ -96,8 +131,16 @@ public class MissionManager : MonoBehaviour
         // was saved with.
         warhead = DroneLoadout.SelectedWarhead;
 
+        if (SceneManager.GetActiveScene().name == "Mission1")
+        {
+            ChallengeIndex = MissionChallenges.SelectedIndex;
+            challenge = new MissionChallengeRunner();
+            challenge.Configure(MissionChallenges.Definitions[ChallengeIndex], MissionChallenges.Variant);
+            relaunchDelay = 1.25f;
+        }
+
         CollectTargets();
-        DronesRemaining = droneCount;
+        DronesRemaining = challenge != null ? challenge.Definition.droneBudget : droneCount;
         IsRunning = true;
 
         // The mouse aims the camera, so it has to be captured — otherwise it
@@ -106,20 +149,65 @@ public class MissionManager : MonoBehaviour
 
         LaunchDrone();
         Notify();
+        LogEvent("mission_start", "");
     }
 
     void Update()
     {
-        // DroneHUD owns Esc: it opens and closes the pause panel and re-locks
-        // the cursor itself on resume, so handling the key here too would race
-        // it for the same press. This just recaptures the mouse after a click
-        // — still needed because browsers drop pointer lock on their own in a
-        // WebGL build — and the Time.timeScale guard stops it firing while the
-        // pause panel is up, where a click is meant to hit a button, not yank
-        // the cursor back into the game.
-        if (IsRunning && Time.timeScale > 0f &&
-            Input.GetMouseButtonDown(0) && Cursor.lockState != CursorLockMode.Locked)
-            LockCursor(true);
+        if (IsRunning && PauseReasons == PauseReason.None)
+        {
+            ElapsedTime += Time.deltaTime;
+            if (CanPilot && ActiveDrone != null && !activeDroneLost)
+                ActiveFlightTime += Time.deltaTime;
+            else WaitingTime += Time.deltaTime;
+        }
+        if (challenge != null && IsRunning)
+            challenge.UpdateTutorial(CanPilot);
+        // Browsers can release pointer lock without sending Esc to Unity.
+        // Freeze the mission until the player explicitly presses Continue.
+        if (IsRunning && PauseReasons == PauseReason.None &&
+            Cursor.lockState != CursorLockMode.Locked)
+            SetPause(PauseReason.Focus, true);
+    }
+
+    void LateUpdate()
+    {
+        // A target can fail an order-sensitive objective inside the blast
+        // callback. Wait until the blast report and drone-loss event finish,
+        // then let failure take precedence over the same-frame target count.
+        if (challenge != null && challenge.Failed && IsRunning)
+        {
+            victoryPending = false;
+            EndMission(false);
+            return;
+        }
+        // Damage callbacks can finish the last target inside Warhead.ApplyBlast.
+        // Resolve victory after the warhead has emitted its complete report.
+        if (victoryPending && IsRunning)
+        {
+            victoryPending = false;
+            EndMission(true);
+        }
+    }
+
+    public void SetPause(PauseReason reason, bool active)
+    {
+        PauseReason next = active ? PauseReasons | reason : PauseReasons & ~reason;
+        if (next == PauseReasons) return;
+        PauseReasons = next;
+        Time.timeScale = PauseReasons == PauseReason.None ? 1f : 0f;
+        if (PauseReasons != PauseReason.None) LockCursor(false);
+        if (OnPauseChanged != null) OnPauseChanged();
+    }
+
+    public void ResumeFromPlayer()
+    {
+        if (!IsRunning || (PauseReasons & (PauseReason.Advertisement | PauseReason.Result)) != 0)
+            return;
+        if (!YandexAds.HasFocus) return;
+        LockCursor(true);
+        if (Cursor.lockState != CursorLockMode.Locked) return;
+        SetPause(PauseReason.Manual | PauseReason.Focus, false);
     }
 
     static void LockCursor(bool locked)
@@ -136,16 +224,33 @@ public class MissionManager : MonoBehaviour
         foreach (Target target in targets)
             target.OnDestroyed += HandleTargetDestroyed;
 
-        TargetsTotal = targets.Count;
+        TargetsTotal = challenge != null ? challenge.RequiredCount : targets.Count;
+    }
+
+    public Target ClosestRemainingTarget(Vector3 position)
+    {
+        Target closest = null;
+        float best = float.PositiveInfinity;
+        foreach (Target target in targets)
+        {
+            if (target == null || target.IsDestroyed ||
+                (challenge != null && !challenge.IsRequired(target))) continue;
+            float distance = (target.transform.position - position).sqrMagnitude;
+            if (distance >= best) continue;
+            best = distance;
+            closest = target;
+        }
+        return closest;
     }
 
     void HandleTargetDestroyed(Target target, int points)
     {
-        TargetsDestroyed++;
+        if (challenge == null || challenge.IsRequired(target)) TargetsDestroyed++;
         Score += points;
+        if (challenge != null) challenge.OnTargetDestroyed(target);
         Notify();
 
-        if (TargetsDestroyed >= TargetsTotal) EndMission(true);
+        if (TargetsTotal > 0 && TargetsDestroyed >= TargetsTotal) victoryPending = true;
     }
 
     // ---------- drones ----------
@@ -157,12 +262,28 @@ public class MissionManager : MonoBehaviour
     {
         if (launchPoints == null || launchPoints.Length == 0) return launchPoint;
 
+        if (lastLaunchPad < 0 && challenge != null &&
+            challenge.Definition.kind == ChallengeKind.FirstFlight &&
+            challenge.PrimaryTarget != null)
+        {
+            int nearest = 0;
+            float best = float.PositiveInfinity;
+            for (int i = 0; i < launchPoints.Length; i++)
+            {
+                if (launchPoints[i] == null) continue;
+                float distance = (launchPoints[i].position -
+                    challenge.PrimaryTarget.transform.position).sqrMagnitude;
+                if (distance < best) { best = distance; nearest = i; }
+            }
+            lastLaunchPad = nearest;
+            return launchPoints[nearest] != null ? launchPoints[nearest] : launchPoint;
+        }
+
         // One pad is not a choice; two or more must not repeat.
         if (launchPoints.Length == 1) return launchPoints[0];
 
-        int index = lastLaunchPad;
-        for (int attempt = 0; attempt < 8 && index == lastLaunchPad; attempt++)
-            index = UnityEngine.Random.Range(0, launchPoints.Length);
+        int index = UnityEngine.Random.Range(0, launchPoints.Length - (lastLaunchPad >= 0 ? 1 : 0));
+        if (lastLaunchPad >= 0 && index >= lastLaunchPad) index++;
 
         lastLaunchPad = index;
         return launchPoints[index] != null ? launchPoints[index] : launchPoint;
@@ -181,11 +302,14 @@ public class MissionManager : MonoBehaviour
         ActiveDrone.SignalLink.SetLaunchPoint(position);
 
         activeDroneLost = false;
+        signalLostOnActiveDrone = false;
+        activeAttack = new AttackReport();
 
         // Every way of losing a drone funnels through the same handler.
-        ActiveDrone.Warhead.OnDetonated += HandleDroneLost;
-        ActiveDrone.Battery.OnDepleted += HandleDroneLost;
-        ActiveDrone.Impact.OnCrashed += HandleDroneLost;
+        ActiveDrone.Warhead.OnImpactReport += HandleImpactReport;
+        ActiveDrone.Warhead.OnDetonated += HandleDetonation;
+        ActiveDrone.Battery.OnDepleted += HandleBatteryLoss;
+        ActiveDrone.Impact.OnCrashed += HandleCrash;
 
         // Losing the link is not a loss by itself: the drone falls and its
         // payload self-destructs, and that detonation is what counts. This only
@@ -197,15 +321,36 @@ public class MissionManager : MonoBehaviour
 
     void HandleSignalLost()
     {
+        signalLostOnActiveDrone = true;
         if (OnSignalLost != null) OnSignalLost();
     }
 
-    void HandleDroneLost()
+    void HandleImpactReport(AttackReport report)
+    {
+        activeAttack = report;
+        if (!firstHitLogged && report.targetsHit > 0)
+        {
+            firstHitLogged = true;
+            LogEvent("first_hit", "damage=" + Mathf.RoundToInt(report.damage));
+        }
+    }
+    void HandleDetonation() { HandleDroneLost(ActiveDrone != null && ActiveDrone.Warhead.WasSubmerged
+        ? DroneLossCause.Water : signalLostOnActiveDrone ? DroneLossCause.Signal
+        : activeAttack.targetsHit > 0 ? DroneLossCause.Impact : DroneLossCause.Obstacle); }
+    void HandleBatteryLoss() { HandleDroneLost(DroneLossCause.Battery); }
+    void HandleCrash() { HandleDroneLost(DroneLossCause.Obstacle); }
+
+    void HandleDroneLost(DroneLossCause cause)
     {
         if (!IsRunning || activeDroneLost) return;
         activeDroneLost = true;
 
-        DronesRemaining--;
+        LastDroneReport = new DroneLossReport { cause = cause, attack = activeAttack };
+        LogEvent("drone_lost", "cause=" + cause);
+        if (OnDroneReported != null) OnDroneReported(LastDroneReport);
+
+        if (challenge == null || challenge.TutorialComplete) DronesRemaining--;
+        DronesUsed++;
         Notify();
 
         if (DronesRemaining <= 0)
@@ -250,12 +395,6 @@ public class MissionManager : MonoBehaviour
 
         YandexAds.ShowRewarded(watched =>
         {
-#if UNITY_EDITOR
-            // No ad network in the editor, so the revive could never be tested
-            // before a build. Editor only — a shipped build grants nothing
-            // without a completed view.
-            watched = true;
-#endif
             if (watched) GrantExtraDrone();
             if (onResolved != null) onResolved(watched);
         });
@@ -273,7 +412,7 @@ public class MissionManager : MonoBehaviour
         if (!IsRunning)
         {
             IsRunning = true;
-            LockCursor(true);
+            SetPause(PauseReason.Result, false);
         }
 
         Notify();
@@ -284,6 +423,8 @@ public class MissionManager : MonoBehaviour
     /// <summary>Back to the briefing screen.</summary>
     public void ReturnToMenu()
     {
+        PauseReasons = PauseReason.None;
+        Time.timeScale = 1f;
         LockCursor(false);
         SceneManager.LoadScene("MainMenu");
     }
@@ -298,19 +439,46 @@ public class MissionManager : MonoBehaviour
 
         // The results screen has buttons, so the mouse has to come back.
         LockCursor(false);
+        SetPause(PauseReason.Result, true);
 
         // Clearing a map is what opens the next one without an ad.
-        if (won) MissionCatalog.MarkCleared(SceneManager.GetActiveScene().name);
+        if (won && challenge != null)
+        {
+            MissionChallenges.RecordWin(ChallengeIndex, ElapsedTime, DronesUsed);
+            if (ChallengeIndex == MissionChallenges.Definitions.Length - 1)
+                MissionCatalog.MarkCleared(SceneManager.GetActiveScene().name);
+        }
+        else if (won) MissionCatalog.MarkCleared(SceneManager.GetActiveScene().name);
 
         if (OnMissionEnded != null) OnMissionEnded(won);
+        LogEvent("mission_end", "won=" + won + " active=" + ActiveFlightTime.ToString("0.0")
+            + " waiting=" + WaitingTime.ToString("0.0"));
     }
 
     public void Restart()
     {
+        if (challenge != null) MissionChallenges.AdvanceVariant();
         // An interstitial on the transition between attempts: the one break in
         // play where an ad does not interrupt anything.
-        YandexAds.ShowFullscreen(_ =>
+        YandexAds.ShowIntermission(() =>
             SceneManager.LoadScene(SceneManager.GetActiveScene().name));
+    }
+
+    public void NextChallenge()
+    {
+        if (challenge == null || ChallengeIndex + 1 >= MissionChallenges.Definitions.Length) return;
+        MissionChallenges.SelectedIndex = ChallengeIndex + 1;
+        LogEvent("next_mission", "next=" + MissionChallenges.Selected.id);
+        YandexAds.ShowIntermission(() => SceneManager.LoadScene(SceneManager.GetActiveScene().name));
+    }
+
+    void LogEvent(string eventName, string detail)
+    {
+        string missionId = challenge != null ? challenge.Definition.id
+            : SceneManager.GetActiveScene().name;
+        Debug.Log("DroneStrikeAnalytics " + eventName + " mission=" + missionId +
+            " kit=" + DroneLoadout.Selected.id + "/" + warhead +
+            " elapsed=" + ElapsedTime.ToString("0.0") + " " + detail);
     }
 
     void Notify()

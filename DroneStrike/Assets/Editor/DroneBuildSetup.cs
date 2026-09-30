@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using UnityEditor;
+using UnityEditor.Build.Reporting;
 using UnityEngine;
 
 /// <summary>
@@ -72,5 +73,31 @@ public static class DroneBuildSetup
 
         Debug.Log("Drone Strike: build settings applied — " + scenes.Count
                   + " scenes, WebGL, compression off, Yandex template.");
+    }
+
+    [MenuItem("Tools/Drone Strike/4 - Build WebGL")]
+    public static void BuildWebGL()
+    {
+        if (!EditorUserBuildSettings.SwitchActiveBuildTarget(BuildTargetGroup.WebGL, BuildTarget.WebGL))
+            throw new System.InvalidOperationException("Drone Strike: WebGL Build Support is unavailable.");
+
+        var enabledScenes = new List<string>();
+        foreach (EditorBuildSettingsScene scene in EditorBuildSettings.scenes)
+            if (scene.enabled) enabledScenes.Add(scene.path);
+        if (enabledScenes.Count == 0)
+            throw new System.InvalidOperationException("Drone Strike: build scenes first with BUILD EVERYTHING.");
+
+        BuildReport report = BuildPipeline.BuildPlayer(new BuildPlayerOptions
+        {
+            scenes = enabledScenes.ToArray(),
+            locationPathName = "Builds/WebGL",
+            target = BuildTarget.WebGL,
+            options = BuildOptions.None
+        });
+        if (report.summary.result != BuildResult.Succeeded)
+            throw new System.InvalidOperationException("Drone Strike: WebGL build failed: " + report.summary.result);
+
+        Debug.Log("Drone Strike: WebGL build ready in Builds/WebGL (" +
+                  report.summary.totalSize + " bytes).");
     }
 }

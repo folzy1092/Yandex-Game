@@ -14,13 +14,15 @@ mergeInto(LibraryManager.library, {
   // created by YandexAds.cs.
   $yandexState: {
     ready: false,
+    gameReadyRequested: false,
+    gameReadySent: false,
     receiver: 'YandexAds'
   },
 
   YandexSendToUnity__deps: ['$yandexState'],
   YandexSendToUnity: function () {},
 
-  YandexInitSDK__deps: ['$yandexState'],
+  YandexInitSDK__deps: ['$yandexState', '$yandexNotifyReady'],
   YandexInitSDK: function () {
     var send = function (method, value) {
       try {
@@ -72,6 +74,7 @@ mergeInto(LibraryManager.library, {
       YaGames.init().then(function (sdk) {
         window.ysdk = sdk;
         yandexState.ready = true;
+        if (yandexState.gameReadyRequested) yandexNotifyReady();
 
         var language = browserLanguage();
         try {
@@ -111,17 +114,23 @@ mergeInto(LibraryManager.library, {
 
   // Tells the platform the game has finished loading. Yandex uses this to stop
   // the loading indicator and to decide when ads may start.
-  YandexGameReady__deps: ['$yandexState'],
-  YandexGameReady: function () {
-    if (!yandexState.ready || !window.ysdk) return;
-
+  $yandexNotifyReady__deps: ['$yandexState'],
+  $yandexNotifyReady: function () {
+    if (!yandexState.ready || !yandexState.gameReadyRequested || yandexState.gameReadySent || !window.ysdk) return;
     try {
       if (window.ysdk.features && window.ysdk.features.LoadingAPI) {
         window.ysdk.features.LoadingAPI.ready();
+        yandexState.gameReadySent = true;
       }
     } catch (e) {
       console.warn('Yandex SDK: LoadingAPI.ready failed', e);
     }
+  },
+
+  YandexGameReady__deps: ['$yandexState', '$yandexNotifyReady'],
+  YandexGameReady: function () {
+    yandexState.gameReadyRequested = true;
+    yandexNotifyReady();
   },
 
   YandexShowFullscreen__deps: ['$yandexState'],
@@ -133,39 +142,56 @@ mergeInto(LibraryManager.library, {
       return;
     }
 
-    window.ysdk.adv.showFullscreenAdv({
-      callbacks: {
-        onOpen: function () { send('OnAdOpened', ''); },
-        onClose: function (wasShown) { send('OnFullscreenClosed', wasShown ? 'true' : 'false'); },
-        onError: function (error) {
-          console.warn('Yandex SDK: fullscreen ad error', error);
-          send('OnFullscreenClosed', 'false');
+    var closed = false;
+    var finish = function (shown) {
+      if (closed) return;
+      closed = true;
+      send('OnFullscreenClosed', shown ? 'true' : 'false');
+    };
+    try {
+      window.ysdk.adv.showFullscreenAdv({
+        callbacks: {
+          onOpen: function () { if (!closed) send('OnAdOpened', ''); },
+          onClose: finish,
+          onError: function (error) {
+            console.warn('Yandex SDK: fullscreen ad error', error);
+            finish(false);
+          }
         }
-      }
-    });
+      });
+    } catch (error) { finish(false); }
   },
 
   YandexShowRewarded__deps: ['$yandexState'],
   YandexShowRewarded: function () {
     var send = window.__yandexSend || function () {};
-
     if (!yandexState.ready || !window.ysdk) {
       send('OnRewardedClosed', 'false');
       return;
     }
-
     var rewarded = false;
-
-    window.ysdk.adv.showRewardedVideo({
-      callbacks: {
-        onOpen: function () { send('OnAdOpened', ''); },
-        onRewarded: function () { rewarded = true; send('OnRewardGranted', ''); },
-        onClose: function () { send('OnRewardedClosed', rewarded ? 'true' : 'false'); },
-        onError: function (error) {
-          console.warn('Yandex SDK: rewarded ad error', error);
-          send('OnRewardedClosed', 'false');
+    var closed = false;
+    var finish = function () {
+      if (closed) return;
+      closed = true;
+      send('OnRewardedClosed', rewarded ? 'true' : 'false');
+    };
+    try {
+      window.ysdk.adv.showRewardedVideo({
+        callbacks: {
+          onOpen: function () { if (!closed) send('OnAdOpened', ''); },
+          onRewarded: function () {
+            if (closed || rewarded) return;
+            rewarded = true;
+            send('OnRewardGranted', '');
+          },
+          onClose: finish,
+          onError: function (error) {
+            console.warn('Yandex SDK: rewarded ad error', error);
+            finish();
+          }
         }
-      }
-    });
+      });
+    } catch (error) { finish(); }
   }
 });

@@ -1,19 +1,16 @@
 using UnityEngine;
 
 /// <summary>
-/// The rotor hum, pitched and volumed by throttle so it actually tells the
-/// pilot something — spooling up into a dive reads as speed, dying away as the
-/// motors cut reads as trouble, before the player's eyes even confirm it.
+/// The original single-layer rotor hum. It follows throttle without stacking
+/// bright motor and wind layers into a constant high-pitched whine.
 /// </summary>
 [RequireComponent(typeof(DroneController))]
 public class DroneAudio : MonoBehaviour
 {
-    public float minPitch = 0.85f;
-    public float maxPitch = 1.35f;
-    public float minVolume = 0.07f;
-    public float maxVolume = 0.22f;
-
-    /// <summary>How quickly volume fades once the motors cut, in units/second.</summary>
+    public float minPitch = 0.82f;
+    public float maxPitch = 1.12f;
+    public float minVolume = 0.06f;
+    public float maxVolume = 0.18f;
     public float fadeOutRate = 1.4f;
 
     DroneController drone;
@@ -36,6 +33,7 @@ public class DroneAudio : MonoBehaviour
             return;
         }
 
+        if (!source.isPlaying) source.Play();
         float throttle = drone.ThrottleLevel;
         source.pitch = Mathf.Lerp(minPitch, maxPitch, throttle);
         source.volume = Mathf.Lerp(minVolume, maxVolume, throttle);

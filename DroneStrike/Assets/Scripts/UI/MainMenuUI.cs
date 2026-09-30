@@ -11,10 +11,8 @@ using System.Collections;
 /// The home screen shows what is currently fitted and lets the player change
 /// it; the choosing happens on its own panel with room to read.
 ///
-/// Everything locked is opened by a rewarded ad, and the maps can also be
-/// opened by clearing the one before them. That is the whole monetisation
-/// model, and it stays honest: the starter drone with the compact charge
-/// clears every map in the game, so every ad is a shortcut rather than a toll.
+/// Mission medals open equipment through play. Rewarded ads remain an optional
+/// shortcut, and the free scout with the compact charge can finish the campaign.
 /// </summary>
 public class MainMenuUI : MonoBehaviour
 {
@@ -75,6 +73,7 @@ public class MainMenuUI : MonoBehaviour
     GameObject homePanel;
     GameObject dronePanel;
     GameObject warheadPanel;
+    GameObject challengePanel;
 
     Text droneNavLabel;
     Text warheadNavLabel;
@@ -91,6 +90,8 @@ public class MainMenuUI : MonoBehaviour
     Button[] mapButtons;
     Image[] mapFrames;
     Text[] mapActions;
+    Button[] challengeButtons;
+    Text[] challengeActions;
 
     /// <summary>True while an ad is in flight, so nothing can be pressed twice.</summary>
     bool waitingForAd;
@@ -188,10 +189,12 @@ public class MainMenuUI : MonoBehaviour
         homePanel = CreatePanel("Home");
         dronePanel = CreatePanel("Drones");
         warheadPanel = CreatePanel("Charges");
+        challengePanel = CreatePanel("Challenges");
 
         BuildHomePanel(homePanel.transform);
         BuildDronePanel(dronePanel.transform);
         BuildWarheadPanel(warheadPanel.transform);
+        BuildChallengePanel(challengePanel.transform);
 
         // Status sits above the controls line on every panel, so a message about
         // an ad always appears in the same place whichever panel raised it.
@@ -394,7 +397,10 @@ public class MainMenuUI : MonoBehaviour
                                                 new Vector2(MapCardWidth - 56f, 62f));
             tagline.horizontalOverflow = HorizontalWrapMode.Wrap;
 
-            UIFactory.CreateText(frame.transform, "Targets", Localization.F("menu.targets", map.targetCount), 21,
+            string countLabel = i == 0
+                ? (Localization.Current == Localization.Language.English ? "6 MISSIONS" : "6 ЗАДАНИЙ")
+                : Localization.F("menu.targets", map.targetCount);
+            UIFactory.CreateText(frame.transform, "Targets", countLabel, 21,
                                  TextAnchor.MiddleCenter, new Color(0.55f, 0.62f, 0.60f),
                                  new Vector2(0.5f, 1f), new Vector2(0.5f, 1f),
                                  new Vector2(0f, -156f), new Vector2(MapCardWidth - 40f, 26f));
@@ -619,6 +625,7 @@ public class MainMenuUI : MonoBehaviour
         homePanel.SetActive(panel == homePanel);
         dronePanel.SetActive(panel == dronePanel);
         warheadPanel.SetActive(panel == warheadPanel);
+        challengePanel.SetActive(panel == challengePanel);
 
         SetStatus("");
     }
@@ -631,6 +638,7 @@ public class MainMenuUI : MonoBehaviour
         RefreshDrones();
         RefreshCharges();
         RefreshMaps();
+        RefreshChallenges();
         RefreshHome();
     }
 
@@ -724,6 +732,75 @@ public class MainMenuUI : MonoBehaviour
 
             Dress(mapFrames[i], mapButtons[i], mapActions[i], action, unlocked, true, active);
         }
+    }
+
+    void BuildChallengePanel(Transform parent)
+    {
+        float y = PanelHeader(parent,
+            Localization.Current == Localization.Language.English ? "OUTPOST MISSIONS" : "ЗАДАНИЯ ОПОРНОГО ПУНКТА",
+            Localization.Current == Localization.Language.English
+                ? "Complete a mission to open the next one. Improve your medal on replay."
+                : "Выполни задание, чтобы открыть следующее. Улучшай медаль при повторе.");
+        const float width = 430f;
+        const float height = 260f;
+        const float gap = 30f;
+        challengeButtons = new Button[MissionChallenges.Definitions.Length];
+        challengeActions = new Text[challengeButtons.Length];
+
+        for (int i = 0; i < challengeButtons.Length; i++)
+        {
+            MissionDefinition definition = MissionChallenges.Definitions[i];
+            int index = i;
+            float x = (i % 3 - 1) * (width + gap);
+            float rowY = y - height * 0.5f - (i / 3) * (height + gap);
+            Image frame = Card(parent, "Challenge" + i, new Vector2(x, rowY),
+                               new Vector2(width, height), new Color(0.58f, 0.70f, 0.31f));
+            UIFactory.CreateText(frame.transform, "Name", definition.Title, 26,
+                TextAnchor.MiddleCenter, Ink, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f),
+                new Vector2(0f, -26f), new Vector2(width - 30f, 38f));
+            Text brief = UIFactory.CreateText(frame.transform, "Brief", definition.Brief, 19,
+                TextAnchor.UpperCenter, InkDim, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f),
+                new Vector2(0f, -70f), new Vector2(width - 40f, 58f));
+            brief.horizontalOverflow = HorizontalWrapMode.Wrap;
+            bool english = Localization.Current == Localization.Language.English;
+            string seconds = english ? "s" : "с";
+            string thresholds = (english ? "GOLD" : "ЗОЛОТО") + " ≤" +
+                Mathf.CeilToInt(definition.goldSeconds) + seconds + "/" + definition.goldDrones +
+                "  ·  " + (english ? "SILVER" : "СЕРЕБРО") + " ≤" +
+                Mathf.CeilToInt(definition.silverSeconds) + seconds + "/" + definition.silverDrones +
+                "\n" + (english ? "BRONZE: finish" : "БРОНЗА: завершить");
+            UIFactory.CreateText(frame.transform, "MedalThresholds", thresholds, 18,
+                TextAnchor.MiddleCenter, InkDim, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f),
+                new Vector2(0f, -135f), new Vector2(width - 28f, 38f));
+            Button button = CardButton(frame.transform, width, () => LaunchChallenge(index));
+            button.GetComponent<RectTransform>().anchoredPosition = new Vector2(0f, 14f);
+            challengeButtons[i] = button;
+            challengeActions[i] = button.GetComponentInChildren<Text>();
+        }
+        BackButton(parent);
+    }
+
+    void RefreshChallenges()
+    {
+        if (challengeButtons == null) return;
+        for (int i = 0; i < challengeButtons.Length; i++)
+        {
+            bool unlocked = MissionChallenges.IsUnlocked(i);
+            challengeButtons[i].interactable = unlocked;
+            int medal = MissionChallenges.BestMedal(i);
+            challengeActions[i].text = !unlocked
+                ? (Localization.Current == Localization.Language.English ? "LOCKED" : "ЗАКРЫТО")
+                : medal == 0
+                    ? (Localization.Current == Localization.Language.English ? "FLY" : "ВЫЛЕТ")
+                    : medal == 3 ? "★ ★ ★" : medal == 2 ? "★ ★ ☆" : "★ ☆ ☆";
+        }
+    }
+
+    void LaunchChallenge(int index)
+    {
+        if (!MissionChallenges.IsUnlocked(index)) return;
+        MissionChallenges.SelectedIndex = index;
+        SceneManager.LoadScene("Mission1");
     }
 
     /// <summary>Paints one card for its state. The same rules on all three rows.</summary>
@@ -842,13 +919,6 @@ public class MainMenuUI : MonoBehaviour
         {
             waitingForAd = false;
 
-#if UNITY_EDITOR
-            // There is no ad network in the editor, so every request reports
-            // "not watched" and the unlock could never be tested before a build.
-            // Editor only — a shipped build grants nothing without a completed view.
-            watched = true;
-#endif
-
             if (watched)
             {
                 grant();
@@ -871,6 +941,7 @@ public class MainMenuUI : MonoBehaviour
     void Launch()
     {
         if (waitingForAd) return;
-        SceneManager.LoadScene(MissionCatalog.Selected.sceneName);
+        if (MissionCatalog.SelectedIndex == 0) ShowPanel(challengePanel);
+        else SceneManager.LoadScene(MissionCatalog.Selected.sceneName);
     }
 }
