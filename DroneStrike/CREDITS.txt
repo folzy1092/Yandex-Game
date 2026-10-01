@@ -8,7 +8,8 @@ Author:  Kenney (www.kenney.nl)
 License: Creative Commons CC0 1.0 Universal (public domain)
          https://creativecommons.org/publicdomain/zero/1.0/
 
-Files used (Assets/Resources/Textures/Particles/):
+Files used (Assets/Resources/Textures/Particles/; the unused spares live in
+Assets/Textures/ParticlesSpare/ so they stay out of the WebGL build):
   fire_01.png    — fire particle sprite
   flame_05.png   — spare, currently unused
   smoke_01.png   — spare, currently unused

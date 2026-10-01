@@ -26,7 +26,13 @@ Useful methods: `DroneBuildSetup.BuildEverything` (compile + all scenes;
 check the log for `error CS`, `built with 11/13/14 targets`, `grounding
 check`), `ReviewCapture.Capture` (PNG review shots of props to
 `Builds/Review`, look at them), `DroneBuildSetup.BuildWebGL` (Builds/WebGL;
-zip its contents with index.html at the archive root for Yandex). Flying
+zip its contents with index.html at the archive root for Yandex).
+`WebOptimizer.Apply` sets every web release setting (gzip + decompression
+fallback, so the build runs on any static host; High stripping; LTO); do
+not hand-edit those in Project Settings. Beware: the built-in browser pane
+renders Unity WebGL washed-out when the pane is hidden behind the window —
+all builds, old and new, look pale there; judge visuals from ReviewCapture
+or a real browser, not that pane. Flying
 still needs a human in Play Mode or a normal browser. Cheaper checks that
 still apply:
 

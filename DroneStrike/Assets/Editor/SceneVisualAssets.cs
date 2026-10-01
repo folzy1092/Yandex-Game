@@ -84,6 +84,10 @@ public static class SceneVisualAssets
             EditorUtility.CopySerialized(mesh, result);
             EditorUtility.SetDirty(result);
         }
+        // Quantised vertex data in the build (~1 cm position error on a
+        // 700 m map): the generated terrain and combined meshes were 13 MB
+        // of the WebGL data file uncompressed.
+        MeshUtility.SetMeshCompression(result, ModelImporterMeshCompression.Medium);
         saved.Add(mesh, result);
         return result;
     }

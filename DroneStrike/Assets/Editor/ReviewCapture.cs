@@ -215,6 +215,32 @@ public static class ReviewCapture
         EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
     }
 
+    /// <summary>
+    /// The main menu as the player sees it. MainMenuUI builds itself in
+    /// Start, which edit mode never calls, so Build() is invoked directly and
+    /// the overlay canvas is switched to the menu camera to land in the PNG.
+    /// </summary>
+    [MenuItem("Tools/Drone Strike/Capture Menu Shot")]
+    public static void CaptureMenu()
+    {
+        Directory.CreateDirectory(Folder);
+        EditorSceneManager.OpenScene("Assets/Scenes/MainMenu.unity", OpenSceneMode.Single);
+        var menu = Object.FindFirstObjectByType<MainMenuUI>();
+        Camera camera = Object.FindFirstObjectByType<Camera>();
+        if (menu == null || camera == null) return;
+        typeof(MainMenuUI).GetMethod("Build", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)
+            .Invoke(menu, null);
+        foreach (Canvas canvas in Object.FindObjectsByType<Canvas>(FindObjectsSortMode.None))
+        {
+            canvas.renderMode = RenderMode.ScreenSpaceCamera;
+            canvas.worldCamera = camera;
+            canvas.planeDistance = 1f;
+        }
+        Canvas.ForceUpdateCanvases();
+        Render(camera, "menu");
+        EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
+    }
+
     static MissionDefinition FindDefinition(ChallengeKind kind)
     {
         foreach (MissionDefinition definition in MissionChallenges.Definitions)

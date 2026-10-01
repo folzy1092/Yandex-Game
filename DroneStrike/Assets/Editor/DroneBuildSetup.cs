@@ -59,10 +59,6 @@ public static class DroneBuildSetup
             Debug.Log("Drone Strike: removed the retired scene " + retired + ".");
         }
 
-        ConfigureMusicImport();
-
-        // Yandex Games serves the plain uncompressed WebGL layout most reliably.
-        PlayerSettings.WebGL.compressionFormat = WebGLCompressionFormat.Disabled;
         PlayerSettings.runInBackground = true;
 
         // Unity's stock template centres a fixed-size canvas and draws a logo
@@ -73,30 +69,12 @@ public static class DroneBuildSetup
         // generates, with the canvas stretched and the footer dropped.
         PlayerSettings.WebGL.template = "PROJECT:YandexGames";
 
-        Debug.Log("Drone Strike: build settings applied — " + scenes.Count
-                  + " scenes, WebGL, compression off, Yandex template.");
-    }
+        // Compression, stripping, code size, shader variants, audio import:
+        // see WebOptimizer for each choice and the reasoning.
+        WebOptimizer.Apply();
 
-    /// <summary>
-    /// Music ships as mono, compressed, streamed: two stereo MP3s would
-    /// otherwise add ~11 MB to a browser download for a background bed.
-    /// </summary>
-    static void ConfigureMusicImport()
-    {
-        foreach (string guid in AssetDatabase.FindAssets("t:AudioClip", new[] { "Assets/Resources/Audio/Music" }))
-        {
-            string path = AssetDatabase.GUIDToAssetPath(guid);
-            var importer = AssetImporter.GetAtPath(path) as AudioImporter;
-            if (importer == null) continue;
-            importer.forceToMono = true;
-            importer.loadInBackground = true;
-            AudioImporterSampleSettings settings = importer.defaultSampleSettings;
-            settings.loadType = AudioClipLoadType.Streaming;
-            settings.compressionFormat = AudioCompressionFormat.Vorbis;
-            settings.quality = 0.4f;
-            importer.defaultSampleSettings = settings;
-            importer.SaveAndReimport();
-        }
+        Debug.Log("Drone Strike: build settings applied — " + scenes.Count
+                  + " scenes, WebGL, gzip + fallback, Yandex template.");
     }
 
     [MenuItem("Tools/Drone Strike/4 - Build WebGL")]
@@ -104,6 +82,10 @@ public static class DroneBuildSetup
     {
         if (!EditorUserBuildSettings.SwitchActiveBuildTarget(BuildTargetGroup.WebGL, BuildTarget.WebGL))
             throw new System.InvalidOperationException("Drone Strike: WebGL Build Support is unavailable.");
+
+        // Re-applied on every build: wasm code optimization lives in Library/
+        // (per machine), so the project files alone do not carry it.
+        WebOptimizer.Apply();
 
         var enabledScenes = new List<string>();
         foreach (EditorBuildSettingsScene scene in EditorBuildSettings.scenes)

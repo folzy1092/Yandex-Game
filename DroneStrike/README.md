@@ -139,6 +139,16 @@ powershell -ExecutionPolicy Bypass -File setup.ps1 -Game DroneStrike -UnityProje
 5. Открыть `Assets/Scenes/MainMenu.unity` → Play. Карты —
    `Assets/Scenes/Mission1..3.unity`, запускаются кнопкой «В БОЙ».
 
+   Для релизной WebGL-сборки удали из `Packages/manifest.json` пакеты,
+   которые игре не нужны (проект собирается и без них, а сборка меньше):
+   `com.unity.collab-proxy`, `com.unity.inputsystem` (игра читает старый
+   Input Manager), `com.unity.multiplayer.center`, `com.unity.timeline`,
+   `com.unity.visualscripting` и модули `adaptiveperformance`, `ai`,
+   `androidjni`, `cloth`, `screencapture`, `terrain`, `terrainphysics`,
+   `tilemap`, `umbra`, `unityanalytics`, `vectorgraphics`, `vehicles`,
+   `video`, `vr`, `wind`, `xr`. `WebOptimizer` сам переключит ввод на
+   legacy, когда Input System пропадёт.
+
 6. Для браузерной сборки: **Tools → Drone Strike → 4 - Build WebGL**.
    Результат сохраняется в `Builds/WebGL` живого Unity-проекта. Перед
    публикацией проверь управление, рекламу и производительность в браузере.
@@ -184,6 +194,11 @@ powershell -ExecutionPolicy Bypass -File setup.ps1 -Game DroneStrike -UnityProje
 - Пропорции: сосны 1.5–2.6 масштаба (≈10–17 м), мешки в стенках ≈0.6 м
   (было ≈1 м), секции окопа по 3 м (мешки ≈0.6 м). Дрон оставлен 0.68 м
   между моторами — на этот размер откалибрована физика.
+- WebGL-сборка ~20 МБ (было 61.5): gzip + распаковка в браузере, High
+  stripping, wasm Disk Size + LTO, без исключений, без заставки Unity,
+  сжатые меши карт, Vorbis-моно аудио — всё задаёт `Editor/WebOptimizer.cs`
+  при BUILD EVERYTHING и при каждой WebGL-сборке (`Tools → Drone Strike →
+  Report Web Settings` печатает сохранённые значения).
 - Звук мотора — реальные бортовые записи FPV (CC0), взрывы — реальные
   подрывы (CC0, `Tools/BuildExplosionClips.py`), три варианта на тип заряда.
 - Музыка: в меню «For the Fallen», в миссиях «At Launch» (Kevin MacLeod,
